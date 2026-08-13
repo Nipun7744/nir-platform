@@ -1,0 +1,55 @@
+<svg viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="coreGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#E74C3C"/>
+      <stop offset="50%" stop-color="#F7B733"/>
+      <stop offset="100%" stop-color="#00C97A"/>
+    </linearGradient>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1B3B6F"/>
+      <stop offset="100%" stop-color="#00A86B"/>
+    </linearGradient>
+    <linearGradient id="underlineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00A86B"/>
+      <stop offset="50%" stop-color="#F7B733"/>
+      <stop offset="100%" stop-color="#E74C3C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ============ NIR MARK: node network + repository layers ============ -->
+  <g transform="translate(30,30)">
+
+    <!-- Layered repository stack -->
+    <ellipse cx="80" cy="128" rx="58" ry="16" fill="#1B3B6F" opacity="0.12"/>
+    <path d="M22 118 L80 100 L138 118 L80 136 Z" fill="#1B3B6F"/>
+    <path d="M22 96 L80 78 L138 96 L80 114 Z" fill="#00A86B"/>
+    <path d="M22 74 L80 56 L138 74 L80 92 Z" fill="#F7B733"/>
+
+    <!-- Node network burst rising above the stack (innovation) -->
+    <g stroke-width="2.5" stroke-linecap="round">
+      <line x1="80" y1="56" x2="80" y2="14" stroke="url(#ringGrad)"/>
+      <line x1="80" y1="56" x2="46" y2="30" stroke="url(#ringGrad)"/>
+      <line x1="80" y1="56" x2="114" y2="30" stroke="url(#ringGrad)"/>
+      <line x1="80" y1="56" x2="34" y2="58" stroke="url(#ringGrad)"/>
+      <line x1="80" y1="56" x2="126" y2="58" stroke="url(#ringGrad)"/>
+    </g>
+    <circle cx="80" cy="14" r="8" fill="url(#coreGrad)"/>
+    <circle cx="46" cy="30" r="6" fill="#E74C3C"/>
+    <circle cx="114" cy="30" r="6" fill="#00C97A"/>
+    <circle cx="34" cy="58" r="5.5" fill="#F7B733"/>
+    <circle cx="126" cy="58" r="5.5" fill="#1B3B6F"/>
+    <circle cx="80" cy="56" r="9" fill="url(#coreGrad)"/>
+  </g>
+
+  <!-- Wordmark -->
+  <g transform="translate(210,0)">
+    <text x="0" y="105" font-family="Georgia, 'Times New Roman', serif" font-size="76" font-weight="700" letter-spacing="2">
+      <tspan fill="#1B3B6F">N</tspan><tspan fill="#00A86B">I</tspan><tspan fill="#E74C3C">R</tspan>
+    </text>
+    <text x="4" y="135" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="600" fill="#1B3B6F" letter-spacing="2.5">NATIONAL INNOVATION REPOSITORY</text>
+    <rect x="4" y="146" width="336" height="4" fill="url(#underlineGrad)"/>
+    <circle cx="8" cy="166" r="4" fill="#00A86B"/>
+    <circle cx="8" cy="166" r="4" fill="none" stroke="#F42A41" stroke-width="1.5" opacity="0.85"/>
+    <text x="18" y="170" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#1B3B6F" letter-spacing="3">BANGLADESH</text>
+  </g>
+</svg>

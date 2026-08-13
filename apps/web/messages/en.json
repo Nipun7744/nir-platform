@@ -1,0 +1,190 @@
+{
+  "nav": {
+    "repository": "Repository",
+    "challenges": "Challenges",
+    "statistics": "Statistics",
+    "resources": "Resources",
+    "news": "News & Events",
+    "about": "About",
+    "faq": "FAQ",
+    "signIn": "Sign in",
+    "submit": "Submit an Innovation",
+    "dashboard": "Dashboard",
+    "signOut": "Sign out"
+  },
+  "topbar": {
+    "government": "Government of the People's Republic of Bangladesh",
+    "org": "Aspire to Innovate (a2i), ICT Division"
+  },
+  "home": {
+    "eyebrow": "NIR · The national record of Bangladeshi innovation",
+    "titleLine1": "Every innovation in Bangladesh,",
+    "titleHighlight": "on the record.",
+    "titleLine2": "",
+    "description": "From village prototypes to national pilots — the National Innovation Repository documents, evaluates and connects innovations from government, academia, industry and citizens, so good ideas are found, funded and scaled.",
+    "searchPlaceholder": "Search innovations, innovators, organizations…",
+    "search": "Search",
+    "exploreInnovations": "Explore innovations",
+    "submitInnovation": "Submit an innovation",
+    "quickLinks": {
+      "browseTitle": "Browse innovations",
+      "browseDesc": "Discover solutions from every division of Bangladesh — from idea stage to commercial product.",
+      "browseCta": "Open the repository",
+      "orgsTitle": "Explore organizations",
+      "orgsDesc": "Universities, startups, government agencies and industry partners building the ecosystem.",
+      "orgsCta": "See who's innovating",
+      "statsTitle": "National statistics",
+      "statsDesc": "Key insights and trends from the national innovation ecosystem, updated as the record grows.",
+      "statsCta": "View the numbers"
+    },
+    "stats": {
+      "label": "National count",
+      "innovations": "Innovations",
+      "innovators": "Innovators",
+      "organizations": "Organizations",
+      "challenges": "Challenges",
+      "funded": "Ideas funded"
+    },
+    "featured": {
+      "eyebrow": "From the repository",
+      "title": "Featured innovations",
+      "description": "Solutions that moved from funded prototype to the field — and are now part of Bangladesh's growing innovation record.",
+      "cta": "Explore all innovations"
+    },
+    "categories": {
+      "eyebrow": "20 categories",
+      "title": "Browse by category",
+      "cta": "See every category"
+    },
+    "challenge": {
+      "openForApplications": "Open for applications",
+      "deadline": "Deadline",
+      "timeline": "Timeline",
+      "prototypeGrant": "Prototype grant",
+      "organizer": "Organizer",
+      "applyNow": "Apply now",
+      "viewDetails": "View details"
+    },
+    "challengePopup": {
+      "eyebrow": "Challenge open now",
+      "deadline": "Deadline",
+      "timeline": "Timeline",
+      "organizer": "Organizer",
+      "applyNow": "Apply now",
+      "viewDetails": "View details",
+      "dismiss": "Maybe later",
+      "close": "Close"
+    },
+    "news": {
+      "eyebrow": "Latest from the ecosystem",
+      "title": "News & events",
+      "cta": "All news & events"
+    },
+    "partners": {
+      "eyebrow": "Ecosystem partners"
+    }
+  },
+  "footer": {
+    "tagline": "The National Innovation Repository documents, evaluates, and connects innovation across Bangladesh.",
+    "explore": "Explore",
+    "participate": "Participate",
+    "contact": "Contact",
+    "registerInnovator": "Register as an innovator",
+    "registerInvestor": "Register as an investor",
+    "ministryPortal": "Ministry portal",
+    "successStories": "Success stories",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "accessibility": "Accessibility",
+    "rights": "Government of the People's Republic of Bangladesh — Aspire to Innovate (a2i), ICT Division"
+  },
+  "about": {
+    "eyebrow": "About the repository",
+    "title": "The National Innovation Repository",
+    "description": "The National Innovation Repository (NIR) is a centralized digital platform that collects, preserves, manages, and showcases innovation-related knowledge, solutions, research outputs, technologies, intellectual assets, and best practices developed across Bangladesh. The repository serves as a national knowledge-sharing ecosystem, connecting innovators, academia, industry, government, and development partners to foster collaboration, technology adoption, commercialization, and innovation-driven development.",
+    "visionLabel": "Vision",
+    "vision": "To build a connected, collaborative, and innovation-driven Bangladesh where knowledge, technology, and innovative solutions are accessible to all and contribute to sustainable national development.",
+    "missionLabel": "Mission",
+    "mission": "To strengthen Bangladesh's innovation ecosystem by connecting innovators, institutions, and innovation-related knowledge through collaboration among government, academia, industry, development partners, and civil society.",
+    "objectivesLabel": "Objectives",
+    "objectives": [
+      "Reduce innovation redundancy by improving visibility and documentation.",
+      "Enable innovation upscaling through institutional linkage and exposure.",
+      "Reduce duplication of funding by identifying previously supported innovations.",
+      "Promote innovation diffusion across sectors, regions, and communities.",
+      "Showcase impactful innovations to attract partnerships, funding, or adoption.",
+      "Strengthen collaboration among universities, startups, government, funders and industries.",
+      "Support evidence-informed planning and investment in innovation."
+    ],
+    "governanceLabel": "Governing authority",
+    "governance": "The NIR is developed and operated by Aspire to Innovate (a2i), ICT Division, Government of the People's Republic of Bangladesh, supported by the Cabinet Division and UNDP."
+  },
+  "faq": {
+    "eyebrow": "Need help?",
+    "title": "Frequently asked questions",
+    "description": "Answers to common questions about submitting an innovation, evaluation, funding, and using the repository."
+  },
+  "contact": {
+    "eyebrow": "Get in touch",
+    "title": "Contact us",
+    "description": "Questions about submitting an innovation, a partnership, or the platform itself — we'd like to hear from you.",
+    "addressLabel": "Address",
+    "phoneLabel": "Phone",
+    "emailLabel": "Email",
+    "formSubject": "Subject",
+    "formMessage": "Message",
+    "formName": "Your name",
+    "formEmail": "Your email",
+    "formSubmit": "Send message",
+    "formSuccess": "Thank you — your message has been received."
+  },
+  "auth": {
+    "signInTitle": "Sign in to NIR",
+    "signInSubtitle": "Track your submissions, evaluations, or investments.",
+    "registerTitle": "Create your NIR account",
+    "registerSubtitle": "Join innovators, evaluators, mentors, and investors across Bangladesh.",
+    "email": "Email address",
+    "password": "Password",
+    "fullName": "Full name",
+    "phone": "Phone number (optional)",
+    "roleLabel": "I'm creating an account as a…",
+    "roleSubmitter": "Innovation Submitter",
+    "roleInvestor": "Investor",
+    "roleMentor": "Mentor",
+    "roleMinistry": "Ministry Innovation Focal Point",
+    "organizationName": "Organization name",
+    "binNumberLabel": "BIN number (optional)",
+    "binNumberPlaceholder": "Business Identification Number",
+    "sectorInterestLabel": "Sectors you're interested in funding (optional)",
+    "bioLabel": "Short bio (optional)",
+    "bioPlaceholder": "Your background and mentoring focus",
+    "availabilityLabel": "Availability (optional)",
+    "availabilityPlaceholder": "e.g. Weekday evenings",
+    "expertiseLabel": "Areas of expertise (optional)",
+    "ministryLabel": "Ministry / Division",
+    "ministryPlaceholder": "Select your ministry",
+    "designationLabel": "Designation / title (optional)",
+    "designationPlaceholder": "e.g. Innovation Officer",
+    "registerPendingBody": "Your registration has been submitted. An administrator will review and approve your account before you can sign in.",
+    "signIn": "Sign in",
+    "register": "Create account",
+    "noAccount": "New to NIR?",
+    "haveAccount": "Already have an account?",
+    "createOne": "Create an account",
+    "signInInstead": "Sign in instead",
+    "ssoNote": "Google / Apple / Microsoft sign-in — coming soon",
+    "demoNoteHeader": "Demo accounts — password Password123! for all"
+  },
+  "common": {
+    "loading": "Loading…",
+    "error": "Something went wrong. Please try again.",
+    "noResults": "No results found. Try adjusting your filters.",
+    "viewAll": "View all",
+    "readMore": "Read more",
+    "save": "Save",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "back": "Back",
+    "language": "বাংলা"
+  }
+}

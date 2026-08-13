@@ -1,0 +1,994 @@
+// NIR Platform — Prisma schema
+// Organized by SRS component (§3). See /Documents/SRS_NIR_Platform with UML.docx for source requirements.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// Shared enums (kept in sync with packages/shared/src/enums.ts)
+// ============================================================================
+
+enum Role {
+  INNOVATION_SUBMITTER
+  INSTITUTIONAL_COORDINATOR
+  EXPERT_EVALUATOR
+  INVESTOR
+  STAKEHOLDER_PARTNER
+  PLATFORM_ADMIN
+  SYSTEM_ADMIN
+  PUBLIC_VIEWER
+  POLICY_OBSERVER
+  INNOVATION_MANAGER
+  MINISTRY_FOCAL_POINT
+  MENTOR
+  PRELIMINARY_REVIEWER
+  AUTHENTICITY_REVIEWER
+}
+
+enum ReviewStatus {
+  DRAFT
+  UNDER_REVIEW
+  AUTHENTICITY_REVIEW
+  SHORTLISTED
+  SELECTED
+  APPROVED
+  REJECTED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DevelopmentStage {
+  IDEA
+  PROTOTYPE_DEVELOPED
+  PILOT_IMPLEMENTED
+  COMMERCIALIZED
+  SCALED
+  DISCONTINUED
+}
+
+enum PipelineStage {
+  INTAKE
+  UNDER_ASSESSMENT
+  ADVISORY_SUPPORT
+  FUNDED
+  SCALING
+  CLOSED
+}
+
+enum InnovationType {
+  PRODUCT
+  PROCESS
+  SERVICE
+  DIGITAL_SOLUTION
+  TECHNOLOGY
+  POLICY_INNOVATION
+  RESEARCH_OUTPUT
+}
+
+enum OrganizationType {
+  GOVERNMENT
+  UNIVERSITY
+  STARTUP
+  PRIVATE_SECTOR
+  NGO
+  RESEARCH_INSTITUTE
+  INDIVIDUAL
+}
+
+enum FundingSource {
+  A2I_INNOVATION_FUND
+  GOVERNMENT
+  DEVELOPMENT_PARTNER
+  PRIVATE_INVESTMENT
+  SELF_FUNDED
+}
+
+enum IpStatus {
+  NONE
+  PATENTED
+  PATENT_PENDING
+  UNDER_PROCESSING
+}
+
+enum EvaluationRecommendation {
+  REJECT
+  SHORTLIST
+  FUND
+}
+
+enum ContentStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  PUBLISHED
+}
+
+enum ContentType {
+  PAGE
+  ANNOUNCEMENT
+  BLOG_POST
+  FAQ
+  NOTIFICATION_TEMPLATE
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+enum EoiStatus {
+  SUBMITTED
+  ACKNOWLEDGED
+  IN_DISCUSSION
+  AGREEMENT_SIGNED
+  DECLINED
+}
+
+enum ChallengeStatus {
+  UPCOMING
+  OPEN
+  CLOSED
+  EVALUATING
+  COMPLETED
+}
+
+enum SessionMode {
+  ONLINE
+  IN_PERSON
+}
+
+enum SessionStatus {
+  PROPOSED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum AttachmentKind {
+  PHOTO
+  VIDEO
+  DOCUMENT
+  PUBLICATION
+  PATENT
+}
+
+enum RegionType {
+  DIVISION
+  DISTRICT
+}
+
+enum TagType {
+  THEMATIC
+  TECHNOLOGY
+}
+
+enum MinistrySubmissionStatus {
+  DRAFT
+  SUBMITTED
+  VALIDATED
+  REJECTED
+}
+
+enum ResourceType {
+  GUIDELINE
+  POLICY
+  SOP
+  MANUAL
+  TEMPLATE
+  REPORT
+  TOOLKIT
+}
+
+enum Locale {
+  en
+  bn
+}
+
+// ============================================================================
+// Identity, Auth, RBAC, Audit — cross-cutting (SRS §5.2)
+// ============================================================================
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  phone           String?   @unique
+  passwordHash    String
+  roles           Role[]    @default([PUBLIC_VIEWER])
+  fullName        String
+  locale          Locale    @default(en)
+  isActive        Boolean   @default(true)
+  rejectedAt      DateTime?
+  mfaEnabled      Boolean   @default(false)
+  mfaSecret       String?
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  designation     String?
+  institution     String?
+  avatarUrl       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  innovatorProfile Innovator?
+  investorProfile  Investor?
+  mentorProfile    Mentor?
+  ministryProfile  MinistryFocalPoint?
+
+  // Expert Evaluator specialization — Innovation Category id(s) this evaluator is categorised under.
+  evaluatorCategoryIds            String[] @default([])
+  // Preliminary Reviewer specialization — Innovation Category id(s) this reviewer screens.
+  preliminaryReviewerCategoryIds  String[] @default([])
+  // Authenticity Reviewer specialization — Innovation Category id(s) this reviewer vets for authenticity/originality.
+  authenticityReviewerCategoryIds String[] @default([])
+
+  refreshTokens             RefreshToken[]
+  auditLogs                 AuditLog[]
+  notifications             Notification[]
+  savedSearches             SavedSearch[]
+  feedbackMessages          FeedbackGrievance[]
+  authoredContent           ContentItem[]               @relation("ContentAuthor")
+  contentRevisions          ContentRevision[]
+  uploadedMedia             MediaAsset[]
+  evaluationsGiven          Evaluation[]                @relation("EvaluatorUser")
+  panelAssignments          EvaluationPanelAssignment[] @relation("AssignedEvaluator")
+  assignedBy                EvaluationPanelAssignment[] @relation("AssignedBy")
+  ipFlagsRaised             IpAdvisoryFlag[]
+  fundDisbursementsRecorded FundDisbursement[]
+  pipelineNotes             PipelineNote[]
+  teamMemberships           InnovationTeamMember[]
+  referralsSent             InnovationReferral[]        @relation("ReferredBy")
+  reviewCommentsAuthored    ReviewComment[]
+
+  @@index([email])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// Reference data — admin-managed lookups consumed everywhere (SRS FR-C4.M2.11)
+// ============================================================================
+
+model Category {
+  id            String  @id @default(cuid())
+  slug          String  @unique
+  icon          String
+  nameEn        String
+  nameBn        String
+  descriptionEn String
+  descriptionBn String?
+  examplesEn    String?
+  isActive      Boolean @default(true)
+  sortOrder     Int     @default(0)
+
+  innovations Innovation[]
+
+  @@index([slug])
+}
+
+model SdgTag {
+  id       String  @id @default(cuid())
+  code     Int     @unique // 1-17
+  nameEn   String
+  nameBn   String
+  isActive Boolean @default(true)
+
+  innovations InnovationSdgTag[]
+}
+
+model Tag {
+  id       String  @id @default(cuid())
+  type     TagType
+  nameEn   String
+  nameBn   String
+  isActive Boolean @default(true)
+
+  innovations InnovationTag[]
+
+  @@unique([type, nameEn])
+}
+
+model Region {
+  id       String     @id @default(cuid())
+  type     RegionType
+  nameEn   String
+  nameBn   String
+  parentId String?
+  parent   Region?    @relation("RegionHierarchy", fields: [parentId], references: [id])
+  children Region[]   @relation("RegionHierarchy")
+  isActive Boolean    @default(true)
+
+  innovations   Innovation[]
+  organizations Organization[]
+
+  @@index([parentId])
+}
+
+model Ministry {
+  id       String  @id @default(cuid())
+  code     String  @unique
+  nameEn   String
+  nameBn   String
+  isActive Boolean @default(true)
+
+  focalPoints MinistryFocalPoint[]
+  submissions MinistrySubmission[]
+  innovations Innovation[]
+}
+
+// ============================================================================
+// Component 1 — Innovation Submission & Evaluation System
+// ============================================================================
+
+model Organization {
+  id         String           @id @default(cuid())
+  name       String
+  type       OrganizationType
+  websiteUrl String?
+  logoUrl    String?
+  regionId   String?
+  region     Region?          @relation(fields: [regionId], references: [id])
+  isVerified Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+
+  innovators  Innovator[]
+  innovations Innovation[]
+}
+
+model Innovator {
+  id             String        @id @default(cuid())
+  userId         String        @unique
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  irn            String        @unique // Innovator Recognition Number, e.g. IRN-2026-000123
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  nidVerified    Boolean       @default(false)
+  bio            String?
+  createdAt      DateTime      @default(now())
+
+  teamMemberships InnovationTeamMember[]
+}
+
+model Innovation {
+  id                       String           @id @default(cuid())
+  innovationCode           String           @unique // e.g. NIR-2026-000123
+  slug                     String           @unique
+  titleEn                  String
+  titleBn                  String?
+  summaryEn                String
+  summaryBn                String?
+  problemStatement         String
+  proposedSolution         String
+  objectives               String?
+  keyFeatures              String?
+  targetBeneficiaries      String?
+  impact                   String?
+  technologyReadinessLevel Int? // 1-9
+  innovationType           InnovationType
+  developmentStage         DevelopmentStage @default(IDEA)
+  ipStatus                 IpStatus         @default(NONE)
+  fundingSource            FundingSource?
+  commercializationStatus  String?
+  replicationPotential     String?
+  mentorshipNeeded         Boolean          @default(false)
+  fundingNeeded            Boolean          @default(false)
+  recognitionNeeded        Boolean          @default(false)
+
+  // Admin's Permission & Approval decision per support type requested above — each pair is only
+  // meaningful when its sibling "*Needed" flag is true (the UI only shows what was requested), but
+  // left independently settable here since a request can be granted after the fact even if the
+  // corresponding "*Needed" flag is later changed. One shared `approvalLetterUrl` covers whichever
+  // of the three were approved, rather than a separate upload per type.
+  recognitionApproved        Boolean @default(false)
+  recognitionApprovalComment String?
+  mentorApproved             Boolean @default(false)
+  mentorApprovalComment      String?
+  fundApproved               Boolean @default(false)
+  fundApprovalComment        String?
+  approvalLetterUrl          String?
+
+  categoryId     String
+  category       Category      @relation(fields: [categoryId], references: [id])
+  regionId       String?
+  region         Region?       @relation(fields: [regionId], references: [id])
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  submittedById  String
+  latitude       Float?
+  longitude      Float?
+
+  ministryId      String?
+  ministry        Ministry?                @relation(fields: [ministryId], references: [id])
+  ministryCycleId String?
+  ministryCycle   MinistrySubmissionCycle? @relation(fields: [ministryCycleId], references: [id])
+
+  reviewStatus             ReviewStatus  @default(DRAFT)
+  reviewRemarks            String?
+  // Which stage's reviewer rejected this innovation, so each stage's "Rejected" queue can be
+  // scoped to rejections it's actually responsible for instead of every REJECTED innovation in
+  // its assigned categories. Null unless reviewStatus is currently REJECTED (or was rejected from
+  // a stage other than preliminary/authenticity review, e.g. by a coordinator from SHORTLISTED) —
+  // recomputed by InnovationsService.updateStatus on every transition, cleared on any transition
+  // away from REJECTED.
+  rejectedAtStage          ReviewStage?
+  // Which specific Authenticity Reviewer shortlisted this innovation (set on the
+  // AUTHENTICITY_REVIEW -> SHORTLISTED transition, preserved through later stages like SELECTED/
+  // PUBLISHED so the "Reviewed" tab still attributes correctly) — multiple reviewers can share a
+  // category, so category alone isn't enough to scope "my reviewed items" to one person. Plain
+  // id field (no formal relation), matching submittedById's existing pattern on this model.
+  authenticityReviewedById String?
+  pipelineStage            PipelineStage @default(INTAKE)
+  isFeatured               Boolean       @default(false)
+  viewCount                Int           @default(0)
+  languageOriginal         Locale        @default(en)
+
+  submittedAt DateTime?
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  team                  InnovationTeamMember[]
+  attachments           InnovationAttachment[]
+  tags                  InnovationTag[]
+  sdgTags               InnovationSdgTag[]
+  evaluations           Evaluation[]
+  panelAssignments      EvaluationPanelAssignment[]
+  ipFlags               IpAdvisoryFlag[]
+  successStory          SuccessStory?
+  awards                Award[]
+  expressionsOfInterest ExpressionOfInterest[]
+  fundingAgreements     FundingAgreement[]
+  fundDisbursements     FundDisbursement[]
+  mentorMatches         MentorMatch[]
+  pipelineNotes         PipelineNote[]
+  referrals             InnovationReferral[]
+  reviewComments        ReviewComment[]
+
+  @@index([categoryId])
+  @@index([reviewStatus])
+  @@index([developmentStage])
+  @@index([regionId])
+  @@index([ministryId])
+  @@index([slug])
+}
+
+model InnovationTeamMember {
+  id           String     @id @default(cuid())
+  innovationId String
+  innovation   Innovation @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  innovatorId  String?
+  innovator    Innovator? @relation(fields: [innovatorId], references: [id])
+  userId       String?
+  user         User?      @relation(fields: [userId], references: [id])
+  displayName  String
+  roleInTeam   String     @default("Team Member")
+
+  @@index([innovationId])
+}
+
+model InnovationAttachment {
+  id           String         @id @default(cuid())
+  innovationId String
+  innovation   Innovation     @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  kind         AttachmentKind
+  url          String
+  caption      String?
+  mimeType     String?
+  sizeBytes    Int?
+  createdAt    DateTime       @default(now())
+
+  @@index([innovationId])
+}
+
+model InnovationTag {
+  innovationId String
+  innovation   Innovation @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  tagId        String
+  tag          Tag        @relation(fields: [tagId], references: [id])
+
+  @@id([innovationId, tagId])
+}
+
+model InnovationSdgTag {
+  innovationId String
+  innovation   Innovation @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  sdgTagId     String
+  sdgTag       SdgTag     @relation(fields: [sdgTagId], references: [id])
+
+  @@id([innovationId, sdgTagId])
+}
+
+model SuccessStory {
+  id           String        @id @default(cuid())
+  innovationId String        @unique
+  innovation   Innovation    @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  titleEn      String
+  titleBn      String?
+  bodyEn       String
+  bodyBn       String?
+  status       ContentStatus @default(DRAFT)
+  publishedAt  DateTime?
+  createdAt    DateTime      @default(now())
+}
+
+model Award {
+  id           String     @id @default(cuid())
+  innovationId String
+  innovation   Innovation @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  title        String
+  grantedBy    String?
+  year         Int?
+}
+
+model EvaluationPanelAssignment {
+  id                String     @id @default(cuid())
+  innovationId      String
+  innovation        Innovation @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  evaluatorId       String
+  evaluator         User       @relation("AssignedEvaluator", fields: [evaluatorId], references: [id])
+  assignedById      String
+  assignedBy        User       @relation("AssignedBy", fields: [assignedById], references: [id])
+  expertDomainTagId String?
+  createdAt         DateTime   @default(now())
+
+  @@unique([innovationId, evaluatorId])
+}
+
+model Evaluation {
+  id             String                    @id @default(cuid())
+  innovationId   String
+  innovation     Innovation                @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  evaluatorId    String
+  evaluator      User                      @relation("EvaluatorUser", fields: [evaluatorId], references: [id])
+  scores         Json // rubric: { criterion: score }
+  totalScore     Float?
+  comments       String?
+  recommendation EvaluationRecommendation?
+  isBlind        Boolean                   @default(false)
+  submittedAt    DateTime?
+  createdAt      DateTime                  @default(now())
+
+  @@unique([innovationId, evaluatorId])
+}
+
+model IpAdvisoryFlag {
+  id           String     @id @default(cuid())
+  innovationId String
+  innovation   Innovation @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  flaggedById  String
+  flaggedBy    User       @relation(fields: [flaggedById], references: [id])
+  note         String?
+  createdAt    DateTime   @default(now())
+}
+
+enum ReviewStage {
+  PRELIMINARY_REVIEW
+  AUTHENTICITY_REVIEW
+}
+
+// Full history of comments left by Preliminary Reviewers and Authenticity Reviewers as an
+// innovation moves through the pipeline — kept separate from Innovation.reviewRemarks (which
+// only ever holds the single latest note) so each stage's comments stay visible downstream,
+// including across reject/resubmit loops.
+model ReviewComment {
+  id           String      @id @default(cuid())
+  innovationId String
+  innovation   Innovation  @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User        @relation(fields: [authorId], references: [id])
+  stage        ReviewStage
+  note         String
+  createdAt    DateTime    @default(now())
+
+  @@index([innovationId])
+}
+
+// ============================================================================
+// Component 2 — Innovation Funding Matchmaking
+// ============================================================================
+
+model Investor {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationName  String
+  binNumber         String?  @unique
+  binVerified       Boolean  @default(false)
+  sectorInterestIds String[] // Category ids of interest
+  createdAt         DateTime @default(now())
+
+  expressionsOfInterest ExpressionOfInterest[]
+  fundingAgreements     FundingAgreement[]
+  referrals             InnovationReferral[]
+}
+
+model ExpressionOfInterest {
+  id           String     @id @default(cuid())
+  innovationId String
+  innovation   Innovation @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  investorId   String
+  investor     Investor   @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  message      String?
+  status       EoiStatus  @default(SUBMITTED)
+  createdAt    DateTime   @default(now())
+
+  @@index([innovationId])
+  @@index([investorId])
+}
+
+model InnovationReferral {
+  id           String     @id @default(cuid())
+  innovationId String
+  innovation   Innovation @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  investorId   String
+  investor     Investor   @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  referredById String
+  referredBy   User       @relation("ReferredBy", fields: [referredById], references: [id])
+  message      String?
+  createdAt    DateTime   @default(now())
+
+  @@unique([innovationId, investorId])
+  @@index([innovationId])
+  @@index([investorId])
+}
+
+model FundingAgreement {
+  id           String     @id @default(cuid())
+  innovationId String
+  innovation   Innovation @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  investorId   String?
+  investor     Investor?  @relation(fields: [investorId], references: [id])
+  title        String
+  documentUrl  String
+  signedDate   DateTime?
+  createdAt    DateTime   @default(now())
+}
+
+model FundDisbursement {
+  id           String        @id @default(cuid())
+  innovationId String
+  innovation   Innovation    @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  amount       Decimal       @db.Decimal(14, 2)
+  currency     String        @default("BDT")
+  source       FundingSource
+  disbursedAt  DateTime
+  note         String?
+  recordedById String
+  recordedBy   User          @relation(fields: [recordedById], references: [id])
+  createdAt    DateTime      @default(now())
+
+  @@index([innovationId])
+}
+
+// ============================================================================
+// Component 3 — Repository & Knowledge Management (search handled in service layer)
+// ============================================================================
+
+model SavedSearch {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String
+  queryJson Json
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ============================================================================
+// Component 4 — Communication & Stakeholder Engagement (incl. CMS, FR-C4.M2)
+// ============================================================================
+
+model ContentItem {
+  id             String        @id @default(cuid())
+  type           ContentType
+  slug           String        @unique
+  titleEn        String
+  titleBn        String?
+  bodyEn         String?
+  bodyBn         String?
+  status         ContentStatus @default(DRAFT)
+  authorId       String
+  author         User          @relation("ContentAuthor", fields: [authorId], references: [id])
+  seoTitle       String?
+  seoDescription String?
+  publishedAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  revisions ContentRevision[]
+
+  @@index([type, status])
+}
+
+model ContentRevision {
+  id            String      @id @default(cuid())
+  contentItemId String
+  contentItem   ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  snapshot      Json
+  editedById    String
+  editedBy      User        @relation(fields: [editedById], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@index([contentItemId])
+}
+
+model NotificationTemplate {
+  id        String              @id @default(cuid())
+  code      String              @unique
+  channel   NotificationChannel
+  subjectEn String?
+  subjectBn String?
+  bodyEn    String
+  bodyBn    String?
+  isActive  Boolean             @default(true)
+}
+
+model Notification {
+  id           String              @id @default(cuid())
+  userId       String
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel      NotificationChannel
+  templateCode String
+  payload      Json?
+  status       NotificationStatus  @default(QUEUED)
+  sentAt       DateTime?
+  createdAt    DateTime            @default(now())
+
+  @@index([userId])
+}
+
+model MediaAsset {
+  id           String   @id @default(cuid())
+  url          String
+  mimeType     String
+  sizeBytes    Int
+  altTextEn    String?
+  altTextBn    String?
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+model FaqItem {
+  id            String  @id @default(cuid())
+  categoryLabel String
+  questionEn    String
+  questionBn    String?
+  answerEn      String
+  answerBn      String?
+  sortOrder     Int     @default(0)
+  isActive      Boolean @default(true)
+}
+
+model FeedbackGrievance {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name      String?
+  email     String?
+  subject   String
+  message   String
+  status    String   @default("OPEN")
+  createdAt DateTime @default(now())
+}
+
+model NewsPost {
+  id            String    @id @default(cuid())
+  slug          String    @unique
+  titleEn       String
+  titleBn       String?
+  bodyEn        String
+  bodyBn        String?
+  coverImageUrl String?
+  eventDate     DateTime?
+  publishedAt   DateTime?
+  category      String    @default("Evaluation")
+  createdAt     DateTime  @default(now())
+}
+
+model ResourceDocument {
+  id            String       @id @default(cuid())
+  titleEn       String
+  titleBn       String?
+  type          ResourceType
+  descriptionEn String?
+  descriptionBn String?
+  fileUrl       String
+  fileType      String
+  fileSizeBytes Int
+  publishedAt   DateTime     @default(now())
+}
+
+model Challenge {
+  id               String          @id @default(cuid())
+  slug             String          @unique
+  titleEn          String
+  titleBn          String?
+  organizingAgency String
+  categoryId       String?
+  descriptionEn    String
+  descriptionBn    String?
+  status           ChallengeStatus @default(UPCOMING)
+  isFeatured       Boolean         @default(false)
+  startDate        DateTime?
+  deadline         DateTime?
+  bannerImageUrl   String?
+  prizeInfoEn      String?
+  applyUrl         String?
+  createdAt        DateTime        @default(now())
+}
+
+model Partner {
+  id         String  @id @default(cuid())
+  name       String
+  logoUrl    String
+  websiteUrl String?
+  sortOrder  Int     @default(0)
+  isActive   Boolean @default(true)
+}
+
+// ============================================================================
+// Component 6 — Mentorship & Expert Guidance
+// ============================================================================
+
+model Mentor {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expertiseTagIds String[]
+  bio             String?
+  availability    String?
+  createdAt       DateTime @default(now())
+
+  matches      MentorMatch[]
+  sessions     MentorSession[]
+  activityLogs MentorActivityLog[]
+}
+
+model MentorMatch {
+  id           String     @id @default(cuid())
+  mentorId     String
+  mentor       Mentor     @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  innovationId String
+  innovation   Innovation @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  matchedAt    DateTime   @default(now())
+
+  @@unique([mentorId, innovationId])
+}
+
+model MentorSession {
+  id              String        @id @default(cuid())
+  mentorId        String
+  mentor          Mentor        @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  innovatorUserId String
+  innovationId    String?
+  scheduledAt     DateTime
+  mode            SessionMode   @default(ONLINE)
+  status          SessionStatus @default(PROPOSED)
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  feedback MentorFeedback?
+}
+
+model MentorFeedback {
+  id        String        @id @default(cuid())
+  sessionId String        @unique
+  session   MentorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  feedback  String
+  rating    Int? // 1-5
+  createdAt DateTime      @default(now())
+}
+
+model MentorActivityLog {
+  id          String   @id @default(cuid())
+  mentorId    String
+  mentor      Mentor   @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  hours       Float
+  description String?
+  loggedAt    DateTime @default(now())
+}
+
+// ============================================================================
+// Component 7 — Innovation Management (internal pipeline tracking)
+// ============================================================================
+
+model PipelineNote {
+  id            String     @id @default(cuid())
+  innovationId  String
+  innovation    Innovation @relation(fields: [innovationId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        User       @relation(fields: [authorId], references: [id])
+  note          String
+  attachmentUrl String?
+  createdAt     DateTime   @default(now())
+
+  @@index([innovationId])
+}
+
+// ============================================================================
+// Component 8 — Ministry Innovation Submission & Annual Reporting
+// ============================================================================
+
+model MinistryFocalPoint {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ministryId String
+  ministry   Ministry @relation(fields: [ministryId], references: [id])
+  title      String?
+  createdAt  DateTime @default(now())
+}
+
+model MinistrySubmissionCycle {
+  id       String   @id @default(cuid())
+  year     Int      @unique
+  opensAt  DateTime
+  closesAt DateTime
+
+  innovations Innovation[]
+  submissions MinistrySubmission[]
+  reports     MinistryAnnualReport[]
+}
+
+model MinistrySubmission {
+  id            String                   @id @default(cuid())
+  ministryId    String
+  ministry      Ministry                 @relation(fields: [ministryId], references: [id])
+  cycleId       String
+  cycle         MinistrySubmissionCycle  @relation(fields: [cycleId], references: [id])
+  submittedById String
+  status        MinistrySubmissionStatus @default(DRAFT)
+  submittedAt   DateTime?
+  validatedAt   DateTime?
+  createdAt     DateTime                 @default(now())
+
+  @@unique([ministryId, cycleId])
+}
+
+model MinistryAnnualReport {
+  id          String                  @id @default(cuid())
+  cycleId     String
+  cycle       MinistrySubmissionCycle @relation(fields: [cycleId], references: [id])
+  fileUrl     String?
+  stats       Json?
+  generatedAt DateTime                @default(now())
+}

@@ -1,0 +1,12 @@
+NIR Evaluation Standard Operating Procedure (SOP) — v1.0
+
+1. Institutional Coordinators triage new submissions and assign them to
+   Expert Evaluators based on domain.
+2. Evaluators score each submission against the standard rubric and may
+   request blind (anonymized) review for sensitive categories.
+3. Innovations may be Shortlisted, Rejected, or sent back for revision.
+4. Shortlisted innovations proceed to a Selected decision, and Selected
+   innovations are Published to the public repository.
+5. All decisions and scores are recorded in the audit trail.
+
+Aspire to Innovate (a2i), ICT Division, Government of Bangladesh.

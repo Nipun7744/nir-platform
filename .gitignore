@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Env files (secrets — never commit)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# Prisma
+apps/api/prisma/*.tsbuildinfo
+
+# Uploads (local disk storage, not meant to be versioned)
+apps/api/uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Misc
+coverage/
+.turbo/
