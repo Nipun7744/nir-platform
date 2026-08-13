@@ -221,10 +221,22 @@
     made along the way (this is worth reading in full before touching this pipeline again — the
     final design is not the first, second, or third thing that was built).
 
+- **(2026-08-13, session 18) Pushed to GitHub, deployed to production, cleaned up test data.**
+  Initialized git (repo had none before), added `.gitignore`, pushed to
+  https://github.com/Nipun7744/nir-platform (public). Deleted 23 manually-created test innovations
+  and 9 test users from the local dev DB — including the `test118`/`test119` items flagged in the
+  Known Issues entry above, now resolved/removed rather than fixed in place (2 accounts named
+  `*-test@nir.gov.bd` were deliberately kept — real `ReviewComment` history on a genuine
+  innovation, see [SESSION_LOG.md](SESSION_LOG.md)). Deployed `apps/web` to Vercel and
+  `apps/api` + PostgreSQL to Railway, wired together (`NEXT_PUBLIC_API_URL`, `CORS_ORIGIN`), fresh
+  JWT secrets generated for production, uploads given a persistent Railway volume, seeded, and
+  verified end-to-end (login, CORS, real data fetched from the live API). Full details:
+  [SETUP.md § Production Deployment](SETUP.md#production-deployment).
+
 ## Current work
 
-*(nothing in progress as of this update — session 17's APPROVED-status work above is the most
-recent completed work)*
+*(nothing in progress as of this update — session 18's deployment work above is the most recent
+completed work)*
 
 ## Upcoming
 
@@ -245,10 +257,6 @@ recent completed work)*
   the Expert Evaluator UI no longer offers it — the decision is binary (Shortlist/Reject) as of
   session 14. If a "recommend for funding" concept is needed again, it needs its own explicit UI,
   not a slot in that binary decision.
-- **A real demo innovation (`test118`, id `cmspudqi30046eaandgfeono2`) is sitting at `PUBLISHED`**
-  from a session-16 diagnostic that predates the `APPROVED` status — flagged to the user at the
-  time, never reverted since no follow-up request came. Harmless (just demo data), but worth a
-  manual cleanup pass (e.g. archive it) next time someone's touching seed/demo data.
 - **Preliminary Review's "Reviewed" tab has the same category-only scoping gap that Authenticity
   Review's just had fixed** (see Completed above) — `findPreliminaryReviewQueue`'s `REVIEWED`
   branch shows every forwarded innovation in the caller's assigned categories, not just the ones
@@ -282,7 +290,10 @@ recent completed work)*
 - **JWT stored in localStorage, not httpOnly cookies** — accepted tradeoff for this phase, but
   flagged (README, [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#important-decisions)) as needing a
   hardening pass before any production rollout, given XSS exposure.
-- **File uploads on local disk, not object storage** — blocks horizontal scaling of the API.
+- **File uploads on local disk, not object storage** — blocks horizontal scaling of the API. In
+  production this is a Railway volume (persists across redeploys, unlike the container
+  filesystem), but it's still tied to a single instance/region — see
+  [SETUP.md](SETUP.md#production-deployment).
 - **Search is `ILIKE`, not Postgres full-text (`tsvector`/GIN)** — flagged against the ToR's <2s
   search NFR; fine at seed-data scale, unverified at real data volume.
 - **No shared UI component primitives** (`Button`/`Input`/`Card`) — every page hand-rolls its own,

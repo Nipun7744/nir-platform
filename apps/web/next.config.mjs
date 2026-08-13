@@ -9,6 +9,7 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'http', hostname: 'localhost' },
+      { protocol: 'https', hostname: 'api-production-2d78.up.railway.app' },
     ],
   },
   async rewrites() {

@@ -72,6 +72,10 @@ Documents/     Source requirement docs (ToR, SRS, policy, content spec) — not 
 - **Backend** is the only thing with a Prisma client / DB connection.
 - **`packages/shared`** must be built (`npm run build:shared`) before the API or web app, since
   both import compiled output from it (not source).
+- **Deployed** (2026-08-13): `apps/web` on Vercel, `apps/api` + PostgreSQL on Railway — split
+  across providers because the API's local-disk uploads and persistent DB connection don't fit
+  Vercel's serverless model. Full setup, env vars, and gotchas: see
+  [SETUP.md § Production Deployment](SETUP.md#production-deployment).
 
 ## Technology Stack
 

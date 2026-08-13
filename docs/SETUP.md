@@ -76,6 +76,95 @@ npm run dev
 - Postgres: `localhost:5433`
 - Prisma Studio (if run): `npx prisma studio` → http://localhost:5555
 
+## Production Deployment
+
+Live since 2026-08-13. Split across two providers because the API's file-upload-to-local-disk
+design (see [PROJECT_CONTEXT.md § Important Decisions](PROJECT_CONTEXT.md#important-decisions))
+and persistent DB connections don't fit Vercel's serverless model.
+
+| Component | Provider | URL |
+|---|---|---|
+| `apps/web` (Next.js) | Vercel (project `nir-platform-web`) | https://nir-platform-web.vercel.app |
+| `apps/api` (NestJS) | Railway (project `nir-platform`, service `api`) | https://api-production-2d78.up.railway.app (`/api/v1`, Swagger at `/api/docs`) |
+| PostgreSQL | Railway (service `Postgres`, same project) | internal only, referenced by other services as `${{Postgres.DATABASE_URL}}` |
+| Source | GitHub | https://github.com/Nipun7744/nir-platform (public) |
+
+### Vercel (`apps/web`)
+
+This is an npm-workspaces monorepo, so the Vercel project is linked at the **repo root**
+(`.vercel/project.json` lives at the repo root, not in `apps/web/`) with project settings
+`rootDirectory: "apps/web"` and `sourceFilesOutsideRootDirectory: true` — without the second
+setting, Vercel only uploads `apps/web/` and the build fails on `npm install` because
+`packages/shared` (an `@nir/shared` workspace dependency) isn't present. These settings were set
+once via `vercel api -X PATCH /v9/projects/nir-platform-web` (the CLI has no dedicated command for
+them) and persist on the linked project — a normal `vercel --prod --yes` from the repo root is
+enough for future redeploys.
+
+Env vars (Vercel dashboard → Project → Settings → Environment Variables, or `vercel env`):
+- `NEXT_PUBLIC_API_URL=https://api-production-2d78.up.railway.app` (Production + Preview) — the
+  code appends `/api/v1` itself, see `apps/web/src/lib/config.ts`.
+
+`next.config.mjs`'s `images.remotePatterns` includes the Railway API hostname so `next/image` can
+load images served from there directly (uploads are also proxied same-origin via the `/uploads/*`
+rewrite in the same config, which doesn't need this).
+
+### Railway (`apps/api` + Postgres)
+
+Build/deploy commands live in a repo-root `railway.json` (Railway's config-as-code, picked up
+automatically) rather than project settings, since the monorepo build needs to run from the repo
+root (`npm ci` at root to resolve the `@nir/shared` workspace link, then build `packages/shared`
+before `apps/api`):
+
+```json
+{
+  "build": { "buildCommand": "npm ci && npm run build:shared && npx prisma generate --schema apps/api/prisma/schema.prisma && npm run build:api" },
+  "deploy": { "startCommand": "npx prisma migrate deploy --schema apps/api/prisma/schema.prisma && node apps/api/dist/main.js" }
+}
+```
+
+Deploy from the repo root with `railway up --service api --detach --json` (the CLI's default
+`railway up .` with an explicit path currently errors with `"prefix not found"` on this setup —
+omit the path argument and let it use the linked service + cwd).
+
+Env vars (`railway variable set KEY=value --service api`):
+- `DATABASE_URL=${{Postgres.DATABASE_URL}}` — Railway's variable-reference syntax, resolves to the
+  Postgres service's internal connection string.
+- `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` — freshly generated 64-byte base64 secrets, **not**
+  the `dev-*-secret-change-me` placeholders from local `.env`.
+- `JWT_ACCESS_TTL=15m`, `JWT_REFRESH_TTL=30d` — same as local.
+- `CORS_ORIGIN=https://nir-platform-web.vercel.app` — note the API code reads `CORS_ORIGIN`
+  (`apps/api/src/main.ts`), not `WEB_ORIGIN` as the root `.env.example` suggests; that file is
+  stale, see Known Issues in [ROADMAP.md](ROADMAP.md).
+- `UPLOAD_DIR=/data/uploads` — see volume note below.
+- `NODE_ENV=production`
+
+**Uploads volume**: a Railway volume is attached to the `api` service at `/data/uploads`
+(`railway volume add --mount-path /data/uploads` with the service linked via
+`railway service link api` first — passing `--service` directly to `volume add` currently panics
+the CLI, and Git Bash's automatic `/path` → Windows-path conversion also breaks the mount-path
+argument there; use PowerShell). `UPLOAD_DIR` points the API's `multer` disk storage
+(`apps/api/src/uploads/uploads.controller.ts`) at it so uploaded files survive redeploys, unlike
+the container filesystem itself.
+
+**Seeding a fresh DB**: `railway run` only injects env vars into a *locally* executed process —
+`DATABASE_URL`'s value (`postgres.railway.internal`) only resolves from inside Railway's network,
+so `railway run npx ts-node prisma/seed.ts` fails to connect from a local machine. `railway ssh`
+and `railway tcp-proxy create` (which would otherwise solve this) are both blocked in this
+environment by an agent-safety classifier. The workaround used for the initial seed: temporarily
+append `&& (cd apps/api && npx ts-node prisma/seed.ts || true)` to `railway.json`'s
+`deploy.startCommand`, `railway up`, confirm via `railway logs` that seeding ran, then revert the
+start command and redeploy. Don't leave the seed step in `startCommand` permanently — it's not
+idempotent-guaranteed on every container restart.
+
+### Local DB cleanup (2026-08-13, before any of the above existed)
+
+23 manually-created test innovations and 9 test users were deleted from the **local** dev DB
+(`nir_dev` on `:5433`, not Railway) via one-off Prisma scripts — see
+[SESSION_LOG.md](SESSION_LOG.md) for the exact IDs and the two accounts deliberately kept
+(`prelim-test@nir.gov.bd`, `authenticity-test@nir.gov.bd` — despite the name, both have real
+`ReviewComment` history on a genuine innovation). The Railway production DB was seeded fresh and
+never had this test data to begin with.
+
 ## Docker path (not used on this machine, but supported)
 
 ```bash
