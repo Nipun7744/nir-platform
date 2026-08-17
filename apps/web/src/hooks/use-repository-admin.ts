@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
 
 export interface RepositoryFilters {
@@ -10,7 +10,16 @@ export interface RepositoryFilters {
   fromDate?: string;
   toDate?: string;
   page?: number;
+  pageSize?: number;
   [key: string]: unknown;
+}
+
+export interface RepositoryListResult {
+  items: any[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 }
 
 function toQueryString(filters: Record<string, unknown>) {
@@ -25,7 +34,11 @@ function toQueryString(filters: Record<string, unknown>) {
 export function useRepositoryInnovations(filters: RepositoryFilters) {
   return useQuery({
     queryKey: ['repository-admin', filters],
-    queryFn: () => api.get(`/innovations/admin/repository${toQueryString(filters)}`),
+    queryFn: () => api.get<RepositoryListResult>(`/innovations/admin/repository${toQueryString(filters)}`),
+    // Keeps the current page's rows on screen (instead of a full loading flash) while a new
+    // page/filter/pageSize fetch resolves, and while an admin action's invalidation refetches the
+    // same page in place — important since page position must not visibly jump around per-action.
+    placeholderData: keepPreviousData,
   });
 }
 

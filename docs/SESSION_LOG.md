@@ -6,6 +6,50 @@
 
 ---
 
+## 2026-08-17 (session 23) — Pagination for Repository Management
+
+**Task.** Add full pagination to the Admin Repository Management list: page-size selector
+(10/20/50), Previous/Next + page-number navigation, current-page/total-record display, correct
+interaction with search/filter/status, and no unexpected page jumps after admin actions.
+
+**Finding.** The backend (`InnovationsService.findForRepositoryManagement`) already did server-side
+pagination — `skip`/`take`, `total`, `totalPages` were all there from session 21. Nothing to
+change on the API side; this was purely a missing frontend affordance.
+
+**Frontend.**
+- New `components/ui/pagination.tsx` — record-count summary, optional page-size `<select>`,
+  Previous/Next buttons, and windowed page numbers with `…` ellipsis for large page counts (shows
+  all pages when ≤7, otherwise pins first/last/current/current±1/current±2). First reusable
+  pagination component in the codebase — `repository-browse.tsx` (public `/repository` search)
+  has an older, simpler inline flat page-number list with no Previous/Next or count; left as-is
+  rather than retrofitted, since that wasn't part of this task.
+- `useRepositoryInnovations` now sets `placeholderData: keepPreviousData` (TanStack Query v5) so
+  paging, filtering, and post-action refetches keep the current rows visible (dimmed via
+  `isFetching`) instead of flashing a blank loading state — this is what satisfies "maintain the
+  appropriate list position... without causing unexpected pagination changes," since page state
+  itself was already stable (mutations invalidate the query but don't touch `filters`, so the
+  fetch simply re-runs for the same page/filter combination).
+- Added a `useEffect` that clamps `filters.page` back to `data.totalPages` if an action (e.g.
+  archiving the last remaining item on the last page) shrinks the result set below the current
+  page — otherwise the admin would land on a silently empty page with only "Previous" to escape.
+- `RepositoryFilters` gained an explicit `pageSize` field (defaults to 20, matching the backend
+  DTO default); page-size changes reset to page 1, ordinary filter changes already did (unchanged
+  behavior from session 21).
+
+**Verification.** Type-checks clean. Verified server-side pagination directly against the local
+API with `pageSize=2` across two pages (no duplicate/missing items) and combined with `status` +
+`q` filters simultaneously. Confirmed the page compiles and loads in the dev server with no
+runtime errors. **Not done:** no browser available in this environment, so the actual click-through
+UX (page-number window rendering, dimmed-during-fetch state, the empty-page clamp firing) wasn't
+visually verified — only confirmed via code review, type-checking, and direct API calls.
+
+**Docs.** UI_GUIDELINES.md (new component), PROJECT_CONTEXT.md (pagination behavior folded into
+the existing Repository Management bullet).
+
+**Next steps:** none outstanding.
+
+---
+
 ## 2026-08-17 (session 22) — Archive + Featured actions in Repository Management
 
 **Task.** Follow-up to session 21: add Archive and Featured/Unfeatured actions to each innovation

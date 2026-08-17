@@ -198,7 +198,14 @@ since each was an explicit scope call:
   `UNPUBLISHED` innovations by default, with search (title/code), category, status, and
   published-date-range filters; `ARCHIVED` is excluded from the default view but selectable
   explicitly via the status filter, so archived innovations stay findable without cluttering the
-  everyday "active repository" list. An admin can **publish** (`APPROVED`/`UNPUBLISHED` →
+  everyday "active repository" list. The list is **server-side paginated** (2026-08-17 —
+  `InnovationsService.findForRepositoryManagement`'s `skip`/`take` already supported this; only the
+  page-size selector, Previous/Next, and page-number UI were missing before) — 10/20/50 rows per
+  page (`components/ui/pagination.tsx`), any filter/search/status change resets to page 1, and a
+  `useEffect` snaps the page back if an action (e.g. archiving the last item on the last page)
+  shrinks `totalPages` below the current page. `placeholderData: keepPreviousData` on the query
+  keeps the current rows visible (dimmed) while a page/filter change or a post-action refetch
+  resolves, instead of flashing a full loading state. An admin can **publish** (`APPROVED`/`UNPUBLISHED` →
   `PUBLISHED`, via the same generic `PATCH /innovations/:id/status` every other transition uses),
   **unpublish** (`PUBLISHED` → `UNPUBLISHED`), or **archive** (`APPROVED`/`PUBLISHED`/`UNPUBLISHED`
   → `ARCHIVED`, same endpoint again, confirmation required — framed as "no longer actively

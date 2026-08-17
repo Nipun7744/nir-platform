@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from '@/i18n/navigation';
 import { Archive, Film, History, ImageOff, Layers, RotateCcw, Star } from 'lucide-react';
 import {
@@ -11,12 +11,17 @@ import {
   useRepositoryActivityLog,
   useUpdateFeatured,
   type RepositoryFilters,
+  type RepositoryListResult,
 } from '@/hooks/use-repository-admin';
 import { useUpdateInnovationStatus, useAddAttachment } from '@/hooks/use-innovations';
 import { useCategories } from '@/hooks/use-content';
 import { FileUploadButton } from '@/components/ui/file-upload-button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Pagination } from '@/components/ui/pagination';
 import { uploadFile } from '@/lib/upload';
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
+const DEFAULT_PAGE_SIZE = 20;
 
 const STATUS_STYLES: Record<string, string> = {
   APPROVED: 'bg-clay-50 text-clay-700',
@@ -306,17 +311,31 @@ function RepositoryRow({ innovation }: { innovation: any }) {
 }
 
 export default function RepositoryManagementPage() {
-  const [filters, setFilters] = useState<RepositoryFilters>({});
-  const { data, isLoading } = useRepositoryInnovations(filters) as {
-    data?: { items: any[]; total: number };
+  const [filters, setFilters] = useState<RepositoryFilters>({ page: 1, pageSize: DEFAULT_PAGE_SIZE });
+  const { data, isLoading, isFetching } = useRepositoryInnovations(filters) as {
+    data?: RepositoryListResult;
     isLoading: boolean;
+    isFetching: boolean;
   };
   const { data: categories } = useCategories();
   const [showActivity, setShowActivity] = useState(false);
   const { data: activity } = useRepositoryActivityLog() as { data?: { items: any[] } };
 
   const hasFilters = Boolean(filters.q || filters.categoryId || filters.status || filters.fromDate || filters.toDate);
+  // Any filter/search/status change starts back at page 1 — the previous page number would
+  // otherwise apply to a completely different result set.
   const set = (patch: Partial<RepositoryFilters>) => setFilters((f) => ({ ...f, ...patch, page: 1 }));
+  const setPage = (page: number) => setFilters((f) => ({ ...f, page }));
+  const setPageSize = (pageSize: number) => setFilters((f) => ({ ...f, pageSize, page: 1 }));
+
+  // An action taken from the last page (e.g. archiving the only item left on page 3) can shrink
+  // totalPages below the current page — snap back to the new last page instead of showing an
+  // empty page with no way back except Previous.
+  useEffect(() => {
+    if (data && filters.page && data.totalPages > 0 && filters.page > data.totalPages) {
+      setFilters((f) => ({ ...f, page: data.totalPages }));
+    }
+  }, [data, filters.page]);
 
   return (
     <div>
@@ -390,7 +409,7 @@ export default function RepositoryManagementPage() {
         </div>
         {hasFilters && (
           <button
-            onClick={() => setFilters({})}
+            onClick={() => setFilters({ page: 1, pageSize: filters.pageSize })}
             className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-ink-100 px-3 py-2 text-sm font-medium text-ink-600 hover:border-clay-400"
           >
             <RotateCcw className="h-3.5 w-3.5" /> Reset filters
@@ -415,7 +434,7 @@ export default function RepositoryManagementPage() {
         </div>
       )}
 
-      <div className="mt-6 space-y-4">
+      <div className={`mt-6 space-y-4 ${isFetching && !isLoading ? 'opacity-60' : ''}`}>
         {isLoading && <p className="text-ink-400">Loading…</p>}
         {data?.items?.map((innovation) => (
           <RepositoryRow key={innovation.id} innovation={innovation} />
@@ -426,6 +445,18 @@ export default function RepositoryManagementPage() {
           </p>
         )}
       </div>
+
+      {data && (
+        <Pagination
+          page={data.page}
+          totalPages={data.totalPages}
+          total={data.total}
+          pageSize={data.pageSize}
+          onPageChange={setPage}
+          pageSizeOptions={PAGE_SIZE_OPTIONS}
+          onPageSizeChange={setPageSize}
+        />
+      )}
     </div>
   );
 }
