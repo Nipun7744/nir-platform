@@ -6,6 +6,80 @@
 
 ---
 
+## 2026-08-17 (session 21) — Admin Repository Management module
+
+**Task.** Built a full Admin Repository Management module per user spec: view
+published/approved-but-unpublished/unpublished innovations, publish/unpublish, manage photo/video
+attachments (upload/replace/remove), a per-action activity log, confirmation before critical
+actions, and search/filter (title/code, category, status, publication date).
+
+**Schema.** Added `UNPUBLISHED` to `ReviewStatus` (migration
+`20260817054146_add_unpublished_review_status`), applied locally; will apply to Railway
+automatically on next `railway up` via the existing `prisma migrate deploy` in `deploy.startCommand`
+(see [SETUP.md](SETUP.md#production-deployment)). Mirrored the new value into
+`packages/shared/src/enums.ts` per its documented hand-sync convention and rebuilt
+(`npm run build:shared`).
+
+**Backend (`apps/api/src/innovations/`).**
+- `ALLOWED_TRANSITIONS`: `PUBLISHED <-> UNPUBLISHED`, both also reaching `ARCHIVED`.
+  `APPROVED -> PUBLISHED` unchanged (first-publish path).
+- `addAttachment`/`removeAttachment` now write `AuditLog` entries (`INNOVATION_MEDIA_UPLOADED`/
+  `_REMOVED`) — they didn't before. New `replaceAttachment` (`PATCH
+  /innovations/:id/attachments/:attachmentId`) swaps a media file in place and writes
+  `INNOVATION_MEDIA_REPLACED` with `{previousUrl, newUrl}`, instead of remove+add logging two
+  unrelated entries.
+- New `findForRepositoryManagement` (`GET /innovations/admin/repository`) — filtered/paginated
+  list scoped to `APPROVED`/`PUBLISHED`/`UNPUBLISHED` (the set this module cares about), ordered
+  by `publishedAt desc` with `nulls: 'last'` (needed so never-published `APPROVED` rows don't jump
+  ahead of recently-published ones under Postgres's default DESC-nulls-first behavior).
+- New `listActivityLog` reading the pre-existing `AuditLog` table, which had no read endpoint at
+  all until now — exposed as `GET /innovations/:id/activity-log` (one innovation) and `GET
+  /innovations/admin/activity-log` (repository-wide feed).
+- **Bug fixed along the way:** `PATCH /innovations/:id/status`'s controller `@Roles` guard was
+  missing `SYSTEM_ADMIN` (had `PLATFORM_ADMIN` only) even though `assertOwnerOrAdmin` and every
+  other admin-gated endpoint already treat the two as equivalent per [ROLES.md](ROLES.md). Added
+  it.
+- All new admin routes (`admin/repository`, `admin/activity-log`, `:id/activity-log`) gated to
+  `PLATFORM_ADMIN, SYSTEM_ADMIN` only — narrower than the existing `updateStatus`/attachment
+  endpoints they reuse under the hood (those stay open to Institutional Coordinator/Innovation
+  Manager too, unchanged, since the Moderation page already relies on that).
+
+**Frontend.** New `/dashboard/admin/repository` page + nav item (Platform/System Admin only):
+status pills (extended `STATUS_STYLES` with `APPROVED`/`UNPUBLISHED` — and, since a submitter's
+own innovation can land on `UNPUBLISHED` if an admin takes it down, added the same entry to
+`dashboard/innovations/page.tsx` and `dashboard/innovations/[id]/page.tsx`'s `STATUS_STYLES` too,
+per the existing documented warning in [UI_GUIDELINES.md](UI_GUIDELINES.md) that a missed entry
+silently renders with no pill color), search/category/status/date filters, per-innovation media
+manager (hover-to-replace/remove on each photo/video thumbnail, upload buttons for new ones), and
+an expandable activity-log panel per innovation plus a repository-wide "Recent activity" panel.
+Built `components/ui/confirm-dialog.tsx` — first confirmation-dialog component in this codebase
+(no prior `window.confirm` or modal-confirm precedent existed) — used for unpublish, media
+remove, and media replace.
+
+**Verification.** Both apps type-check clean. Verified the full flow live against the local API
+(not just reading code): unpublished a real seeded innovation, confirmed it 404s for an
+unauthenticated `GET` while still visible to the admin, confirmed the activity log recorded the
+correct actor/from/to/note, republished it, then added/replaced/removed a test photo attachment
+and confirmed each step logged its own `AuditLog` entry. Confirmed the broadened `APPROVED` listing
+query runs cleanly (0 results in current seed data — no `APPROVED`-and-unpublished innovations
+exist yet — but the default `admin/repository` listing still correctly returns all 37 published
+items). **Not done:** no browser/Playwright available in this environment, so the page's visual
+rendering (modal layout, hover states) was not screenshot-verified — only confirmed to compile and
+return 200.
+
+**Docs.** Updated DATABASE.md (enum + AuditLog read-path), API.md (all new/changed routes),
+ROLES.md (new nav route + the `SYSTEM_ADMIN` status-guard fix), UI_GUIDELINES.md (new component +
+status-color entries), PROJECT_CONTEXT.md (Features table + a new detailed business-rule bullet),
+ROADMAP.md (marked the "no dedicated Publish UI" known issue resolved, added a Completed entry).
+
+**Next steps:** none outstanding. If `APPROVED`-but-unpublished innovations start existing in
+practice, worth revisiting whether the Admin Evaluations page's "Reviewed" tab and this module's
+listing overlap in a confusing way — they don't currently (Reviewed shows terminal states
+including `APPROVED`; this module additionally offers the actual publish action for those rows),
+but hasn't been used with real `APPROVED`-heavy data yet.
+
+---
+
 ## 2026-08-17 (session 19) — Removed demo accounts list from sign-in page
 
 **Task.** User asked to remove the "Demo accounts" block from the sign-in page. Deleted the

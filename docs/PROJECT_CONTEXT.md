@@ -42,7 +42,7 @@ supersedes it as the maintained reference going forward).
 |---|---|---|---|
 | 1 | Innovation Submission & Evaluation | `innovations`, `evaluations` | `/submit`, `/dashboard/innovations`, `/dashboard/evaluations`, `/dashboard/preliminary-review`, `/dashboard/authenticity-review`, `/dashboard/moderation` (Institutional Coordinator only), `/dashboard/admin/evaluations` (admin shortlist + IP-flag overview, grouped by month) |
 | 2 | Funding Matchmaking | `funding` | `/dashboard/investor` |
-| 3 | Repository & Knowledge Management | `repository` | `/repository`, `/repository/[slug]`, `/statistics` |
+| 3 | Repository & Knowledge Management | `repository`, plus `innovations`' Repository Management endpoints (`/innovations/admin/*`, added 2026-08-17) | `/repository`, `/repository/[slug]`, `/statistics`, `/dashboard/admin/repository` (Platform/System Admin — publish/unpublish, photo/video management, activity log) |
 | 4 | Communication & CMS | `cms` (serves news/challenges/resources/partners/FAQ/feedback too — see [API.md](API.md)) | `/news`, `/challenges`, `/resources`, `/faq`, `/contact`, `/dashboard/admin` |
 | 5 | Performance Monitoring & Reporting | `reporting` | `/dashboard/reports` |
 | 6 | Mentorship & Expert Guidance | `mentorship` | `/dashboard/mentor` |
@@ -180,9 +180,11 @@ since each was an explicit scope call:
   Reviewed, and redirects the Admin back to `/dashboard/admin/evaluations?saved=1` (a dismissible
   "Approval decision saved successfully" banner, auto-clearing after a few seconds). It does
   **not** set `publishedAt`, and an approved innovation does **not** automatically become
-  published — publication (`APPROVED -> PUBLISHED`) is a fully separate, later action, currently
-  only reachable via the Moderation page's generic transition tool (no dedicated "Publish" UI
-  exists yet). Once an innovation leaves `SELECTED` (i.e. is `APPROVED` or later),
+  published — publication (`APPROVED -> PUBLISHED`) is a fully separate, later action. As of
+  2026-08-17 it's reachable both via the Moderation page's generic transition tool and via the
+  dedicated Admin Repository Management page (`/dashboard/admin/repository`, Platform/System Admin
+  only) — see the `UNPUBLISHED` bullet below. Once an innovation leaves `SELECTED` (i.e. is
+  `APPROVED` or later),
   `dashboard/admin/evaluations/[innovationId]`'s Permission & Approval section renders **read-only**
   — every toggle, comment field, the letter-upload control, and the Save button are all hidden or
   replaced with plain view-only display; the Admin can view but never re-enter, edit, or resubmit a
@@ -191,6 +193,27 @@ since each was an explicit scope call:
   the upload control itself is part of what gets hidden) — that call deliberately does not approve
   or redirect, since uploading a letter isn't itself a decision. See
   [API.md](API.md#innovations-innovations) and [UI_GUIDELINES.md](UI_GUIDELINES.md).
+- **Admin Repository Management (added 2026-08-17)** — `/dashboard/admin/repository`
+  (`PLATFORM_ADMIN`/`SYSTEM_ADMIN` only) lists `APPROVED` (not yet published), `PUBLISHED`, and
+  `UNPUBLISHED` innovations, with search (title/code), category, status, and published-date-range
+  filters. An admin can **publish** (`APPROVED`/`UNPUBLISHED` → `PUBLISHED`, via the same generic
+  `PATCH /innovations/:id/status` every other transition uses) or **unpublish**
+  (`PUBLISHED` → `UNPUBLISHED`) any innovation; unpublishing removes it from public repository
+  search/detail immediately (`RepositoryService.search` and `InnovationsService.findOneForViewer`
+  both gate on `reviewStatus === 'PUBLISHED'`, so `UNPUBLISHED` is excluded the same way `DRAFT`/
+  `UNDER_REVIEW`/etc. already were — no new visibility code needed) while preserving `publishedAt`
+  history; re-publishing sets a fresh `publishedAt`. The Moderation page's generic transition
+  buttons deliberately do **not** expose `UNPUBLISHED` (kept scoped to this dedicated UI), even
+  though the underlying status and endpoint are shared. The same page also manages an innovation's
+  `PHOTO`/`VIDEO` attachments (upload, replace-in-place via `PATCH
+  /innovations/:id/attachments/:attachmentId`, remove) and shows a full admin activity log per
+  innovation and repository-wide (`GET /innovations/:id/activity-log` /
+  `/innovations/admin/activity-log`, reading the pre-existing `AuditLog` table, which previously
+  had no read endpoint at all). Every action here — status change, media upload/replace/remove —
+  writes an `AuditLog` row with actor, timestamp, and before/after metadata; unpublish and media
+  remove/replace are gated behind a confirmation dialog (`components/ui/confirm-dialog.tsx`, the
+  first confirm-dialog component in this codebase). See [API.md](API.md#innovations-innovations),
+  [DATABASE.md](DATABASE.md), and [UI_GUIDELINES.md](UI_GUIDELINES.md).
 - Full history of Preliminary/Authenticity reviewer comments is kept in `ReviewComment`
   (separate from `Innovation.reviewRemarks`, which only holds the latest note), so context isn't
   lost across reject/resubmit loops.

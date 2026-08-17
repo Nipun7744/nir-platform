@@ -17,6 +17,7 @@ const STATUS_STYLES: Record<string, string> = {
   APPROVED: 'bg-brand-100 text-brand-800',
   REJECTED: 'bg-red-50 text-red-600',
   PUBLISHED: 'bg-brand-100 text-brand-800',
+  UNPUBLISHED: 'bg-sun-100 text-sun-700',
   ARCHIVED: 'bg-ink-50 text-ink-400',
 };
 

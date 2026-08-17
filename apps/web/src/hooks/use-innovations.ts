@@ -39,7 +39,12 @@ export function useAddAttachment(innovationId: string) {
   return useMutation({
     mutationFn: (input: { kind: string; url: string; caption?: string; mimeType?: string; sizeBytes?: number }) =>
       api.post(`/innovations/${innovationId}/attachments`, input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['innovation', innovationId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['innovation', innovationId] });
+      queryClient.invalidateQueries({ queryKey: ['repository-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-log', innovationId] });
+      queryClient.invalidateQueries({ queryKey: ['activity-log', undefined] });
+    },
   });
 }
 
@@ -56,12 +61,18 @@ export function useUpdateInnovationStatus(innovationId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { reviewStatus: string; note?: string }) => api.patch(`/innovations/${innovationId}/status`, input),
+    // Covers every page a status change could affect, including the Admin Repository Management
+    // module's publish/unpublish toggle (PUBLISHED <-> UNPUBLISHED goes through this same generic
+    // endpoint — see InnovationsService.updateStatus) and its activity-log panel.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['innovation', innovationId] });
       queryClient.invalidateQueries({ queryKey: ['moderation-queue'] });
       queryClient.invalidateQueries({ queryKey: ['preliminary-review-queue'] });
       queryClient.invalidateQueries({ queryKey: ['authenticity-review-queue'] });
       queryClient.invalidateQueries({ queryKey: ['review-comments', innovationId] });
+      queryClient.invalidateQueries({ queryKey: ['repository-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-log', innovationId] });
+      queryClient.invalidateQueries({ queryKey: ['activity-log', undefined] });
     },
   });
 }

@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import {
   LayoutDashboard, Lightbulb, ClipboardCheck, ShieldCheck, Landmark, Users2, Briefcase,
   Building, LineChart, LogOut, Workflow, UserCheck, UserCog, User as UserIcon, ListChecks, SearchCheck,
+  Layers,
 } from 'lucide-react';
 import { useRequireAuth } from '@/hooks/use-require-auth';
 import { useLogout, useCurrentUser } from '@/hooks/use-auth';
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/reports', label: 'Reports & KPIs', icon: LineChart, roles: [Role.POLICY_OBSERVER, Role.PLATFORM_ADMIN] },
   { href: '/dashboard/admin/evaluations', label: 'Evaluations', icon: ClipboardCheck, roles: ADMIN_ROLES },
   { href: '/dashboard/admin/approvals', label: 'User Approvals', icon: UserCheck, roles: ADMIN_ROLES },
+  { href: '/dashboard/admin/repository', label: 'Repository Management', icon: Layers, roles: ADMIN_ROLES },
   { href: '/dashboard/admin', label: 'Platform admin', icon: Building, roles: ADMIN_ROLES },
 ];
 

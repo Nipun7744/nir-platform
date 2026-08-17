@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ReviewStatus, ReviewStage, Role } from '@prisma/client';
+import { Prisma, ReviewStatus, ReviewStage, Role } from '@prisma/client';
 import slugify from 'slugify';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdGeneratorService } from '../common/services/id-generator.service';
@@ -13,14 +13,21 @@ import { CreateInnovationDto } from './dto/create-innovation.dto';
 import { UpdateInnovationDto } from './dto/update-innovation.dto';
 import { AddTeamMemberDto } from './dto/add-team-member.dto';
 import { AddAttachmentDto } from './dto/add-attachment.dto';
+import { ReplaceAttachmentDto } from './dto/replace-attachment.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UpdateApprovalDto } from './dto/update-approval.dto';
+import { RepositoryFilterDto } from './dto/repository-filter.dto';
+import { ActivityLogFilterDto } from './dto/activity-log-filter.dto';
 
 // ToR Module 1 workflow: Under Review -> Authenticity Review -> Shortlisted/Rejected -> Selected ->
 // Approved -> Published/Archived. SELECTED -> APPROVED is the Admin's approval decision (Recognition/
 // Mentor/Fund sign-off, via PATCH /innovations/:id/approval with finalize: true — see
 // InnovationsService.updateApproval) and is deliberately NOT the same event as publication:
 // APPROVED -> PUBLISHED remains a separate, later action.
+// PUBLISHED <-> UNPUBLISHED is the Admin Repository Management module's takedown/restore toggle
+// (see PROJECT_CONTEXT.md#business-rules) — driven through this same generic transition, same as
+// every other status change, so it inherits the standard audit-log/actor-role handling below
+// rather than needing its own code path.
 const ALLOWED_TRANSITIONS: Record<ReviewStatus, ReviewStatus[]> = {
   DRAFT: ['UNDER_REVIEW'],
   UNDER_REVIEW: ['AUTHENTICITY_REVIEW', 'REJECTED', 'ARCHIVED'],
@@ -29,7 +36,8 @@ const ALLOWED_TRANSITIONS: Record<ReviewStatus, ReviewStatus[]> = {
   SELECTED: ['APPROVED', 'ARCHIVED'],
   APPROVED: ['PUBLISHED', 'ARCHIVED'],
   REJECTED: ['UNDER_REVIEW', 'ARCHIVED'],
-  PUBLISHED: ['ARCHIVED'],
+  PUBLISHED: ['UNPUBLISHED', 'ARCHIVED'],
+  UNPUBLISHED: ['PUBLISHED', 'ARCHIVED'],
   ARCHIVED: ['UNDER_REVIEW'],
 };
 
@@ -519,13 +527,144 @@ export class InnovationsService {
 
   async addAttachment(id: string, dto: AddAttachmentDto, userId: string, roles: Role[]) {
     await this.assertOwnerOrAdmin(id, userId, roles);
-    return this.prisma.innovationAttachment.create({
+    const attachment = await this.prisma.innovationAttachment.create({
       data: { innovationId: id, ...dto },
     });
+
+    await this.auditLog.record({
+      actorId: userId,
+      action: 'INNOVATION_MEDIA_UPLOADED',
+      entityType: 'Innovation',
+      entityId: id,
+      metadata: { attachmentId: attachment.id, kind: attachment.kind, url: attachment.url, caption: attachment.caption },
+    });
+
+    return attachment;
   }
 
   async removeAttachment(id: string, attachmentId: string, userId: string, roles: Role[]) {
     await this.assertOwnerOrAdmin(id, userId, roles);
-    return this.prisma.innovationAttachment.delete({ where: { id: attachmentId } });
+    const attachment = await this.prisma.innovationAttachment.delete({ where: { id: attachmentId } });
+
+    await this.auditLog.record({
+      actorId: userId,
+      action: 'INNOVATION_MEDIA_REMOVED',
+      entityType: 'Innovation',
+      entityId: id,
+      metadata: { attachmentId: attachment.id, kind: attachment.kind, url: attachment.url, caption: attachment.caption },
+    });
+
+    return attachment;
+  }
+
+  /**
+   * Swaps the file behind an existing photo/video/document without changing its position in the
+   * attachments list — distinct from remove-then-add, which the Repository Management UI needs
+   * for a one-click "Replace" action that logs a single before/after audit entry instead of two
+   * unrelated remove/add entries.
+   */
+  async replaceAttachment(id: string, attachmentId: string, dto: ReplaceAttachmentDto, userId: string, roles: Role[]) {
+    await this.assertOwnerOrAdmin(id, userId, roles);
+    const existing = await this.prisma.innovationAttachment.findUnique({ where: { id: attachmentId } });
+    if (!existing || existing.innovationId !== id) throw new NotFoundException('Attachment not found');
+
+    const updated = await this.prisma.innovationAttachment.update({
+      where: { id: attachmentId },
+      data: {
+        url: dto.url,
+        caption: dto.caption ?? existing.caption,
+        mimeType: dto.mimeType ?? existing.mimeType,
+        sizeBytes: dto.sizeBytes ?? existing.sizeBytes,
+        kind: dto.kind ?? existing.kind,
+      },
+    });
+
+    await this.auditLog.record({
+      actorId: userId,
+      action: 'INNOVATION_MEDIA_REPLACED',
+      entityType: 'Innovation',
+      entityId: id,
+      metadata: { attachmentId, kind: updated.kind, previousUrl: existing.url, newUrl: updated.url },
+    });
+
+    return updated;
+  }
+
+  /**
+   * Repository Management listing (Platform/System Admin only, guarded at the controller) —
+   * scoped to innovations the public repository cares about: currently live (`PUBLISHED`),
+   * taken down (`UNPUBLISHED`), or approved but never yet published (`APPROVED`) so this is also
+   * the module's dedicated first-publish surface (previously only reachable via the Moderation
+   * page's generic transition tool — see ROADMAP.md). See PROJECT_CONTEXT.md#business-rules.
+   */
+  async findForRepositoryManagement(filters: RepositoryFilterDto) {
+    const page = filters.page ?? 1;
+    const pageSize = filters.pageSize ?? 20;
+
+    const where: Prisma.InnovationWhereInput = {
+      reviewStatus: filters.status ? filters.status : { in: ['APPROVED', 'PUBLISHED', 'UNPUBLISHED'] },
+      ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+      ...(filters.q
+        ? {
+            OR: [
+              { titleEn: { contains: filters.q, mode: 'insensitive' } },
+              { titleBn: { contains: filters.q, mode: 'insensitive' } },
+              { innovationCode: { contains: filters.q, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(filters.fromDate || filters.toDate
+        ? {
+            publishedAt: {
+              ...(filters.fromDate ? { gte: new Date(`${filters.fromDate}T00:00:00`) } : {}),
+              ...(filters.toDate ? { lte: new Date(`${filters.toDate}T23:59:59.999`) } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.innovation.findMany({
+        where,
+        include: DETAIL_INCLUDE,
+        // Postgres defaults nulls to the front on DESC — without an explicit `nulls: 'last'`,
+        // never-published APPROVED innovations (publishedAt is null) would jump ahead of
+        // recently-published ones instead of settling at the bottom.
+        orderBy: { publishedAt: { sort: 'desc', nulls: 'last' } },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.innovation.count({ where }),
+    ]);
+
+    return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  /**
+   * Admin activity log — every INNOVATION_* audit entry (status changes, media changes, approval
+   * decisions), optionally scoped to one innovation. Backs both the Repository Management page's
+   * per-innovation history panel and its "recent activity" feed. Platform/System Admin only.
+   */
+  async listActivityLog(filters: ActivityLogFilterDto) {
+    const page = filters.page ?? 1;
+    const pageSize = filters.pageSize ?? 25;
+
+    const where: Prisma.AuditLogWhereInput = {
+      entityType: 'Innovation',
+      ...(filters.entityId ? { entityId: filters.entityId } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        include: { actor: { select: { id: true, fullName: true, email: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
   }
 }

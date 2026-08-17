@@ -233,10 +233,23 @@
   verified end-to-end (login, CORS, real data fetched from the live API). Full details:
   [SETUP.md § Production Deployment](SETUP.md#production-deployment).
 
+- **(2026-08-17) Admin Repository Management module.** New `UNPUBLISHED` `ReviewStatus` value
+  (migration `20260817054146_add_unpublished_review_status`) plus a new `/dashboard/admin/repository`
+  page (`PLATFORM_ADMIN`/`SYSTEM_ADMIN` only): publish (`APPROVED`/`UNPUBLISHED` → `PUBLISHED`) or
+  unpublish (`PUBLISHED` → `UNPUBLISHED`) any innovation, manage its `PHOTO`/`VIDEO` attachments
+  (upload, replace-in-place, remove), and view a full admin activity log per innovation and
+  repository-wide — all reusing the existing generic status-transition endpoint and the
+  pre-existing (previously read-only-from-code, no API) `AuditLog` table. Also fixed a real gap
+  found along the way: `PATCH /innovations/:id/status`'s controller guard was missing
+  `SYSTEM_ADMIN` even though the service-level checks already treated it as a senior role
+  elsewhere. First confirmation-dialog component in the codebase
+  (`components/ui/confirm-dialog.tsx`) — see [UI_GUIDELINES.md](UI_GUIDELINES.md). Full detail:
+  [SESSION_LOG.md](SESSION_LOG.md).
+
 ## Current work
 
-*(nothing in progress as of this update — session 18's deployment work above is the most recent
-completed work)*
+*(nothing in progress as of this update — the Repository Management module above is the most
+recent completed work)*
 
 ## Upcoming
 
@@ -247,12 +260,12 @@ completed work)*
 
 ## Known issues
 
-- **No dedicated "Publish" UI exists.** `APPROVED -> PUBLISHED` (the Admin's actual final
-  publication decision, deliberately separate from the `APPROVED` approval step — see
-  [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules)) is currently only reachable via the
-  Moderation page's generic per-status "Move to X" button, same as several other transitions. A
-  dedicated action on the Admin Evaluations detail page (mirroring how "Save approval decisions"
-  works today) would be a natural follow-up if requested.
+- **Resolved (2026-08-17): dedicated "Publish" UI now exists** — the Admin Repository Management
+  page (`/dashboard/admin/repository`) covers `APPROVED -> PUBLISHED` (first publish),
+  `PUBLISHED -> UNPUBLISHED` (takedown), and `UNPUBLISHED -> PUBLISHED` (re-publish), plus
+  photo/video management and an activity log. The Moderation page's generic "Move to X" button
+  still works for `APPROVED -> PUBLISHED` too (unchanged, not removed) but `UNPUBLISHED` is
+  deliberately not exposed there — see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules).
 - **`EvaluationRecommendation.FUND`** is still a valid enum value (existing data may use it) but
   the Expert Evaluator UI no longer offers it — the decision is binary (Shortlist/Reject) as of
   session 14. If a "recommend for funding" concept is needed again, it needs its own explicit UI,

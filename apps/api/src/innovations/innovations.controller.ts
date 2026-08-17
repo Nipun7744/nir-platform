@@ -15,8 +15,11 @@ import { CreateInnovationDto } from './dto/create-innovation.dto';
 import { UpdateInnovationDto } from './dto/update-innovation.dto';
 import { AddTeamMemberDto } from './dto/add-team-member.dto';
 import { AddAttachmentDto } from './dto/add-attachment.dto';
+import { ReplaceAttachmentDto } from './dto/replace-attachment.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UpdateApprovalDto } from './dto/update-approval.dto';
+import { RepositoryFilterDto } from './dto/repository-filter.dto';
+import { ActivityLogFilterDto } from './dto/activity-log-filter.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { Public } from '../common/decorators/public.decorator';
@@ -65,6 +68,22 @@ export class InnovationsController {
     return this.innovationsService.findAuthenticityReviewQueue(user, reviewStatus);
   }
 
+  /** Admin Repository Management listing — Platform/System Admin only, see PROJECT_CONTEXT.md. */
+  @Get('admin/repository')
+  @UseGuards(RolesGuard)
+  @Roles(Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN)
+  findForRepositoryManagement(@Query() filters: RepositoryFilterDto) {
+    return this.innovationsService.findForRepositoryManagement(filters);
+  }
+
+  /** Repository-wide admin activity feed (all innovations) — Platform/System Admin only. */
+  @Get('admin/activity-log')
+  @UseGuards(RolesGuard)
+  @Roles(Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN)
+  listActivityLogAll(@Query() filters: ActivityLogFilterDto) {
+    return this.innovationsService.listActivityLog(filters);
+  }
+
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':idOrSlug')
@@ -88,7 +107,7 @@ export class InnovationsController {
 
   @Patch(':id/status')
   @UseGuards(RolesGuard)
-  @Roles(Role.INSTITUTIONAL_COORDINATOR, Role.INNOVATION_MANAGER, Role.PLATFORM_ADMIN, Role.PRELIMINARY_REVIEWER, Role.AUTHENTICITY_REVIEWER)
+  @Roles(Role.INSTITUTIONAL_COORDINATOR, Role.INNOVATION_MANAGER, Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN, Role.PRELIMINARY_REVIEWER, Role.AUTHENTICITY_REVIEWER)
   updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateStatusDto,
@@ -106,6 +125,14 @@ export class InnovationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.innovationsService.updateApproval(id, dto, user.id);
+  }
+
+  /** Per-innovation admin activity history — Platform/System Admin only. */
+  @Get(':id/activity-log')
+  @UseGuards(RolesGuard)
+  @Roles(Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN)
+  listActivityLog(@Param('id') id: string, @Query() filters: ActivityLogFilterDto) {
+    return this.innovationsService.listActivityLog({ ...filters, entityId: id });
   }
 
   @Get(':id/review-comments')
@@ -157,5 +184,15 @@ export class InnovationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.innovationsService.removeAttachment(id, attachmentId, user.id, user.roles);
+  }
+
+  @Patch(':id/attachments/:attachmentId')
+  replaceAttachment(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @Body() dto: ReplaceAttachmentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.innovationsService.replaceAttachment(id, attachmentId, dto, user.id, user.roles);
   }
 }

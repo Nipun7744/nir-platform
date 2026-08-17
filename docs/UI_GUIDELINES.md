@@ -91,7 +91,7 @@ local `inputCls` constant). Keep this in mind before assuming a `<Button>` exist
 
 | Folder | Contents |
 |---|---|
-| `ui/` | `category-icon.tsx` (name→lucide-react icon map), `stage-pill.tsx` (colored badge for `DevelopmentStage`), `innovation-card.tsx` (repository grid card), `animated-counter.tsx` (count-up via Framer Motion), `file-upload-button.tsx` (wraps `lib/upload.ts`) |
+| `ui/` | `category-icon.tsx` (name→lucide-react icon map), `stage-pill.tsx` (colored badge for `DevelopmentStage`), `innovation-card.tsx` (repository grid card), `animated-counter.tsx` (count-up via Framer Motion), `file-upload-button.tsx` (wraps `lib/upload.ts`), `confirm-dialog.tsx` (2026-08-17 — blocking confirm modal for critical/destructive admin actions; first of its kind in this repo, reuse it rather than adding another `window.confirm`/bespoke modal) |
 | `auth/` | `auth-card.tsx` (shared centered-card shell for sign-in/register), `sso-buttons.tsx` (disabled placeholder buttons) |
 | `layout/` | `site-header.tsx`, `site-footer.tsx`, `locale-switcher.tsx` (EN/বাংলা pill toggle), `challenge-popup.tsx` (site-wide "running challenge" modal, see below) |
 | `home/` | `hero.tsx`, `confluence-graphic.tsx` (decorative animated SVG), `stats-strip.tsx`, `quick-links.tsx`, `featured-innovations.tsx`, `category-grid.tsx`, `challenge-banner.tsx`, `news-section.tsx`, `partners-strip.tsx` — landing-page-only, each fetches its own data |
@@ -151,9 +151,12 @@ active), written twice.
   `bg-brand-100 text-brand-700`, unchanged) — everything else (including `APPROVED`, which has no
   entry in `SUBMITTER_STATUS_LABELS` and simply reads "APPROVED") falls through to the raw
   `reviewStatus.replace(/_/g, ' ')` as before. `APPROVED` does have its own `STATUS_STYLES` entry
-  (`bg-brand-100 text-brand-800`, matching `PUBLISHED`'s shade) — every new `ReviewStatus` value
-  needs one of these or it silently renders with no pill color at all (this happened once already
-  with `AUTHENTICITY_REVIEW`; don't repeat it). The color lookup
+  (`bg-brand-100 text-brand-800`, matching `PUBLISHED`'s shade), and so does `UNPUBLISHED`
+  (`bg-sun-100 text-sun-700`, added 2026-08-17 alongside the Admin Repository Management module —
+  a submitter's own innovation can land in this status if an admin unpublishes it, so this page
+  needed the entry even though neither page is part of that module) — every new `ReviewStatus`
+  value needs one of these or it silently renders with no pill color at all (this happened once
+  already with `AUTHENTICITY_REVIEW`; don't repeat it). The color lookup
   (`STATUS_STYLES[innovation.reviewStatus]`) still keys off the *raw* `reviewStatus`, not the
   relabeled text. If you touch either page's status pill, keep both files in sync — see
   [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules) for why the mapping exists and how the

@@ -26,7 +26,7 @@
 | Enum | Values |
 |---|---|
 | `Role` | 14 values — see [ROLES.md](ROLES.md) |
-| `ReviewStatus` | DRAFT, UNDER_REVIEW, AUTHENTICITY_REVIEW, SHORTLISTED, SELECTED, APPROVED, REJECTED, PUBLISHED, ARCHIVED — `APPROVED` (added 2026-08-12) is the Admin's approval decision and is deliberately distinct from `PUBLISHED`; see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules) |
+| `ReviewStatus` | DRAFT, UNDER_REVIEW, AUTHENTICITY_REVIEW, SHORTLISTED, SELECTED, APPROVED, REJECTED, PUBLISHED, UNPUBLISHED, ARCHIVED — `APPROVED` (added 2026-08-12) is the Admin's approval decision and is deliberately distinct from `PUBLISHED`; `UNPUBLISHED` (added 2026-08-17, migration `20260817054146_add_unpublished_review_status`) is the Admin Repository Management module's takedown state — a `PUBLISHED` innovation moved here is immediately excluded from the public repository but keeps its `publishedAt` history and can be moved back to `PUBLISHED` (re-publish sets a fresh `publishedAt`); see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules) |
 | `ReviewStage` | PRELIMINARY_REVIEW, AUTHENTICITY_REVIEW |
 | `DevelopmentStage` | IDEA, PROTOTYPE_DEVELOPED, PILOT_IMPLEMENTED, COMMERCIALIZED, SCALED, DISCONTINUED |
 | `PipelineStage` | INTAKE, UNDER_ASSESSMENT, ADVISORY_SUPPORT, FUNDED, SCALING, CLOSED |
@@ -66,7 +66,14 @@ you change one, change both.
   `User` delete.
 - **`AuditLog`** — `actorId?` (nullable, `SetNull` on user delete so history survives),
   `action`, `entityType`, `entityId?`, `metadata: Json?`, `ipAddress?`. Indexed on
-  `[entityType, entityId]`, `actorId`, `createdAt`.
+  `[entityType, entityId]`, `actorId`, `createdAt`. Written via `AuditLogService.record` from many
+  modules (see grep for call sites) but had no read endpoint until the Admin Repository
+  Management module (2026-08-17) added `InnovationsService.listActivityLog`, exposed at
+  `GET /innovations/:id/activity-log` (one innovation) and `GET /innovations/admin/activity-log`
+  (all `entityType: 'Innovation'` entries) — see [API.md](API.md#innovations-innovations).
+  `InnovationsService.addAttachment`/`removeAttachment`/`replaceAttachment` now also record
+  `INNOVATION_MEDIA_UPLOADED`/`_REMOVED`/`_REPLACED` entries; they didn't before this module
+  existed.
 
 ### Reference data (admin-managed lookups)
 
