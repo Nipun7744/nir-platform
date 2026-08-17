@@ -197,9 +197,9 @@ since each was an explicit scope call:
 
 ## Demo Accounts
 
-Seeded by `apps/api/prisma/seed.ts`, password `Password123!` for all. Also rendered live on the
-sign-in page (`apps/web/src/app/[locale]/sign-in/page.tsx`'s `DEMO_ACCOUNTS` constant — a
-hand-kept mirror of this table; update both together, see [ROADMAP.md](ROADMAP.md#technical-debt)):
+Seeded by `apps/api/prisma/seed.ts`, password `Password123!` for all. No longer rendered on the
+sign-in page — the demo accounts list there was removed (2026-08-17) so this table is now the only
+place these are listed:
 
 | Email | Role |
 |---|---|

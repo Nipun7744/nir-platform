@@ -301,10 +301,10 @@ completed work)*
   [UI_GUIDELINES.md](UI_GUIDELINES.md#known-gaps).
 - **Mocked integrations** (NID/BIN verification, SMS/Email, SSO) are stable-interface stand-ins,
   not implementations — swapping in real providers is deferred, tracked work, not a bug.
-- **The sign-in page's `DEMO_ACCOUNTS` list duplicates the demo-accounts table in
-  [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#demo-accounts) and `apps/api/prisma/seed.ts`** — all
-  three must be updated together whenever a demo account is added/removed/renamed. No single
-  source of truth exists for this list yet (could move to `packages/shared` if it drifts again).
+- **Resolved (2026-08-17):** the sign-in page's `DEMO_ACCOUNTS` list (previously duplicating the
+  demo-accounts table in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#demo-accounts) and
+  `apps/api/prisma/seed.ts`) was removed from the sign-in page entirely — see
+  [SESSION_LOG.md](SESSION_LOG.md). `PROJECT_CONTEXT.md` is now the only listing.
 - **Two near-identical chip-multi-select implementations** (admin specialization-category picker
   in `dashboard/admin/page.tsx`, `ChipSelect` in `register/page.tsx`) — see
   [UI_GUIDELINES.md](UI_GUIDELINES.md#component-inventory-appswebsrccomponents). Worth extracting

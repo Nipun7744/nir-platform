@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-08-17 (session 19) — Removed demo accounts list from sign-in page
+
+**Task.** User asked to remove the "Demo accounts" block from the sign-in page. Deleted the
+`DEMO_ACCOUNTS` constant, its `Role`/`ROLE_LABELS` imports, and the scrollable accounts list JSX
+from `apps/web/src/app/[locale]/sign-in/page.tsx` (form, SSO buttons, and "create account" link
+untouched). Verified with `tsc --noEmit` (clean) and a local dev-server request to `/en/sign-in`
+(200). This resolves the tech-debt item in [ROADMAP.md](ROADMAP.md) about the three-way
+`DEMO_ACCOUNTS` / `PROJECT_CONTEXT.md` / `seed.ts` duplication — `PROJECT_CONTEXT.md`'s Demo
+Accounts table is now the only place this list is documented.
+
+**Note:** the `demoNoteHeader` i18n key (`en`/`bn` message files) is now unused but was left in
+place — low-priority cleanup, not done this session.
+
+**Also noted, not acted on:** an untracked file `Documents/NIR Test ID Password` exists in the
+repo working directory — left out of git entirely (not staged, not committed) since the filename
+suggests it may hold credentials. Flagged to the user; nobody has confirmed its contents or
+whether it should be `.gitignore`d.
+
+**Deploy.** Committed the sign-in change and docs updates, pushed to `master`
+(https://github.com/Nipun7744/nir-platform), redeployed `apps/web` to Vercel
+(`nir-platform-web`) via `vercel --prod --yes` per [SETUP.md](SETUP.md#production-deployment) —
+no Railway/API changes this session, so the backend wasn't touched.
+
+**Next steps:** none outstanding from this session beyond the two low-priority notes above.
+
+---
+
 ## 2026-08-13 (session 18) — Pushed to GitHub, cleaned test data, deployed to Vercel + Railway
 
 **Task 1 — GitHub.** Repo had no git history at all. Installed GitHub CLI (`winget install
