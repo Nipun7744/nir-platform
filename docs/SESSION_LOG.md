@@ -44,6 +44,16 @@ doc update and confirming a new deployment appeared automatically (not via manua
 `vercel --prod --yes` still works as a fallback. Full detail in
 [SETUP.md § Production Deployment](SETUP.md#production-deployment).
 
+**Bug found and fixed during verification.** The first git-triggered production deploy failed:
+`Module not found: Can't resolve '@nir/shared'`. Root cause: the Vercel project's Build Command
+had always been unset/default (`next build` only, inside `apps/web`) — it never built
+`packages/shared`. This had been silently masked for days on manual `vercel --prod` deploys by
+build-cache carryover (a `packages/shared` build cached from early in the project's history kept
+getting reused); a fresh git clone has no such cache. Fixed by explicitly setting `buildCommand`
+to `cd ../.. && npm run build:shared && cd apps/web && npm run build` via the Vercel API. Verified
+by pushing this doc update itself and confirming the resulting git-triggered deploy succeeded
+clean. See [SETUP.md](SETUP.md#production-deployment) for the full command.
+
 **Next steps:** none.
 
 ---

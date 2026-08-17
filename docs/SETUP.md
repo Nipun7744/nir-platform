@@ -106,6 +106,17 @@ authorized on the repo first, a one-time manual step in GitHub's UI, not scripta
 automatically. Manual `vercel --prod --yes` from the repo root still works as a fallback (e.g. to
 redeploy without a new commit) but is no longer the normal path.
 
+Connecting Git exposed a latent bug: the project's **Build Command was unset** (defaulting to
+bare `next build` inside `apps/web`, never building `packages/shared` first). Manual CLI deploys
+had been masking this for days via stale build-cache carryover (an old cached `packages/shared`
+build from early in the project's life kept getting reused across deploys); a fresh git-triggered
+clone has no such cache and failed with `Module not found: Can't resolve '@nir/shared'` on its
+first run. Fixed by setting an explicit Build Command via
+`vercel api -X PATCH /v9/projects/nir-platform-web`
+(`buildCommand: "cd ../.. && npm run build:shared && cd apps/web && npm run build"` — `cd ../..`
+works because Vercel's build step runs with cwd = Root Directory, and
+`sourceFilesOutsideRootDirectory` means the rest of the monorepo is present one level up).
+
 Env vars (Vercel dashboard → Project → Settings → Environment Variables, or `vercel env`):
 - `NEXT_PUBLIC_API_URL=https://api-production-2d78.up.railway.app` (Production + Preview) — the
   code appends `/api/v1` itself, see `apps/web/src/lib/config.ts`.
