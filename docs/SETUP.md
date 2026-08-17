@@ -117,6 +117,21 @@ first run. Fixed by setting an explicit Build Command via
 works because Vercel's build step runs with cwd = Root Directory, and
 `sourceFilesOutsideRootDirectory` means the rest of the monorepo is present one level up).
 
+**Known issue — auto-deploy has silently no-op'd at least once (2026-08-17):** a small doc-only
+test push triggered a deployment within ~25s as expected, but a later 22-file push (the Repository
+Management module) produced **no deployment at all** — confirmed via the Vercel API's
+`GET /v6/deployments?projectId=...` list, not just `vercel ls` — even after 10+ minutes, with no
+error and no queued/building state to point to. GitHub's commit-status/check-runs API showed 0
+entries either way, so it isn't a useful signal for diagnosing this. Root cause not identified.
+Workaround used: manual `vercel --prod --yes`, which deploys the current local working tree
+regardless of what git/Vercel's webhook did. **If this recurs:** check the Vercel dashboard's
+Project → Settings → Git → deployment/webhook delivery log (not exposed via the CLI or the `api`
+subcommand used to diagnose this so far) before assuming a config problem — the `link` block
+returned by `GET /v9/projects/nir-platform-web` still shows the repo correctly connected each time
+this was checked, so the connection itself isn't the (visible) problem. Don't treat auto-deploy as
+guaranteed until this is root-caused — verify with `vercel ls`/`v6/deployments` after any push that
+matters, and fall back to `vercel --prod --yes` if nothing shows up within a minute or two.
+
 Env vars (Vercel dashboard → Project → Settings → Environment Variables, or `vercel env`):
 - `NEXT_PUBLIC_API_URL=https://api-production-2d78.up.railway.app` (Production + Preview) — the
   code appends `/api/v1` itself, see `apps/web/src/lib/config.ts`.

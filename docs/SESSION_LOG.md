@@ -67,16 +67,38 @@ items). **Not done:** no browser/Playwright available in this environment, so th
 rendering (modal layout, hover states) was not screenshot-verified — only confirmed to compile and
 return 200.
 
+**Deploy.** Committed (`b376154`) and pushed to `master`. Railway (`apps/api` + Postgres) deployed
+cleanly via `railway up --service api --detach --json` — `prisma migrate deploy` applied the
+`UNPUBLISHED` migration to the production DB automatically as part of the existing
+`deploy.startCommand`, verified live (`GET /innovations/admin/repository` against
+`api-production-2d78.up.railway.app` returns real data, no schema errors).
+
+**Vercel auto-deploy did not fire for this push** — the GitHub→Vercel Git integration set up
+earlier today (see the session below) had worked for a small doc-only test push (new deployment
+within ~25s) but produced *no* deployment at all (checked directly via the Vercel API's
+`/v6/deployments` list, not just `vercel ls`) for this much larger 22-file commit, even after
+10+ minutes. GitHub's commit-status/check-runs API showed 0 entries for both the working and
+non-working push, so that wasn't a useful differential signal. Root cause not identified — worked
+around by falling back to manual `vercel --prod --yes` (documented as the fallback path in
+[SETUP.md](SETUP.md#production-deployment)), which succeeded normally. Noted as an open reliability
+question in SETUP.md; if it recurs, check the Vercel dashboard's Git integration delivery log
+(not accessible via the CLI/API surface used here).
+
 **Docs.** Updated DATABASE.md (enum + AuditLog read-path), API.md (all new/changed routes),
 ROLES.md (new nav route + the `SYSTEM_ADMIN` status-guard fix), UI_GUIDELINES.md (new component +
 status-color entries), PROJECT_CONTEXT.md (Features table + a new detailed business-rule bullet),
-ROADMAP.md (marked the "no dedicated Publish UI" known issue resolved, added a Completed entry).
+ROADMAP.md (marked the "no dedicated Publish UI" known issue resolved, added a Completed entry),
+SETUP.md (the auto-deploy reliability gap above).
 
-**Next steps:** none outstanding. If `APPROVED`-but-unpublished innovations start existing in
-practice, worth revisiting whether the Admin Evaluations page's "Reviewed" tab and this module's
-listing overlap in a confusing way — they don't currently (Reviewed shows terminal states
-including `APPROVED`; this module additionally offers the actual publish action for those rows),
-but hasn't been used with real `APPROVED`-heavy data yet.
+**Next steps:**
+- If `APPROVED`-but-unpublished innovations start existing in practice, worth revisiting whether
+  the Admin Evaluations page's "Reviewed" tab and this module's listing overlap in a confusing way
+  — they don't currently (Reviewed shows terminal states including `APPROVED`; this module
+  additionally offers the actual publish action for those rows), but hasn't been used with real
+  `APPROVED`-heavy data yet.
+- Watch whether the Vercel auto-deploy webhook gap above recurs on the next normal push; if it
+  does, it needs actual investigation (dashboard delivery logs) rather than another manual-deploy
+  workaround.
 
 ---
 
