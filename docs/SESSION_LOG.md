@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-08-17 (session 24) — Deployed Archive/Featured + Pagination
+
+**Task.** Push and deploy the two commits from sessions 22–23 (`3384515` Archive/Featured actions,
+`ef72281` pagination), which had been left committed locally but unpushed at the user's request
+at the end of session 22.
+
+**Deploy.** `git push origin master`, then `railway up --service api --detach --json` for
+`apps/api` (no DB migration needed — both `ARCHIVED` and `isFeatured` already existed in the
+schema from earlier sessions). Railway build succeeded (`● Online`). Verified live against the
+production API: `PATCH /innovations/:id/featured` (new endpoint) toggles correctly and reverts
+cleanly, and `?page=&pageSize=` on `GET /innovations/admin/repository` returns correct
+`total`/`totalPages`. Vercel's GitHub auto-deploy **fired correctly this time** (~2 min, aliased to
+`nir-platform-web.vercel.app`, confirmed via `vercel inspect`) — see the updated note in
+[SETUP.md § Production Deployment](SETUP.md#production-deployment) for how this data point fits
+with the earlier no-op.
+
+**Next steps:** none outstanding.
+
+---
+
 ## 2026-08-17 (session 23) — Pagination for Repository Management
 
 **Task.** Add full pagination to the Admin Repository Management list: page-size selector
