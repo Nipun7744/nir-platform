@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
 
 export interface RepositoryFilters {
-  status?: 'APPROVED' | 'PUBLISHED' | 'UNPUBLISHED';
+  status?: 'APPROVED' | 'PUBLISHED' | 'UNPUBLISHED' | 'ARCHIVED';
   categoryId?: string;
   q?: string;
   fromDate?: string;
@@ -53,6 +53,20 @@ export function useReplaceAttachment(innovationId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['innovation', innovationId] });
       queryClient.invalidateQueries({ queryKey: ['repository-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-log', innovationId] });
+      queryClient.invalidateQueries({ queryKey: ['activity-log', undefined] });
+    },
+  });
+}
+
+export function useUpdateFeatured(innovationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (featured: boolean) => api.patch(`/innovations/${innovationId}/featured`, { featured }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['innovation', innovationId] });
+      queryClient.invalidateQueries({ queryKey: ['repository-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['featured-innovations'] });
       queryClient.invalidateQueries({ queryKey: ['activity-log', innovationId] });
       queryClient.invalidateQueries({ queryKey: ['activity-log', undefined] });
     },

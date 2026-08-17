@@ -2,8 +2,8 @@ import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class RepositoryFilterDto {
-  @IsOptional() @IsIn(['APPROVED', 'PUBLISHED', 'UNPUBLISHED'])
-  status?: 'APPROVED' | 'PUBLISHED' | 'UNPUBLISHED';
+  @IsOptional() @IsIn(['APPROVED', 'PUBLISHED', 'UNPUBLISHED', 'ARCHIVED'])
+  status?: 'APPROVED' | 'PUBLISHED' | 'UNPUBLISHED' | 'ARCHIVED';
 
   @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @IsString() q?: string;

@@ -195,25 +195,43 @@ since each was an explicit scope call:
   [API.md](API.md#innovations-innovations) and [UI_GUIDELINES.md](UI_GUIDELINES.md).
 - **Admin Repository Management (added 2026-08-17)** — `/dashboard/admin/repository`
   (`PLATFORM_ADMIN`/`SYSTEM_ADMIN` only) lists `APPROVED` (not yet published), `PUBLISHED`, and
-  `UNPUBLISHED` innovations, with search (title/code), category, status, and published-date-range
-  filters. An admin can **publish** (`APPROVED`/`UNPUBLISHED` → `PUBLISHED`, via the same generic
-  `PATCH /innovations/:id/status` every other transition uses) or **unpublish**
-  (`PUBLISHED` → `UNPUBLISHED`) any innovation; unpublishing removes it from public repository
-  search/detail immediately (`RepositoryService.search` and `InnovationsService.findOneForViewer`
-  both gate on `reviewStatus === 'PUBLISHED'`, so `UNPUBLISHED` is excluded the same way `DRAFT`/
-  `UNDER_REVIEW`/etc. already were — no new visibility code needed) while preserving `publishedAt`
-  history; re-publishing sets a fresh `publishedAt`. The Moderation page's generic transition
-  buttons deliberately do **not** expose `UNPUBLISHED` (kept scoped to this dedicated UI), even
-  though the underlying status and endpoint are shared. The same page also manages an innovation's
-  `PHOTO`/`VIDEO` attachments (upload, replace-in-place via `PATCH
-  /innovations/:id/attachments/:attachmentId`, remove) and shows a full admin activity log per
-  innovation and repository-wide (`GET /innovations/:id/activity-log` /
-  `/innovations/admin/activity-log`, reading the pre-existing `AuditLog` table, which previously
-  had no read endpoint at all). Every action here — status change, media upload/replace/remove —
-  writes an `AuditLog` row with actor, timestamp, and before/after metadata; unpublish and media
+  `UNPUBLISHED` innovations by default, with search (title/code), category, status, and
+  published-date-range filters; `ARCHIVED` is excluded from the default view but selectable
+  explicitly via the status filter, so archived innovations stay findable without cluttering the
+  everyday "active repository" list. An admin can **publish** (`APPROVED`/`UNPUBLISHED` →
+  `PUBLISHED`, via the same generic `PATCH /innovations/:id/status` every other transition uses),
+  **unpublish** (`PUBLISHED` → `UNPUBLISHED`), or **archive** (`APPROVED`/`PUBLISHED`/`UNPUBLISHED`
+  → `ARCHIVED`, same endpoint again, confirmation required — framed as "no longer actively
+  maintained / remove from the active repository") any innovation. Unpublishing *and* archiving
+  both remove it from public repository search/detail immediately (`RepositoryService.search` and
+  `InnovationsService.findOneForViewer` both gate on `reviewStatus === 'PUBLISHED'`, so anything
+  else — `UNPUBLISHED`, `ARCHIVED`, or any earlier pipeline stage — is excluded the same way,
+  no new visibility code needed) while preserving `publishedAt` history; re-publishing sets a
+  fresh `publishedAt`. **`ARCHIVED`'s only forward transition remains `-> UNDER_REVIEW`**
+  (unchanged, pre-existing) — there is deliberately no "un-archive" button on this page; restoring
+  an archived innovation means sending it back through the full review pipeline from the
+  Moderation page. The Moderation page's generic transition buttons deliberately do **not**
+  expose `UNPUBLISHED` (kept scoped to this dedicated UI), even though the underlying status and
+  endpoint are shared; `ARCHIVED` remains available from both pages since it predates this module.
+  An admin can also **feature/unfeature** any innovation (`PATCH /innovations/:id/featured`,
+  independent of `reviewStatus` — can be set before publishing but only has a visible effect once
+  `PUBLISHED`) — this is what the homepage's Featured section
+  (`components/home/featured-innovations.tsx` → `GET /repository/featured`, pre-existing, reads
+  `isFeatured: true` + `reviewStatus: 'PUBLISHED'`) and the public repository's featured filtering
+  actually surface; before this module, `Innovation.isFeatured` had no admin-facing way to be set
+  at all (Challenges have had an equivalent star-toggle for longer — see
+  `dashboard/admin/page.tsx`). The same page also manages an innovation's `PHOTO`/`VIDEO`
+  attachments (upload, replace-in-place via `PATCH /innovations/:id/attachments/:attachmentId`,
+  remove) and shows a full admin activity log per innovation and repository-wide
+  (`GET /innovations/:id/activity-log` / `/innovations/admin/activity-log`, reading the
+  pre-existing `AuditLog` table, which previously had no read endpoint at all). Every action here
+  — status change (including archive), media upload/replace/remove, featured toggle — writes an
+  `AuditLog` row with actor, timestamp, and before/after metadata; unpublish, archive, and media
   remove/replace are gated behind a confirmation dialog (`components/ui/confirm-dialog.tsx`, the
-  first confirm-dialog component in this codebase). See [API.md](API.md#innovations-innovations),
-  [DATABASE.md](DATABASE.md), and [UI_GUIDELINES.md](UI_GUIDELINES.md).
+  first confirm-dialog component in this codebase) — featuring/unfeaturing is not, since it's
+  reversible and non-destructive (matches the pre-existing Challenge featured-toggle's lack of
+  confirmation). See [API.md](API.md#innovations-innovations), [DATABASE.md](DATABASE.md), and
+  [UI_GUIDELINES.md](UI_GUIDELINES.md).
 - Full history of Preliminary/Authenticity reviewer comments is kept in `ReviewComment`
   (separate from `Innovation.reviewRemarks`, which only holds the latest note), so context isn't
   lost across reject/resubmit loops.

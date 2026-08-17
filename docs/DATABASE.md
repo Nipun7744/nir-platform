@@ -73,7 +73,10 @@ you change one, change both.
   (all `entityType: 'Innovation'` entries) — see [API.md](API.md#innovations-innovations).
   `InnovationsService.addAttachment`/`removeAttachment`/`replaceAttachment` now also record
   `INNOVATION_MEDIA_UPLOADED`/`_REMOVED`/`_REPLACED` entries; they didn't before this module
-  existed.
+  existed. `InnovationsService.updateFeatured` (added same day) records `INNOVATION_FEATURED_CHANGED`
+  with `{from, to}` booleans — archiving an innovation reuses the pre-existing
+  `INNOVATION_STATUS_CHANGED` action (no new action name needed, since `ARCHIVED` was already a
+  valid `reviewStatus` transition target before this module).
 
 ### Reference data (admin-managed lookups)
 

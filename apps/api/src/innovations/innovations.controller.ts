@@ -16,6 +16,7 @@ import { UpdateInnovationDto } from './dto/update-innovation.dto';
 import { AddTeamMemberDto } from './dto/add-team-member.dto';
 import { AddAttachmentDto } from './dto/add-attachment.dto';
 import { ReplaceAttachmentDto } from './dto/replace-attachment.dto';
+import { UpdateFeaturedDto } from './dto/update-featured.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UpdateApprovalDto } from './dto/update-approval.dto';
 import { RepositoryFilterDto } from './dto/repository-filter.dto';
@@ -114,6 +115,18 @@ export class InnovationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.innovationsService.updateStatus(id, dto, user.id, user.roles);
+  }
+
+  /** Mark/unmark as featured (homepage + repository) — Platform/System Admin only. */
+  @Patch(':id/featured')
+  @UseGuards(RolesGuard)
+  @Roles(Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN)
+  updateFeatured(
+    @Param('id') id: string,
+    @Body() dto: UpdateFeaturedDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.innovationsService.updateFeatured(id, dto, user.id);
   }
 
   @Patch(':id/approval')

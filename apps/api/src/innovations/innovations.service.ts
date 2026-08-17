@@ -14,6 +14,7 @@ import { UpdateInnovationDto } from './dto/update-innovation.dto';
 import { AddTeamMemberDto } from './dto/add-team-member.dto';
 import { AddAttachmentDto } from './dto/add-attachment.dto';
 import { ReplaceAttachmentDto } from './dto/replace-attachment.dto';
+import { UpdateFeaturedDto } from './dto/update-featured.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UpdateApprovalDto } from './dto/update-approval.dto';
 import { RepositoryFilterDto } from './dto/repository-filter.dto';
@@ -453,6 +454,37 @@ export class InnovationsService {
       entityType: 'Innovation',
       entityId: id,
       metadata: { from: innovation.reviewStatus, to: dto.reviewStatus, note: dto.note },
+    });
+
+    return updated;
+  }
+
+  /**
+   * Mark/unmark an innovation as featured — surfaces it in the homepage Featured section and the
+   * public repository (`RepositoryService.featured`/`CARD_SELECT` already read `isFeatured`; this
+   * is the first admin-facing way to set it on an *innovation*, mirroring the existing Challenge
+   * featured-toggle pattern). Deliberately a separate small endpoint rather than routed through
+   * the generic `PATCH /innovations/:id` update, so the audit entry carries a real before/after
+   * instead of a bare "updated" with no metadata. Being featured doesn't require `PUBLISHED` —
+   * it only becomes visible once the innovation is actually published, same as any other field set
+   * ahead of time.
+   */
+  async updateFeatured(id: string, dto: UpdateFeaturedDto, actorId: string) {
+    const innovation = await this.prisma.innovation.findUnique({ where: { id } });
+    if (!innovation) throw new NotFoundException('Innovation not found');
+
+    const updated = await this.prisma.innovation.update({
+      where: { id },
+      data: { isFeatured: dto.featured },
+      include: DETAIL_INCLUDE,
+    });
+
+    await this.auditLog.record({
+      actorId,
+      action: 'INNOVATION_FEATURED_CHANGED',
+      entityType: 'Innovation',
+      entityId: id,
+      metadata: { from: innovation.isFeatured, to: dto.featured },
     });
 
     return updated;

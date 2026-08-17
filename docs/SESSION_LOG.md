@@ -6,6 +6,59 @@
 
 ---
 
+## 2026-08-17 (session 22) — Archive + Featured actions in Repository Management
+
+**Task.** Follow-up to session 21: add Archive and Featured/Unfeatured actions to each innovation
+in the Admin Repository Management module. Both mapped onto existing infrastructure rather than
+needing new concepts — `ARCHIVED` was already a valid `ReviewStatus` (and already a valid
+transition target from `APPROVED`/`PUBLISHED`/`UNPUBLISHED`), and `Innovation.isFeatured` already
+existed and already powered the homepage's Featured section; neither had an admin-facing way to be
+set from this module before now.
+
+**Backend.**
+- New `PATCH /innovations/:id/featured` (`UpdateFeaturedDto: { featured: boolean }`) →
+  `InnovationsService.updateFeatured` — deliberately a dedicated endpoint rather than routed
+  through the generic `PATCH /innovations/:id` update, so the audit entry
+  (`INNOVATION_FEATURED_CHANGED`) carries a real `{from, to}` instead of the generic update's
+  metadata-less `INNOVATION_UPDATED`. `PLATFORM_ADMIN, SYSTEM_ADMIN` only.
+- Archive needed **no new backend logic at all** — it's `PATCH /innovations/:id/status` with
+  `reviewStatus: 'ARCHIVED'`, already valid in `ALLOWED_TRANSITIONS` and already fully audit-logged
+  via the existing generic code path.
+- `RepositoryFilterDto.status` broadened to accept `ARCHIVED`. `findForRepositoryManagement`'s
+  *default* (unfiltered) scope intentionally stays `APPROVED`/`PUBLISHED`/`UNPUBLISHED` — archived
+  innovations only show up when the admin explicitly filters to `ARCHIVED`, keeping the everyday
+  view uncluttered while keeping archived items findable.
+
+**Frontend.** Repository Management page: a Star icon button per row toggles Featured (no
+confirmation — reversible, non-destructive, matches the pre-existing Challenge featured-toggle
+pattern in `dashboard/admin/page.tsx`), and an Archive button (with a confirmation dialog, since
+this is explicitly a "remove from the active repository" action) replaces the Publish/Unpublish
+buttons once an innovation is already `ARCHIVED` — no un-archive button exists here by design,
+since `ARCHIVED`'s only forward transition is `-> UNDER_REVIEW` (full pipeline restart via
+Moderation, unchanged). Added `ARCHIVED` to the status filter dropdown and to the page's local
+`STATUS_STYLES` map.
+
+**Verification.** Both apps type-check clean. Verified live against the local API: toggled
+Featured on, confirmed it appears in `GET /repository/featured` only while `PUBLISHED` (correctly
+absent while the same innovation was `UNPUBLISHED`), archived it, confirmed a 404 for
+unauthenticated `GET`, confirmed it's excluded from both `GET /repository/featured` and the
+`admin/repository` default listing but present under `?status=ARCHIVED`, and confirmed the
+activity log recorded both `INNOVATION_FEATURED_CHANGED` and `INNOVATION_STATUS_CHANGED` with
+correct before/after values. Restored the seeded test innovation back to its original
+`PUBLISHED`/not-featured state afterward via a one-off `ts-node` script (deleted after use, same
+convention as prior sessions' scratch scripts) — `ARCHIVED`'s restricted transition path meant the
+normal API couldn't get it back to `PUBLISHED` directly. **Not done:** no browser available in
+this environment, so visual verification (star icon states, button layout) wasn't possible.
+
+**Docs.** Updated API.md (new/changed routes, corrected an inaccuracy left over from session 21
+where the repository listing's default scope was already broadened to include `APPROVED` in code
+but the doc still said "PUBLISHED/UNPUBLISHED only"), DATABASE.md (new audit action), and
+PROJECT_CONTEXT.md (expanded the Repository Management business-rule bullet).
+
+**Next steps:** none outstanding.
+
+---
+
 ## 2026-08-17 (session 21) — Admin Repository Management module
 
 **Task.** Built a full Admin Repository Management module per user spec: view

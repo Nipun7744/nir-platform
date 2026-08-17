@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { Link } from '@/i18n/navigation';
-import { Film, History, ImageOff, Layers, RotateCcw } from 'lucide-react';
+import { Archive, Film, History, ImageOff, Layers, RotateCcw, Star } from 'lucide-react';
 import {
   useRepositoryInnovations,
   useRemoveAttachment,
   useReplaceAttachment,
   useInnovationActivityLog,
   useRepositoryActivityLog,
+  useUpdateFeatured,
   type RepositoryFilters,
 } from '@/hooks/use-repository-admin';
 import { useUpdateInnovationStatus, useAddAttachment } from '@/hooks/use-innovations';
@@ -21,6 +22,7 @@ const STATUS_STYLES: Record<string, string> = {
   APPROVED: 'bg-clay-50 text-clay-700',
   PUBLISHED: 'bg-brand-100 text-brand-800',
   UNPUBLISHED: 'bg-sun-100 text-sun-700',
+  ARCHIVED: 'bg-ink-50 text-ink-400',
 };
 
 function formatDate(value?: string | null) {
@@ -155,19 +157,24 @@ function MediaManager({ innovation }: { innovation: any }) {
 
 function RepositoryRow({ innovation }: { innovation: any }) {
   const updateStatus = useUpdateInnovationStatus(innovation.id);
+  const updateFeatured = useUpdateFeatured(innovation.id);
   const [showMedia, setShowMedia] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [confirmStatus, setConfirmStatus] = useState<'PUBLISHED' | 'UNPUBLISHED' | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
   const { data: activity } = useInnovationActivityLog(innovation.id, showActivity) as { data?: { items: any[] } };
 
   const photo = (innovation.attachments ?? []).find((a: any) => a.kind === 'PHOTO');
   const isPublished = innovation.reviewStatus === 'PUBLISHED';
+  const isArchived = innovation.reviewStatus === 'ARCHIVED';
   const statusLabel =
     innovation.reviewStatus === 'PUBLISHED'
       ? `Published ${formatDate(innovation.publishedAt)}`
       : innovation.reviewStatus === 'UNPUBLISHED'
         ? `Unpublished · last published ${formatDate(innovation.publishedAt)}`
-        : 'Approved · not yet published';
+        : innovation.reviewStatus === 'ARCHIVED'
+          ? `Archived${innovation.publishedAt ? ` · was published ${formatDate(innovation.publishedAt)}` : ''}`
+          : 'Approved · not yet published';
 
   return (
     <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
@@ -198,21 +205,42 @@ function RepositoryRow({ innovation }: { innovation: any }) {
           <p className="mt-0.5 text-xs text-ink-500">{statusLabel}</p>
         </div>
 
-        <div className="flex shrink-0 flex-wrap gap-2">
-          {isPublished ? (
-            <button
-              onClick={() => setConfirmStatus('UNPUBLISHED')}
-              className="focus-ring rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-            >
-              Unpublish
-            </button>
-          ) : (
-            <button
-              onClick={() => setConfirmStatus('PUBLISHED')}
-              className="focus-ring rounded-lg border border-brand-200 px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50"
-            >
-              Publish
-            </button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => updateFeatured.mutate(!innovation.isFeatured)}
+            disabled={updateFeatured.isPending}
+            aria-pressed={innovation.isFeatured}
+            aria-label={innovation.isFeatured ? 'Unset as featured' : 'Mark as featured'}
+            title={innovation.isFeatured ? 'Featured — click to unset' : 'Mark as featured (shows on homepage once published)'}
+            className="focus-ring rounded-lg border border-ink-200 p-2 text-ink-400 hover:border-sun-300 hover:text-sun-500 disabled:opacity-40"
+          >
+            <Star className={innovation.isFeatured ? 'h-4 w-4 fill-sun-500 text-sun-500' : 'h-4 w-4'} />
+          </button>
+          {!isArchived && (
+            <>
+              {isPublished ? (
+                <button
+                  onClick={() => setConfirmStatus('UNPUBLISHED')}
+                  className="focus-ring rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                >
+                  Unpublish
+                </button>
+              ) : (
+                <button
+                  onClick={() => setConfirmStatus('PUBLISHED')}
+                  className="focus-ring rounded-lg border border-brand-200 px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50"
+                >
+                  Publish
+                </button>
+              )}
+              <button
+                onClick={() => setConfirmArchive(true)}
+                className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-ink-200 px-3 py-2 text-sm font-medium text-ink-700 hover:border-red-300 hover:text-red-600"
+              >
+                <Archive className="h-3.5 w-3.5" /> Archive
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowMedia((v) => !v)}
@@ -260,6 +288,19 @@ function RepositoryRow({ innovation }: { innovation: any }) {
           setConfirmStatus(null);
         }}
       />
+
+      <ConfirmDialog
+        open={confirmArchive}
+        title="Archive this innovation?"
+        description="This removes it from the active repository — it will no longer appear in the public repository or on the homepage, even if it was published. It can only be restored by sending it back through review from the Moderation page."
+        confirmLabel="Archive"
+        pending={updateStatus.isPending}
+        onCancel={() => setConfirmArchive(false)}
+        onConfirm={async () => {
+          await updateStatus.mutateAsync({ reviewStatus: 'ARCHIVED' });
+          setConfirmArchive(false);
+        }}
+      />
     </div>
   );
 }
@@ -281,7 +322,8 @@ export default function RepositoryManagementPage() {
     <div>
       <h1 className="font-display text-2xl font-extrabold text-ink-900">Repository Management</h1>
       <p className="mt-1 text-ink-600">
-        View, publish, and unpublish innovations in the public repository, and manage their photos and videos.
+        View, publish, and unpublish innovations in the public repository; mark ones as featured, archive ones that
+        are no longer active, and manage their photos and videos.
       </p>
 
       <div className="mt-5 flex flex-wrap items-end gap-4 rounded-2xl border border-ink-100 bg-white p-4 shadow-card">
@@ -306,6 +348,7 @@ export default function RepositoryManagementPage() {
             <option value="PUBLISHED">Published</option>
             <option value="UNPUBLISHED">Unpublished</option>
             <option value="APPROVED">Approved (not yet published)</option>
+            <option value="ARCHIVED">Archived</option>
           </select>
         </div>
         <div>
