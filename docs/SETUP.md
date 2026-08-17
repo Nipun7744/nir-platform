@@ -97,8 +97,14 @@ This is an npm-workspaces monorepo, so the Vercel project is linked at the **rep
 setting, Vercel only uploads `apps/web/` and the build fails on `npm install` because
 `packages/shared` (an `@nir/shared` workspace dependency) isn't present. These settings were set
 once via `vercel api -X PATCH /v9/projects/nir-platform-web` (the CLI has no dedicated command for
-them) and persist on the linked project — a normal `vercel --prod --yes` from the repo root is
-enough for future redeploys.
+them) and persist on the linked project.
+
+**CI/CD (2026-08-17):** the project is connected to `github.com/Nipun7744/nir-platform` via
+Vercel's native GitHub integration (`vercel git connect` — required the Vercel GitHub App to be
+authorized on the repo first, a one-time manual step in GitHub's UI, not scriptable). Pushes to
+`master` now auto-deploy to production; any other branch or PR gets its own preview deployment
+automatically. Manual `vercel --prod --yes` from the repo root still works as a fallback (e.g. to
+redeploy without a new commit) but is no longer the normal path.
 
 Env vars (Vercel dashboard → Project → Settings → Environment Variables, or `vercel env`):
 - `NEXT_PUBLIC_API_URL=https://api-production-2d78.up.railway.app` (Production + Preview) — the

@@ -33,6 +33,21 @@ no Railway/API changes this session, so the backend wasn't touched.
 
 ---
 
+## 2026-08-17 (session 20) — GitHub-to-Vercel CI/CD
+
+**Task.** Connected `nir-platform-web` to `github.com/Nipun7744/nir-platform` via
+`vercel git connect` (Vercel's native Git integration). First attempt failed because the Vercel
+GitHub App wasn't yet authorized on the repo — user completed that one-time authorization in
+GitHub's UI, then the connect command succeeded. Pushes to `master` now auto-deploy to
+production; other branches/PRs get preview deployments. Verified end-to-end by pushing this very
+doc update and confirming a new deployment appeared automatically (not via manual CLI). Manual
+`vercel --prod --yes` still works as a fallback. Full detail in
+[SETUP.md § Production Deployment](SETUP.md#production-deployment).
+
+**Next steps:** none.
+
+---
+
 ## 2026-08-13 (session 18) — Pushed to GitHub, cleaned test data, deployed to Vercel + Railway
 
 **Task 1 — GitHub.** Repo had no git history at all. Installed GitHub CLI (`winget install
