@@ -125,9 +125,11 @@ even after 10+ minutes, with no error and no queued/building state to point to. 
 commit-status/check-runs API showed 0 entries either way, so it isn't a useful signal for
 diagnosing this. Workaround used that time: manual `vercel --prod --yes`. A later 6-file push (the
 Archive/Featured + Pagination commits) auto-deployed successfully within ~2 minutes and was
-correctly aliased to production — so this isn't a total failure of the integration, just
-unreliable, and commit size/file count doesn't cleanly explain it (22 files failed, 6 succeeded,
-but so did an earlier ~2-file push). Root cause still not identified. **If this recurs:** check the
+correctly aliased to production, and a later 4-file push (2026-08-23, the mobile modal-
+responsiveness fix) auto-deployed within seconds — so this isn't a total failure of the
+integration, just unreliable, and commit size/file count doesn't cleanly explain it (22 files
+failed, 6 and 4 files each succeeded quickly, but so did an earlier ~2-file push). Root cause
+still not identified. **If this recurs:** check the
 Vercel dashboard's Project → Settings → Git → deployment/webhook delivery log (not exposed via the
 CLI or the `api` subcommand used to diagnose this so far) before assuming a config problem — the
 `link` block returned by `GET /v9/projects/nir-platform-web` has shown the repo correctly connected

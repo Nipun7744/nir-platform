@@ -46,6 +46,13 @@ visually unchanged from the pre-fix layout (unclipped, all buttons visible, no s
 `apps/web/src/components/ui/confirm-dialog.tsx`, `docs/UI_GUIDELINES.md` (new pattern note),
 `docs/SESSION_LOG.md` (this entry).
 
+**Deploy.** Committed (`7e63589`) and pushed to `master`. No `apps/api` changes in this commit, so
+no Railway deploy was needed — web-only. Vercel's GitHub auto-deploy fired within seconds this
+time (another data point for the intermittent-auto-deploy note in
+[SETUP.md § Production Deployment](SETUP.md#production-deployment)) and built cleanly; confirmed
+`Ready` in Production via `vercel inspect` (`dpl_6C3HvgsNhxfwtAZP5MeegeSNr4c3`), correctly aliased
+to `nir-platform-web.vercel.app`, and confirmed the alias serves it (`200` on a direct request).
+
 **Next steps:** none outstanding. If a third modal is ever added, follow the documented pattern
 rather than re-deriving it.
 
