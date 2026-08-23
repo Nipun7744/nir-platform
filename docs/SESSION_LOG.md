@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-08-23 (session 26) — Limit homepage category grid to 6 on mobile
+
+**Task.** User request: on mobile, "Browse by category" (homepage) should show only the top 6
+categories, everything else about the section unchanged (desktop keeps showing all 20).
+
+**Fix.** `components/home/category-grid.tsx` — pure CSS, no data change: all categories are still
+fetched via `useCategories()` and mapped as before, but each pill's `className` now conditionally
+includes `index < 6 ? 'inline-flex' : 'hidden sm:inline-flex'` instead of a static `inline-flex`.
+Below the existing `sm:` (640px) breakpoint (same breakpoint already used elsewhere in the app for
+mobile-only toggles, e.g. `repository-browse.tsx`, `featured-innovations.tsx`) only the first 6
+render; at `sm:` and up, all render — identical to the pre-change desktop output. "Top 6" is
+whatever order `GET /categories` returns (not re-sorted by count or otherwise), documented in
+[UI_GUIDELINES.md § Reusable patterns](UI_GUIDELINES.md#reusable-patterns).
+
+**Verification.** `tsc --noEmit` clean. Playwright against the running dev server: counted 20
+total category links present in the DOM with 6 visible at 375×900 and 20 visible at 1440×1000;
+screenshots confirm mobile shows exactly the first 6 pills stacked one-per-row above the existing
+"See every category" link (unchanged), and desktop is pixel-identical to the pre-change layout.
+
+**Files touched:** `apps/web/src/components/home/category-grid.tsx`, `docs/UI_GUIDELINES.md`,
+`docs/SESSION_LOG.md` (this entry).
+
+**Next steps:** not yet committed/deployed as of writing this entry — do that next if the user
+confirms, then update this entry (and [SETUP.md](SETUP.md#production-deployment)'s auto-deploy
+note) the same way session 25's entry was updated after its deploy.
+
+---
+
 ## 2026-08-23 (session 25) — Fixed mobile modal/popup overflow
 
 **Task.** User reported the popup(s) worked fine on desktop but on mobile: grew larger than the

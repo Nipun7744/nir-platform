@@ -109,6 +109,13 @@ active), written twice.
 
 ## Reusable patterns
 
+- **Homepage "Browse by category" grid (`components/home/category-grid.tsx`) shows only the
+  first 6 categories on mobile, all of them from `sm:` (640px) up** (2026-08-23) — pure CSS via
+  `index < 6 ? 'inline-flex' : 'hidden sm:inline-flex'` on each pill, not a data-fetch change; all
+  categories are still fetched and rendered, the rest are just hidden below `sm:`. The existing
+  "See every category" link is the way to reach the rest on mobile. Category order is whatever
+  `useCategories()` returns (not re-sorted for this), so "top 6" means first 6 in that order, not
+  the 6 with the highest innovation counts — revisit if that distinction ever matters.
 - **Dashboard shell** (`components/dashboard/dashboard-shell.tsx`): every `/dashboard/*` route is
   wrapped in this via `dashboard/layout.tsx`. It provides: the auth guard (`useRequireAuth()`,
   redirects to `/sign-in` once hydration confirms no token), a fixed `240px` left sidebar

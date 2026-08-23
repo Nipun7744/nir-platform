@@ -26,11 +26,13 @@ export function CategoryGrid() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {categories?.map((category) => (
+          {categories?.map((category, index) => (
             <Link
               key={category.id}
               href={`/repository?categoryId=${category.id}`}
-              className="focus-ring inline-flex items-center gap-2 rounded-full border border-greenline bg-white px-4 py-[9px] text-sm font-medium text-navy transition hover:border-nirgreen-deep hover:bg-mist"
+              className={`focus-ring items-center gap-2 rounded-full border border-greenline bg-white px-4 py-[9px] text-sm font-medium text-navy transition hover:border-nirgreen-deep hover:bg-mist ${
+                index < 6 ? 'inline-flex' : 'hidden sm:inline-flex'
+              }`}
             >
               {locale === 'bn' ? category.nameBn : category.nameEn}
               <span className="font-mono text-xs text-nirgreen-deep">{countFor(category.id)}</span>
