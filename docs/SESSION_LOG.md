@@ -28,9 +28,14 @@ screenshots confirm mobile shows exactly the first 6 pills stacked one-per-row a
 **Files touched:** `apps/web/src/components/home/category-grid.tsx`, `docs/UI_GUIDELINES.md`,
 `docs/SESSION_LOG.md` (this entry).
 
-**Next steps:** not yet committed/deployed as of writing this entry — do that next if the user
-confirms, then update this entry (and [SETUP.md](SETUP.md#production-deployment)'s auto-deploy
-note) the same way session 25's entry was updated after its deploy.
+**Deploy.** Committed (`08bb906`) and pushed to `master`. Web-only, no `apps/api` changes, so no
+Railway deploy needed. Vercel's GitHub auto-deploy fired within ~10s and built cleanly; confirmed
+`Ready` via `vercel inspect` (`dpl_8WAVLFJUS6kaTYYEbogVtBN2GiK7`), correctly aliased to
+`nir-platform-web.vercel.app`, and confirmed the alias serves it (`200` on a direct request) —
+another successful data point for the intermittent-auto-deploy note in
+[SETUP.md § Production Deployment](SETUP.md#production-deployment).
+
+**Next steps:** none outstanding.
 
 ---
 
