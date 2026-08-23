@@ -6,6 +6,51 @@
 
 ---
 
+## 2026-08-23 (session 25) — Fixed mobile modal/popup overflow
+
+**Task.** User reported the popup(s) worked fine on desktop but on mobile: grew larger than the
+viewport, sometimes covered the whole screen, the close (×) button became unreachable, and
+content could overflow. Requirement: fix mobile without touching desktop behavior/layout.
+
+**Root cause.** Neither modal in the app (`components/layout/challenge-popup.tsx`,
+`components/ui/confirm-dialog.tsx`) capped its own height — only the outer overlay was
+viewport-bound (`fixed inset-0`). When a modal's content was taller than the mobile viewport
+(mainly `challenge-popup.tsx`, which stacks a banner image + title + description + date info +
+button row), the box just grew past the screen; the overlay's `items-center` then centered that
+oversized box so roughly half the overflow sat above the visible top edge — including the close
+button, which was `absolute`-positioned inside that same growing box.
+
+**Fix.** Applied a consistent pattern to both modals (documented in
+[UI_GUIDELINES.md § Reusable patterns](UI_GUIDELINES.md#reusable-patterns) as "Mobile-safe modal
+sizing pattern"): modal box gets `max-h-[calc(100dvh-2rem)]` (the `2rem` matches the overlay's
+existing `p-4`, so the box mathematically can never exceed the visible viewport) and the long
+content wrapper gets `overflow-y-auto` so content scrolls instead of the box growing. In
+`challenge-popup.tsx` specifically, restructured to `flex flex-col` with the close `<button>` as a
+sibling *outside* the new `overflow-y-auto` div (it was previously a sibling of the scrollable
+content inside the same unconstrained box) — keeping it outside the scrolling wrapper means it
+never scrolls out of reach, which was the actual reported bug. Also switched that modal's padding
+from `p-8` to `p-6 sm:p-8` (slightly more room on narrow screens; desktop `sm:` breakpoint keeps
+`p-8` unchanged). `confirm-dialog.tsx` got the same `max-h`/`overflow-y-auto` defensively (its
+content is short today, but the pattern costs nothing and keeps both modals consistent).
+
+**Verification.** `tsc --noEmit` clean. Used Playwright (installed fresh into the scratchpad, not
+added as a project dependency) against the running dev server with a real seeded `OPEN` challenge
+(banner image + long description) to check three viewports (375×667, 360×480 — a short/landscape-
+ish case, and 1440×900 desktop): confirmed the popup box and close button both stay fully within
+viewport bounds at all three, confirmed the close button's screen position is unchanged after
+scrolling the content to the bottom (i.e. it doesn't scroll away), confirmed the close button is
+still clickable and closes the dialog post-scroll, and confirmed the desktop screenshot is
+visually unchanged from the pre-fix layout (unclipped, all buttons visible, no scrollbar needed).
+
+**Files touched:** `apps/web/src/components/layout/challenge-popup.tsx`,
+`apps/web/src/components/ui/confirm-dialog.tsx`, `docs/UI_GUIDELINES.md` (new pattern note),
+`docs/SESSION_LOG.md` (this entry).
+
+**Next steps:** none outstanding. If a third modal is ever added, follow the documented pattern
+rather than re-deriving it.
+
+---
+
 ## 2026-08-17 (session 24) — Deployed Archive/Featured + Pagination
 
 **Task.** Push and deploy the two commits from sessions 22–23 (`3384515` Archive/Featured actions,

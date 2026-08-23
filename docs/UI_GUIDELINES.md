@@ -126,6 +126,17 @@ active), written twice.
   session per challenge (`sessionStorage`, keyed by `challenge.slug`) so it doesn't re-nag on
   every route change or reload. If a second modal need ever comes up, that's the point to extract
   a shared primitive from this one rather than copying it again.
+- **Mobile-safe modal sizing pattern (2026-08-23):** both modals in the app
+  (`challenge-popup.tsx`, `confirm-dialog.tsx`) follow the same shape to stay inside the viewport
+  on small screens — the outer overlay is `fixed inset-0 flex items-center justify-center p-4`;
+  the modal box itself gets `max-h-[calc(100dvh-2rem)]` (the `2rem` matches the overlay's `p-4`
+  so the box can never exceed the visible viewport) plus `overflow-y-auto` on whichever inner
+  wrapper holds the long content, so content scrolls instead of the box growing past the screen.
+  `challenge-popup.tsx` specifically needed a `flex flex-col` box with the close button as a
+  sibling *outside* the `overflow-y-auto` wrapper (not inside it) — a close button positioned
+  `absolute` inside a scrolling ancestor scrolls away with the content, which was the original bug
+  (close button became unreachable on mobile when the banner image + long description pushed the
+  box taller than the viewport). Copy this shape for any new modal rather than reinventing sizing.
 - **Picking "the" running challenge among several `OPEN` ones** — both the homepage banner
   (`challenge-banner.tsx`) and the popup (`challenge-popup.tsx`) use the same selection rule:
   filter to `status === 'OPEN'`, then prefer the one the admin marked `isFeatured` (set from

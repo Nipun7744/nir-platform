@@ -37,7 +37,7 @@ export function ConfirmDialog({
       aria-labelledby="confirm-dialog-title"
     >
       <div
-        className="w-full max-w-sm rounded-xl2 bg-white p-6 shadow-soft"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-xl2 bg-white p-6 shadow-soft"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3">
