@@ -246,10 +246,20 @@
   (`components/ui/confirm-dialog.tsx`) — see [UI_GUIDELINES.md](UI_GUIDELINES.md). Full detail:
   [SESSION_LOG.md](SESSION_LOG.md).
 
+- **(2026-08-25) App-wide mobile-responsiveness sweep.** Fixed four recurring bug classes found by
+  a scripted Playwright audit (every seeded role × every route × 360/375/768px): CSS Grid
+  min-content overflow on bracket-syntax `grid-cols-[…]` two-column layouts, unwrapped
+  `shrink-0` action-button clusters, unconstrained native `<select>` width, and untruncated
+  attachment-filename links. Zero horizontal overflow anywhere in the app afterward; both existing
+  modals re-verified still mobile-safe (no changes needed there — session 25's fix held); desktop
+  layout unchanged. Full technical detail in [UI_GUIDELINES.md § Reusable
+  patterns](UI_GUIDELINES.md#reusable-patterns), full session write-up in
+  [SESSION_LOG.md](SESSION_LOG.md).
+
 ## Current work
 
-*(nothing in progress as of this update — the Repository Management module above is the most
-recent completed work)*
+*(nothing in progress as of this update — the mobile-responsiveness sweep above is the most recent
+completed work)*
 
 ## Upcoming
 

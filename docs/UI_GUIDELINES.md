@@ -301,6 +301,61 @@ active), written twice.
   nothing at all until the innovation actually has feedback (no empty-state placeholder shown to
   admins on unreviewed innovations).
 
+- **Mobile-responsiveness sweep (2026-08-25) — four recurring bug classes found and fixed
+  app-wide, worth knowing before adding new layouts:**
+  1. **Two-column layouts built with Tailwind's bracket/arbitrary `grid-cols-[Xpx_Ypx]` syntax
+     need `min-w-0` on both grid-item children.** Standard `grid-cols-N` utilities are safe by
+     default (Tailwind emits `minmax(0, 1fr)` tracks), but an arbitrary template like
+     `lg:grid-cols-[1fr_320px]` emits the literal `1fr`/`320px` tracks with no `minmax(0, …)`. On
+     mobile (below the `lg:` gate) there's no explicit template at all, so the browser falls back
+     to a single implicit column — but CSS Grid's default per-item `min-width: auto` still applies,
+     meaning any child with dense/unbreakable content (a `dl` of label/value pairs, a card with a
+     badge row) can force that implicit column wider than the viewport, causing real horizontal
+     overflow. Every `lg:grid-cols-[…]` two-column detail-page layout in the app
+     (`innovation-detail.tsx`, `repository-browse.tsx`, `dashboard-shell.tsx`, and the three
+     innovation-detail-style dashboard pages under `dashboard/{admin/evaluations,evaluations,
+     innovations}/[id]`) now has `min-w-0` on both the main-content div and the `<aside>` — copy
+     this whenever adding a new bracket-syntax grid, not just a plain `grid-cols-N`.
+  2. **`shrink-0` on an action-button cluster stops the row from being squeezed, but does not make
+     the buttons wrap.** A pattern like `<div className="flex items-center justify-between"><div
+     className="min-w-0 flex-1">title</div><div className="flex shrink-0 gap-2">button button
+     button</div></div>` looks like it should wrap on narrow screens (the button cluster even had
+     its own `flex-wrap`), but `shrink-0` fixes that cluster's width to its own max-content size —
+     wrapping only happens *within* an already-constrained width, and this div was never given
+     one. Real bug found on `/dashboard/admin/repository`'s Publish/Unpublish/Archive/Media/
+     Activity row (106px overflow) and, more subtly, `/dashboard/admin`'s Challenges tab row (no
+     overflow, but the sibling title column got crushed to an unreadably narrow strip). Fix: change
+     the cluster to `w-full sm:w-auto` (or `flex-wrap` + `w-full sm:w-auto sm:shrink-0` if it also
+     needs desktop `shrink-0`) so it claims the full row on mobile — letting its own `flex-wrap`
+     actually activate — and reverts to auto/content-width alongside the title at `sm:` and up.
+  3. **Native `<select>`/`<input>` elements in filter/toolbar rows need explicit
+     `w-full sm:w-auto`.** Chromium sizes an unconstrained `<select>` to its widest `<option>`
+     regardless of container width — a "Category" filter with a long category name in its option
+     list will overflow a narrow flex-wrap toolbar even though the wrapping div around it has no
+     fixed width of its own. Fixed on the Category selects in `/dashboard/admin/evaluations` and
+     `/dashboard/admin/repository`; applied the same `w-full sm:w-auto`/`sm:w-56` treatment to the
+     Search input and Status select alongside it, and `min-w-0 flex-1 sm:flex-none` to the paired
+     date-range inputs, for a consistent stacked-then-inline mobile→desktop toolbar shape. Copy
+     this for any new filter bar.
+  4. **An icon + filename link needs `shrink-0` on the icon and `min-w-0 truncate` on a `<span>`
+     wrapping the text**, not just plain text after the icon — a long uploaded-file name (e.g.
+     `watermarked_img_17328846700796394457.jpg`, no natural break points) otherwise forces the
+     whole `<a className="flex items-center gap-2">` row wider than its container. Fixed on all
+     four attachment-list renderers: `dashboard/innovations/[id]`, `dashboard/evaluations/[id]`,
+     `dashboard/admin/evaluations/[id]`, and the public `repository/[slug]` detail
+     (`innovation-detail.tsx`'s `AdminFeedbackPanel`-adjacent attachments list).
+
+  None of these needed a new component or a design change — every fix stayed within the existing
+  hand-rolled-Tailwind convention (see "No component-library convention" above). Verified via a
+  scripted Playwright sweep (installed fresh into the scratchpad, not a project dependency) that
+  logged in as every seeded role and checked `document.documentElement.scrollWidth` against
+  `window.innerWidth` at 360/375/768px across every route, both public and dashboard, plus the
+  three dynamic innovation-detail routes and the admin submitter-profile page — zero horizontal
+  overflow remains anywhere in the app as of this sweep. The two existing modals
+  (`challenge-popup.tsx`, `confirm-dialog.tsx`, see the "Mobile-safe modal sizing pattern" entry
+  above from the 2026-08-23 session) were re-verified working correctly and were not touched again
+  in this session — that fix already held.
+
 ## State & data-fetching conventions (relevant to UI work)
 
 - **Zustand**, one store: `store/auth-store.ts` (`useAuthStore`, persisted to `localStorage` key

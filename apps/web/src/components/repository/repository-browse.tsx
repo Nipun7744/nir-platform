@@ -100,7 +100,7 @@ export function RepositoryBrowse() {
       </div>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[260px_1fr]">
-        <aside className={`space-y-6 ${filtersOpen ? 'block' : 'hidden'} sm:block`}>
+        <aside className={`min-w-0 space-y-6 ${filtersOpen ? 'block' : 'hidden'} sm:block`}>
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Filters</h2>
             {activeFilterCount > 0 && (
@@ -176,7 +176,7 @@ export function RepositoryBrowse() {
           </div>
         </aside>
 
-        <div>
+        <div className="min-w-0">
           <p className="mb-4 text-sm text-ink-500">
             {isLoading ? t('loading') : `${data?.total ?? 0} innovations found`}
           </p>

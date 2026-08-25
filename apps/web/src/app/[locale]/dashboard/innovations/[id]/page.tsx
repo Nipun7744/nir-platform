@@ -85,7 +85,7 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
       <p className="mt-2 max-w-2xl text-ink-600">{innovation.summaryEn}</p>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-8">
+        <div className="min-w-0 space-y-8">
           <section>
             <h2 className="font-display text-base font-bold text-ink-900">Problem statement</h2>
             <p className="mt-2 text-sm leading-relaxed text-ink-700">{innovation.problemStatement}</p>
@@ -125,7 +125,7 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
           )}
         </div>
 
-        <aside className="space-y-6">
+        <aside className="min-w-0 space-y-6">
           <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
             <h3 className="text-sm font-bold uppercase tracking-wide text-ink-500">Innovation details</h3>
             <dl className="mt-3 space-y-2.5 text-sm">
@@ -189,14 +189,14 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
+        <section className="min-w-0 rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
           <h2 className="flex items-center gap-2 font-display text-base font-bold text-ink-900">
             <ImagePlus className="h-4 w-4 text-brand-600" /> Attachments
           </h2>
           <div className="mt-3 space-y-2">
             {innovation.attachments?.map((a: any) => (
               <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700 hover:border-brand-300">
-                <FileText className="h-4 w-4" /> {a.caption ?? a.kind}
+                <FileText className="h-4 w-4 shrink-0" /> <span className="min-w-0 truncate">{a.caption ?? a.kind}</span>
               </a>
             ))}
           </div>
@@ -223,7 +223,7 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
           )}
         </section>
 
-        <section className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
+        <section className="min-w-0 rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
           <h2 className="flex items-center gap-2 font-display text-base font-bold text-ink-900">
             <UserPlus className="h-4 w-4 text-brand-600" /> Innovation team
           </h2>

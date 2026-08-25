@@ -462,8 +462,8 @@ function ChallengesTab() {
               </div>
             </div>
           ) : (
-            <div key={c.id} className="flex items-center justify-between gap-4 rounded-xl border border-ink-100 bg-white px-4 py-2.5">
-              <div className="flex min-w-0 items-center gap-3">
+            <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-100 bg-white px-4 py-2.5">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
                 {c.bannerImageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={c.bannerImageUrl} alt="" className="h-10 w-16 shrink-0 rounded-md border border-ink-100 object-cover" />
@@ -485,7 +485,7 @@ function ChallengesTab() {
                 )}
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-3">
+              <div className="flex w-full shrink-0 items-center gap-3 sm:w-auto">
                 <button
                   type="button"
                   onClick={() => updateChallenge.mutate({ id: c.id, isFeatured: !c.isFeatured })}

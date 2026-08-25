@@ -161,7 +161,7 @@ export function InnovationDetail({ slug }: { slug: string }) {
       </div>
 
       <div className="container-page grid gap-10 py-12 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-10">
+        <div className="min-w-0 space-y-10">
           {photo && (
             <div className="relative aspect-video overflow-hidden rounded-2xl border border-ink-100">
               <Image src={photo.url} alt={photo.caption ?? innovation.titleEn} fill className="object-cover" sizes="800px" />
@@ -220,7 +220,7 @@ export function InnovationDetail({ slug }: { slug: string }) {
                       rel="noreferrer"
                       className="focus-ring flex items-center gap-2 rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700 hover:border-brand-300 hover:text-brand-700"
                     >
-                      <FileText className="h-4 w-4" /> {a.caption ?? a.kind}
+                      <FileText className="h-4 w-4 shrink-0" /> <span className="min-w-0 truncate">{a.caption ?? a.kind}</span>
                     </a>
                   ))}
               </div>
@@ -228,7 +228,7 @@ export function InnovationDetail({ slug }: { slug: string }) {
           )}
         </div>
 
-        <aside className="space-y-6">
+        <aside className="min-w-0 space-y-6">
           {leadInnovator && (
             <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
               <h3 className="text-sm font-bold uppercase tracking-wide text-ink-500">Submitted by</h3>

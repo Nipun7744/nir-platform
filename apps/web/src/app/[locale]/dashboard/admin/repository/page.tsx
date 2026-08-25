@@ -210,7 +210,7 @@ function RepositoryRow({ innovation }: { innovation: any }) {
           <p className="mt-0.5 text-xs text-ink-500">{statusLabel}</p>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
           <button
             type="button"
             onClick={() => updateFeatured.mutate(!innovation.isFeatured)}
@@ -346,22 +346,22 @@ export default function RepositoryManagementPage() {
       </p>
 
       <div className="mt-5 flex flex-wrap items-end gap-4 rounded-2xl border border-ink-100 bg-white p-4 shadow-card">
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-400">Search</label>
           <input
             type="search"
             placeholder="Title or innovation code…"
             value={filters.q ?? ''}
             onChange={(e) => set({ q: e.target.value || undefined })}
-            className="focus-ring w-56 rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700"
+            className="focus-ring w-full rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700 sm:w-56"
           />
         </div>
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-400">Status</label>
           <select
             value={filters.status ?? ''}
             onChange={(e) => set({ status: (e.target.value || undefined) as RepositoryFilters['status'] })}
-            className="focus-ring rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700"
+            className="focus-ring w-full rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700 sm:w-auto"
           >
             <option value="">All</option>
             <option value="PUBLISHED">Published</option>
@@ -370,12 +370,12 @@ export default function RepositoryManagementPage() {
             <option value="ARCHIVED">Archived</option>
           </select>
         </div>
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-400">Category</label>
           <select
             value={filters.categoryId ?? ''}
             onChange={(e) => set({ categoryId: e.target.value || undefined })}
-            className="focus-ring rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700"
+            className="focus-ring w-full rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700 sm:w-auto"
           >
             <option value="">All categories</option>
             {categories?.map((c) => (
@@ -385,7 +385,7 @@ export default function RepositoryManagementPage() {
             ))}
           </select>
         </div>
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-ink-400">Published date</label>
           <div className="flex items-center gap-2">
             <input
@@ -394,7 +394,7 @@ export default function RepositoryManagementPage() {
               max={filters.toDate || undefined}
               onChange={(e) => set({ fromDate: e.target.value || undefined })}
               aria-label="From date"
-              className="focus-ring rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700"
+              className="focus-ring min-w-0 flex-1 rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700 sm:flex-none"
             />
             <span className="text-ink-400">–</span>
             <input
@@ -403,7 +403,7 @@ export default function RepositoryManagementPage() {
               min={filters.fromDate || undefined}
               onChange={(e) => set({ toDate: e.target.value || undefined })}
               aria-label="To date"
-              className="focus-ring rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700"
+              className="focus-ring min-w-0 flex-1 rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700 sm:flex-none"
             />
           </div>
         </div>

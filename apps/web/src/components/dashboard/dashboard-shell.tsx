@@ -74,7 +74,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="container-page grid gap-8 py-10 lg:grid-cols-[240px_1fr]">
-      <aside className="space-y-6">
+      <aside className="min-w-0 space-y-6">
         <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-card">
           <div className="flex items-start gap-3">
             {profile?.avatarUrl ? (
@@ -214,7 +214,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      <main>{children}</main>
+      <main className="min-w-0">{children}</main>
     </div>
   );
 }

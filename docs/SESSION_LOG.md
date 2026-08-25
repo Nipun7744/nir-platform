@@ -6,6 +6,78 @@
 
 ---
 
+## 2026-08-25 (session 27) — App-wide mobile-responsiveness sweep
+
+**Task.** User request: make the entire application fully mobile-responsive — no horizontal
+overflow anywhere, working modals, working forms/tables/cards/nav — across phone and tablet sizes,
+without changing desktop layout or breaking functionality.
+
+**Approach.** Rather than guessing from code, installed Playwright fresh into the scratchpad (not
+a project dependency, matching the precedent from session 25) and wrote a scripted audit: log in
+via the real login API as every one of the 11 seeded roles, inject the resulting token into
+`localStorage` under the `nir-auth` key (matching the Zustand persist shape) to skip the sign-in
+UI, then visit every public route, every role's dashboard route(s), and the dynamic detail routes
+(innovation detail — public/evaluator/admin/submitter variants, admin submitter-profile) at
+360×740, 375×812/900, and 768×1024, checking `document.documentElement.scrollWidth >
+window.innerWidth` and dumping the actual offending elements when it was. Ran this sweep
+end-to-end at least twice (before and after fixes) plus several targeted re-checks per fix.
+
+**Findings — four recurring bug classes, not isolated one-offs (full technical detail in
+[UI_GUIDELINES.md § Reusable patterns](UI_GUIDELINES.md#reusable-patterns), so not duplicated
+here):**
+1. Two-column layouts built with Tailwind's bracket `grid-cols-[Xpx_Ypx]` syntax lack the implicit
+   `minmax(0, 1fr)` that plain `grid-cols-N` gets for free, so a dense child can force the mobile
+   single-column layout wider than the viewport. Fixed with `min-w-0` on both grid-item children in
+   6 files: `innovation-detail.tsx`, `repository-browse.tsx`, `dashboard-shell.tsx`, and the three
+   innovation-detail-shaped pages under `dashboard/{admin/evaluations,evaluations,innovations}/[id]`.
+2. `shrink-0` on an action-button cluster stops it being squeezed but does not make it wrap — real
+   106px horizontal overflow on `/dashboard/admin/repository`'s row of
+   Publish/Unpublish/Archive/Media/Activity buttons, and a readability bug (not overflow) on
+   `/dashboard/admin`'s Challenges tab where the title column got crushed to an unreadable sliver.
+   Fixed both with `w-full sm:w-auto` (stacks full-width on mobile, letting the cluster's own
+   `flex-wrap` activate; reverts to inline alongside the title at `sm:`).
+3. Unconstrained native `<select>` elements in filter toolbars — Chromium sizes them to their
+   widest `<option>` regardless of container width. Fixed the Category selects (and, for
+   consistency, the Search input, Status select, and date-range inputs alongside them) on
+   `/dashboard/admin/evaluations` and `/dashboard/admin/repository`.
+4. Long uploaded-filenames in attachment-list links had no truncation, overflowing their row on 4
+   different innovation-detail-style pages (submitter's own, evaluator's, admin's, and the public
+   repository detail's admin-only panel). Fixed with `shrink-0` on the icon + `min-w-0 truncate` on
+   a wrapping `<span>` around the filename text.
+
+**Verification.** Final sweep after all fixes: **zero horizontal overflow** across every public
+page, every role's dashboard (all 11 seeded accounts), all five dynamic detail routes, and the
+register form with each optional role's conditional fields (Investor/Mentor chip-multi-selects)
+expanded — at 360/375/768px. `npx tsc --noEmit` clean. Re-verified both existing modals
+(`challenge-popup.tsx`, `confirm-dialog.tsx`) still render correctly within a short 640px mobile
+viewport with both action buttons reachable — neither needed changes, the session-25 fix already
+held. Did not touch: dark mode (out of scope, not wired up per
+[UI_GUIDELINES.md](UI_GUIDELINES.md#layout-rules)), any backend/API code, any visual redesign
+beyond the responsiveness fixes themselves — desktop layout is pixel-unchanged (every fix used
+`sm:`/`lg:`-gated classes that only take effect below the existing breakpoints already used
+elsewhere in the app).
+
+**Files touched:** `apps/web/src/components/repository/innovation-detail.tsx`,
+`apps/web/src/components/repository/repository-browse.tsx`,
+`apps/web/src/components/dashboard/dashboard-shell.tsx`,
+`apps/web/src/app/[locale]/dashboard/admin/evaluations/[innovationId]/page.tsx`,
+`apps/web/src/app/[locale]/dashboard/admin/evaluations/page.tsx`,
+`apps/web/src/app/[locale]/dashboard/admin/page.tsx`,
+`apps/web/src/app/[locale]/dashboard/admin/repository/page.tsx`,
+`apps/web/src/app/[locale]/dashboard/evaluations/[innovationId]/page.tsx`,
+`apps/web/src/app/[locale]/dashboard/innovations/[id]/page.tsx`, `docs/UI_GUIDELINES.md`,
+`docs/ROADMAP.md`, `docs/SESSION_LOG.md` (this entry).
+
+**Deploy.** Not deployed this session — left committed locally pending user review (no explicit
+deploy request this session, unlike sessions 23–26 which were pushed immediately). Web-only
+changes, no `apps/api` or schema changes, so a deploy (when requested) only needs Vercel, not
+Railway — see [SETUP.md § Production Deployment](SETUP.md#production-deployment).
+
+**Next steps:** none outstanding for this task. If a new two-column detail-style layout is added
+later, apply pattern #1 above from the start rather than rediscovering it.
+
+---
+
 ## 2026-08-23 (session 26) — Limit homepage category grid to 6 on mobile
 
 **Task.** User request: on mobile, "Browse by category" (homepage) should show only the top 6
