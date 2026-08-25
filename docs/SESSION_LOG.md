@@ -68,10 +68,12 @@ elsewhere in the app).
 `apps/web/src/app/[locale]/dashboard/innovations/[id]/page.tsx`, `docs/UI_GUIDELINES.md`,
 `docs/ROADMAP.md`, `docs/SESSION_LOG.md` (this entry).
 
-**Deploy.** Not deployed this session — left committed locally pending user review (no explicit
-deploy request this session, unlike sessions 23–26 which were pushed immediately). Web-only
-changes, no `apps/api` or schema changes, so a deploy (when requested) only needs Vercel, not
-Railway — see [SETUP.md § Production Deployment](SETUP.md#production-deployment).
+**Deploy.** Committed (`289c827`) and pushed to `master`. Web-only changes, no `apps/api` or
+schema changes, so only Vercel needed — no Railway deploy. Auto-deploy fired within ~21s (another
+successful data point for the intermittent-auto-deploy note in
+[SETUP.md § Production Deployment](SETUP.md#production-deployment)), built cleanly, confirmed
+`Ready` via `vercel inspect` (`dpl_4mpvJKG3YZMXSYWZKXwQsnt28Sfs`), correctly aliased to
+`nir-platform-web.vercel.app`, and confirmed the alias serves it (`200` on a direct request).
 
 **Next steps:** none outstanding for this task. If a new two-column detail-style layout is added
 later, apply pattern #1 above from the start rather than rediscovering it.
