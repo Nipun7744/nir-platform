@@ -31,6 +31,7 @@ export function Hero() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: 'easeOut' }}
+          className="min-w-0"
         >
           <p className="mb-[18px] font-mono text-xs uppercase tracking-[0.08em] text-nirgreen-deep">
             {t('eyebrow')}

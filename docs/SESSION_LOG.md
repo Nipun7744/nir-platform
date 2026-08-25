@@ -6,6 +6,62 @@
 
 ---
 
+## 2026-08-25 (session 28) — Fixed hero search bar overflow the first sweep missed
+
+**Task.** User reported (with a real-device screenshot) that the homepage hero search bar's
+"Search" button was clipped/cut off at the right edge on their phone — the previous session's
+sweep had reported the homepage clean, so this was a real miss to root-cause.
+
+**Root cause — the previous audit's methodology had a blind spot, not just a missed page.**
+`document.documentElement.scrollWidth > window.innerWidth` (what session 27's script gated its
+offender-scan on) can be silently masked by any `overflow-hidden` ancestor, and two independent
+things do that here: `home/hero.tsx`'s own `<section className="overflow-hidden">` clips overflow
+inside the hero column before it reaches `documentElement`, and separately the site-wide
+`challenge-popup.tsx` sets `document.body.style.overflow = 'hidden'` for as long as it's open,
+which was still open (fresh session, no `sessionStorage` dismissal) during every check in session
+27's script — masking the *entire* page's real overflow state on every route it isn't gated off,
+not just the hero. Confirmed empirically: measuring `getBoundingClientRect()` directly (bypassing
+the `scrollWidth` gate) showed the hero's search button consistently landing ~69px past the
+viewport edge at 320–390px widths regardless of actual viewport width — a fixed pixel value,
+because `hero.tsx`'s two-column grid (`lg:grid-cols-[1.05fr_0.95fr]`, the same bracket-syntax
+pattern from session 27 pattern #1) was missing `min-w-0` on its text column, so the grid track
+sized itself to the `<h1>`'s min-content (its longest unbreakable word at the fixed 40px floor of
+its `clamp()` font-size) instead of the actual available width — full technical writeup in
+[UI_GUIDELINES.md § Reusable patterns](UI_GUIDELINES.md#reusable-patterns).
+
+**Fix.** `components/home/hero.tsx`: added `min-w-0` to the text-column `motion.div` (same fix
+shape as every other bracket-syntax grid from session 27). Rewrote the audit script to scan every
+element's own bounding rect against the viewport *unconditionally* (never gated behind
+`scrollWidth`) and to dismiss the challenge popup before measuring, then re-ran it across every
+public page, every dashboard role, and the dynamic detail routes — this time also at 320px, not
+just 375px+. That wider/corrected sweep caught one more real bug it hadn't reached before:
+`/dashboard/investor`'s "Express interest" row (a fixed `w-48` message input beside a `shrink-0`
+button, no wrap) overflowed at 320px only, invisible at 375px — fixed with `min-w-0 flex-1` on the
+input and `sm:w-48 sm:flex-none` to preserve the desktop width, matching pattern #2 from session 27.
+
+**Verification.** The corrected script (unconditional per-element scan, popup dismissed, includes
+320px) now reports zero overflow across every public page, every one of the 11 seeded dashboard
+roles, and all five dynamic detail routes, at 320/375/768px. `npx tsc --noEmit` clean. Visually
+confirmed via screenshot that the hero search bar now renders correctly at 320/360/375/390px — the
+Search button fully inside the pill, heading wrapping across multiple lines instead of forcing a
+fixed-width column.
+
+**Files touched:** `apps/web/src/components/home/hero.tsx`,
+`apps/web/src/app/[locale]/dashboard/investor/page.tsx`, `docs/UI_GUIDELINES.md`,
+`docs/SESSION_LOG.md` (this entry).
+
+**Deploy.** Committed and pushed to `master`. Web-only, no `apps/api` changes, so only Vercel
+needed. See the commit for the exact deploy verification (`vercel inspect` /
+`nir-platform-web.vercel.app` check), same procedure as session 27 and
+[SETUP.md § Production Deployment](SETUP.md#production-deployment).
+
+**Next steps:** none outstanding. If another automated mobile-overflow sweep is written in the
+future, use the unconditional-scan + popup-dismiss method described in
+[UI_GUIDELINES.md](UI_GUIDELINES.md#reusable-patterns) from the start, not the `scrollWidth`-gated
+one session 27 used.
+
+---
+
 ## 2026-08-25 (session 27) — App-wide mobile-responsiveness sweep
 
 **Task.** User request: make the entire application fully mobile-responsive — no horizontal

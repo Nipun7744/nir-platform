@@ -346,15 +346,35 @@ active), written twice.
      (`innovation-detail.tsx`'s `AdminFeedbackPanel`-adjacent attachments list).
 
   None of these needed a new component or a design change — every fix stayed within the existing
-  hand-rolled-Tailwind convention (see "No component-library convention" above). Verified via a
-  scripted Playwright sweep (installed fresh into the scratchpad, not a project dependency) that
-  logged in as every seeded role and checked `document.documentElement.scrollWidth` against
-  `window.innerWidth` at 360/375/768px across every route, both public and dashboard, plus the
-  three dynamic innovation-detail routes and the admin submitter-profile page — zero horizontal
-  overflow remains anywhere in the app as of this sweep. The two existing modals
-  (`challenge-popup.tsx`, `confirm-dialog.tsx`, see the "Mobile-safe modal sizing pattern" entry
-  above from the 2026-08-23 session) were re-verified working correctly and were not touched again
-  in this session — that fix already held.
+  hand-rolled-Tailwind convention (see "No component-library convention" above). The two existing
+  modals (`challenge-popup.tsx`, `confirm-dialog.tsx`, see the "Mobile-safe modal sizing pattern"
+  entry above from the 2026-08-23 session) were re-verified working correctly and were not touched
+  again in this session — that fix already held.
+
+- **A `document.documentElement.scrollWidth > window.innerWidth` check is not sufficient to detect
+  mobile overflow in this app — it can be silently masked by any `overflow-hidden` ancestor**
+  (2026-08-25, found after the sweep above was reported complete, when the user caught a real clipped
+  search button that this check had missed). Two independent things mask it here: (1)
+  `home/hero.tsx`'s outer `<section className="overflow-hidden">` clips any overflow inside the
+  hero column from ever reaching `documentElement`'s scroll size, and (2) the site-wide
+  `challenge-popup.tsx` sets `document.body.style.overflow = 'hidden'` for as long as it's open
+  (locking background scroll while the modal is shown, on every route it isn't gated off — see
+  above), which has the same masking effect for the *entire* page, not just the hero, on a fresh
+  session's first paint. A `scrollWidth`-gated audit script's per-element offender scan never even
+  runs in either case, because the top-level `scrollWidth` check it's gated behind reports "no
+  overflow" — so the underlying bug reads as clean when it isn't. Concretely this cost one real bug:
+  `hero.tsx`'s search form (the `motion.div` text column is a child of the same
+  `lg:grid-cols-[1.05fr_0.95fr]` bracket-syntax grid from pattern #1 above, and was missing its
+  `min-w-0`) rendered its search button past the visible edge of the pill container on narrow
+  phones, invisibly, with no scrollbar to reveal it. **Any future automated mobile-overflow check
+  must scan every element's own `getBoundingClientRect().right` against `window.innerWidth`
+  unconditionally — never gate that scan behind a `document.scrollWidth` pre-check — and must
+  dismiss the challenge popup (click its "Maybe later"/close control) before measuring**, or it
+  will silently miss anything clipped by `hero.tsx`'s section or by the popup's scroll lock. Also
+  worth checking at 320px, not just 375px+ — the `/dashboard/investor` "Express interest" row (a
+  fixed `w-48` message input beside a `shrink-0` button, no wrap) only overflowed at 320px, not
+  375px, and was caught by re-running the corrected check at that width; fixed the same way as
+  pattern #2 (`min-w-0 flex-1` on the input, `sm:w-48 sm:flex-none` to keep the desktop width).
 
 ## State & data-fetching conventions (relevant to UI work)
 

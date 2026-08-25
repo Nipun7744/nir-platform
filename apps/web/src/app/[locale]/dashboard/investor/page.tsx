@@ -92,7 +92,7 @@ export default function InvestorDashboardPage() {
                     placeholder="Optional message"
                     value={messages[innovation.id] ?? ''}
                     onChange={(e) => setMessages((m) => ({ ...m, [innovation.id]: e.target.value }))}
-                    className="focus-ring w-48 rounded-lg border border-ink-100 px-2.5 py-1.5 text-xs"
+                    className="focus-ring min-w-0 flex-1 rounded-lg border border-ink-100 px-2.5 py-1.5 text-xs sm:w-48 sm:flex-none"
                     disabled={alreadyExpressed}
                   />
                   <button

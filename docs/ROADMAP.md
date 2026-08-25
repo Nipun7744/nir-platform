@@ -256,6 +256,15 @@
   patterns](UI_GUIDELINES.md#reusable-patterns), full session write-up in
   [SESSION_LOG.md](SESSION_LOG.md).
 
+- **(2026-08-25, session 28) Fixed a real hero-search-bar overflow the first sweep's audit script
+  had missed** — its `document.scrollWidth`-gated check was silently masked by `hero.tsx`'s own
+  `overflow-hidden` section and by the site-wide challenge popup's body-scroll-lock. Fixed
+  `hero.tsx` (missing `min-w-0` on its grid text column, same pattern as session 27) and one more
+  real bug the corrected wider sweep (320px, unconditional per-element scan) caught:
+  `/dashboard/investor`'s "Express interest" row. See
+  [UI_GUIDELINES.md § Reusable patterns](UI_GUIDELINES.md#reusable-patterns) for why the original
+  check missed these and what to do differently in any future automated mobile-overflow sweep.
+
 ## Current work
 
 *(nothing in progress as of this update — the mobile-responsiveness sweep above is the most recent
