@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-08-27 (session 30) — Hero mobile CTA buttons now equal-width
+
+**Task.** User asked for the homepage hero's "Explore innovations" / "Submit an innovation"
+buttons to render at equal width on mobile. (A same-session earlier attempt matched their
+height/padding/type to the Search button instead — deployed, then reverted at the user's request
+because it didn't look right — see the revert commit; this is a separate, narrower fix.)
+
+**Fix (`components/home/hero.tsx`):** the two `Link` buttons were `inline-flex` with no width
+constraint, so each auto-sized to its own text ("Submit an innovation" wider than "Explore
+innovations") — visibly mismatched widths sitting in a `flex flex-wrap` row. Changed the wrapping
+row to `flex-col` (stacked) with `sm:flex-row sm:flex-wrap` restoring the original side-by-side
+layout at `sm:` and up, and gave both `Link`s `w-full justify-center` (unprefixed) with
+`sm:w-auto`. On mobile both buttons now stretch to the full row width — identical width by
+construction, not by matching text-length coincidence — and stack vertically instead of
+wrapping side-by-side, since two full-width buttons couldn't share a row anyway. Desktop/tablet
+(`sm:` and up) is pixel-identical to before: auto-width, side-by-side.
+
+**Verified** via `npx playwright screenshot --viewport-size=Wx900` at 320/375/414px (equal width,
+stacked) and 640/768px (unchanged, side-by-side), both `en` and `bn` locales.
+
+**Files touched:** `apps/web/src/components/home/hero.tsx`, `docs/SESSION_LOG.md` (this entry).
+
+**Deploy.** Pushed to `master`; Vercel auto-deploy verified against the live production HTML.
+
+**Next steps:** none outstanding.
+
+---
+
 ## 2026-08-25 (session 28) — Fixed hero search bar overflow the first sweep missed
 
 **Task.** User reported (with a real-device screenshot) that the homepage hero search bar's
