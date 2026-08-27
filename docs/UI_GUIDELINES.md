@@ -351,6 +351,19 @@ active), written twice.
   entry above from the 2026-08-23 session) were re-verified working correctly and were not touched
   again in this session — that fix already held.
 
+- **Mobile button sizing should match the nearest "primary" button on the same screen, not just
+  scale down proportionally** (2026-08-27) — `home/hero.tsx`'s "Explore innovations"/"Submit an
+  innovation" buttons now use the Search button's exact mobile sizing (`px-[18px] py-[9px]
+  text-sm`) as their unprefixed/default classes, with the original larger desktop sizing
+  (`px-[26px] py-[13px] text-base`) moved behind `sm:` — same crossover breakpoint used by the
+  category-grid mobile-pill pattern above. Add `whitespace-nowrap shrink-0` to any button sized
+  this way so shrinking the font/padding doesn't let its own text wrap mid-word; let the *row*
+  wrap instead (needs `flex-wrap` on the row, already the case here). If a bordered button (e.g.
+  `border-[1.5px]`) needs to match a borderless one's height exactly, shave the border width off
+  its `py` (here: `py-[9px]` → `py-[7.5px]`) — a border adds to an auto-height box's rendered
+  height regardless of `box-sizing: border-box`, since that property only changes how an
+  *explicit* width/height is interpreted, not how an `auto` one is computed.
+
 - **A `document.documentElement.scrollWidth > window.innerWidth` check is not sufficient to detect
   mobile overflow in this app — it can be silently masked by any `overflow-hidden` ancestor**
   (2026-08-25, found after the sweep above was reported complete, when the user caught a real clipped

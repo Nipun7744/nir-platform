@@ -66,13 +66,13 @@ export function Hero() {
           <div className="mt-[26px] flex flex-wrap gap-3.5">
             <Link
               href="/repository"
-              className="focus-ring inline-flex items-center gap-2 rounded-full bg-nirgreen-deep px-[26px] py-[13px] text-base font-semibold text-white transition hover:bg-nirgreen-dark hover:shadow-[0_8px_20px_-8px_rgba(0,122,78,0.5)]"
+              className="focus-ring inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-nirgreen-deep px-[18px] py-[9px] text-sm font-semibold text-white transition hover:bg-nirgreen-dark hover:shadow-[0_8px_20px_-8px_rgba(0,122,78,0.5)] sm:px-[26px] sm:py-[13px] sm:text-base"
             >
               {t('exploreInnovations')}
             </Link>
             <Link
               href="/submit"
-              className="focus-ring inline-flex items-center gap-2 rounded-full border-[1.5px] border-navy px-[26px] py-[13px] text-base font-semibold text-navy transition hover:bg-navy hover:text-white"
+              className="focus-ring inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border-[1.5px] border-navy px-[18px] py-[7.5px] text-sm font-semibold text-navy transition hover:bg-navy hover:text-white sm:px-[26px] sm:py-[13px] sm:text-base"
             >
               {t('submitInnovation')}
             </Link>
