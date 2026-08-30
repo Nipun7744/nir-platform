@@ -376,6 +376,17 @@ active), written twice.
   375px, and was caught by re-running the corrected check at that width; fixed the same way as
   pattern #2 (`min-w-0 flex-1` on the input, `sm:w-48 sm:flex-none` to keep the desktop width).
 
+- **Header government seal (`site-header.tsx`'s identity bar) is one fixed asset
+  (`public/brand/govt-logo-en.svg`), deliberately not locale-switched** (2026-08-30) — despite the
+  filename, it's used for both `en` and `bn`; toggling language must not change or replace it. An
+  earlier version of this feature did switch by locale (`useLocale()` + a ternary to a
+  `govt-logo-bn.svg` that was never actually created), but the user explicitly reversed that
+  decision. Don't reintroduce per-locale logo switching here without checking first. Rendered
+  `alt=""` + `aria-hidden` (decorative — the adjacent "Government of the People's Republic of
+  Bangladesh" text already conveys the same information to screen readers), sized `h-5 w-5
+  shrink-0 sm:h-6 sm:w-6` inside a `flex min-w-0 items-center gap-2` row ahead of the existing
+  `truncate` text span.
+
 ## State & data-fetching conventions (relevant to UI work)
 
 - **Zustand**, one store: `store/auth-store.ts` (`useAuthStore`, persisted to `localStorage` key

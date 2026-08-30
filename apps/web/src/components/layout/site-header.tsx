@@ -30,9 +30,19 @@ export function SiteHeader() {
       {/* Government identity bar */}
       <div className="bg-navy text-[#C7D4E8]">
         <div className="container-page flex min-h-[36px] items-center justify-between gap-4 py-1.5 text-xs tracking-[0.03em]">
-          <span className="truncate">
-            {t('topbar.government')} &nbsp;·&nbsp; {t('topbar.org')}
-          </span>
+          <div className="flex min-w-0 items-center gap-2">
+            <Image
+              src="/brand/govt-logo-en.svg"
+              alt=""
+              width={24}
+              height={24}
+              className="h-5 w-5 shrink-0 sm:h-6 sm:w-6"
+              aria-hidden
+            />
+            <span className="truncate">
+              {t('topbar.government')} &nbsp;·&nbsp; {t('topbar.org')}
+            </span>
+          </div>
           <div className="flex shrink-0 items-center gap-4">
             <Link href={user ? '/dashboard' : '/sign-in'} className="font-medium text-white hover:underline">
               {user ? t('nav.dashboard') : t('nav.signIn')}

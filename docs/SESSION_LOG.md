@@ -6,6 +6,48 @@
 
 ---
 
+## 2026-08-30 (session 31) — Government seal added to the header identity bar
+
+**Task.** User asked for the official Bangladesh government seal to appear before "Government of
+the People's Republic of Bangladesh" in the header's top identity bar (`site-header.tsx`), small
+and vertically centered with the text, on desktop/tablet/mobile alike. User supplied one SVG
+(pasted inline), named `bangladesh-govt-logo-BN.svg` but containing English circular text
+("GOVERNMENT OF THE PEOPLE'S REPUBLIC OF BANGLADESH") — flagged the mismatch and confirmed with
+the user it's actually the EN asset. Initially wired up locale-conditional switching
+(`locale === 'bn' ? '/brand/govt-logo-bn.svg' : '/brand/govt-logo-en.svg'`) anticipating a
+separate Bangla-text asset, but the user then said **not** to switch logos by locale at all — use
+the same file for both EN and BN, unchanged when toggling language. Simplified accordingly: the
+`<Image>` now has a hardcoded `src="/brand/govt-logo-en.svg"` with no locale branching, and the
+now-unused `useLocale` import/call was removed from `site-header.tsx`.
+
+**Asset:** saved as `apps/web/public/brand/govt-logo-en.svg` (new file — no pre-existing govt
+seal asset existed anywhere in the repo, checked `apps/web/public/`, `Media/`, and a full
+filename grep before adding it). Despite the filename, this is the one and only govt-seal asset
+in the app now — used for both locales. If a genuinely different Bangla-text version is ever
+wanted later, don't just add `govt-logo-bn.svg` and reintroduce the locale switch without
+checking with the user first — the last two rounds of feedback on this exact feature both went
+the same direction (toward one fixed asset), not toward locale-specific ones.
+
+**Placement/sizing:** the identity bar's single `<span>` became a `flex min-w-0 items-center
+gap-2` row with the logo first (`h-5 w-5 shrink-0 sm:h-6 sm:w-6`, `alt=""`/`aria-hidden` since the
+adjacent text already conveys the same information to screen readers) and the existing text
+`<span>` second, `min-w-0`+`truncate` preserved so the bar still degrades the same way it always
+did on very narrow screens.
+
+**Verified** via `npx playwright screenshot --viewport-size=Wx…` at 320/375/768/1280px, both
+locales — logo renders compact and vertically centered next to the text at every width, and is
+now byte-identical between `en` and `/bn`.
+
+**Files touched:** `apps/web/src/components/layout/site-header.tsx`,
+`apps/web/public/brand/govt-logo-en.svg` (new), `docs/SESSION_LOG.md` (this entry).
+
+**Deploy.** Not deployed yet — pending explicit deploy instruction (this project's established
+pattern: deploys only happen when asked, separately from the implementation step).
+
+**Next steps:** none outstanding unless the user later wants a distinct Bangla-text variant.
+
+---
+
 ## 2026-08-27 (session 30) — Hero mobile CTA buttons now equal-width
 
 **Task.** User asked for the homepage hero's "Explore innovations" / "Submit an innovation"
