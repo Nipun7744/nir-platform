@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-08-31 (session 36) — Deployed R-001, R-002, and the locale-default fix to production
+
+Committed and pushed sessions 33–35's work (commit `3f13aef`) to `master`: the News edit fix
+(R-001), the draft edit/delete fix (R-002), and the `localeDetection: false` fix for the site
+defaulting to Bangla. Deliberately left `Documents/NIR Test ID Password` (untracked, name implies
+credentials) out of the commit — this is a public repo.
+
+**Vercel (`apps/web`):** auto-deployed via the GitHub integration on push, as expected — no repeat
+of the intermittent silent-no-op behavior noted in
+[SETUP.md](SETUP.md#vercel-appsweb). Ready in 48s.
+
+**Railway (`apps/api`):** `railway up --service api --detach --json` from the repo root (per
+[SETUP.md](SETUP.md#railway-appsapi--postgresql)), deployment `b8be4c0e-...`. `railway status`'s
+"Building" indicator was unreliable for confirming completion here — it briefly showed the *old*
+deployment ID (`b0741434-...`) with "Building" still attached well after the new one had actually
+gone live, and a naive poll-until-not-"Building" loop exited early once that stale text
+disappeared, before the new deployment ID actually rotated in. **Don't trust `railway status`
+alone for "is the new code live" — verify against the actual API**, e.g. probe a route that only
+exists in the new code (here, `DELETE /innovations/:id` unauthenticated: `404` = still old code,
+`401` = new route exists). Confirmed both fixes live on the real production domains (not just the
+Vercel preview alias): `nir-platform-web.vercel.app` stays on English with `Accept-Language: bn`
+sent, and `api-production-2d78.up.railway.app`'s `DELETE /innovations/:id` returns `401` instead of
+the old `404`.
+
+**Files touched:** none (deploy only) — `docs/SESSION_LOG.md` (this entry).
+
+---
+
 ## 2026-08-31 (session 35) — Issue R-002: Submitter couldn't edit or delete a draft submission
 
 **Task.** Bug report: from the Submitter Dashboard, a Submitter could create a draft, upload
