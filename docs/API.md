@@ -114,7 +114,8 @@ shares one `@Roles(...)` at the class level with no per-route override.
 | GET | `/innovations/admin/repository` | **Admin Repository Management** listing (2026-08-17) — with no `?status=` filter, innovations with `reviewStatus` in `APPROVED`/`PUBLISHED`/`UNPUBLISHED` (`ARCHIVED` is deliberately excluded from this default "active repository" view but selectable explicitly via `?status=ARCHIVED` — the only way to find archived innovations again outside the Moderation page). `RepositoryFilterDto`: `status` (`APPROVED`\|`PUBLISHED`\|`UNPUBLISHED`\|`ARCHIVED`), `categoryId`, `q` (matches `titleEn`/`titleBn`/`innovationCode`), `fromDate`/`toDate` (against `publishedAt`), `page`, `pageSize`. Ordered by `publishedAt desc` with `nulls: 'last'` (so never-published `APPROVED` rows sort to the bottom, not the top). Backs `/dashboard/admin/repository`'s publish/unpublish/archive/featured + media management UI | `PLATFORM_ADMIN, SYSTEM_ADMIN` |
 | GET | `/innovations/admin/activity-log` | All `AuditLog` rows with `entityType: 'Innovation'` (`ActivityLogFilterDto`: optional `entityId`, `page`, `pageSize`), newest first, with `actor` joined. Backs the Repository Management page's "Recent activity" panel | `PLATFORM_ADMIN, SYSTEM_ADMIN` |
 | GET | `/innovations/:idOrSlug` | View one (id or slug) | `@Public()` + `OptionalJwtAuthGuard` |
-| PATCH | `/innovations/:id` | Update | authenticated (ownership checked in service) |
+| PATCH | `/innovations/:id` | Update — full `UpdateInnovationDto` (real validation via `PartialType`, not the CMS module's bare-`Partial<>` bypass, see the CMS section's validation note above). The owner can only do this while `reviewStatus` is `DRAFT`/`REJECTED`; a privileged role (`assertOwnerOrAdmin`) can regardless of status | authenticated (ownership checked in service) |
+| DELETE | `/innovations/:id` | **New (2026-08-31, R-002) — delete-draft.** Stricter than `PATCH`: only `reviewStatus === 'DRAFT'` is deletable (not `REJECTED` — a rejected submission already has review history worth keeping), for the owner or a privileged role (same `assertOwnerOrAdmin` check as `PATCH`). Hard-deletes the row; every child relation (team, attachments, tags, sdgTags, funding/mentor links) cascades in the schema. Backs the Submitter Dashboard's Delete Draft button (`/dashboard/innovations` list rows and the manage page), gated behind `ConfirmDialog` client-side | authenticated (ownership checked in service) |
 | POST | `/innovations/:id/submit` | Submit draft for review | authenticated |
 | PATCH | `/innovations/:id/status` | Change review status. `SHORTLISTED -> SELECTED` is technically still a valid transition here (unchanged in `ALLOWED_TRANSITIONS`) but has no UI affordance anymore — see the `POST /evaluations` note below for why. `SELECTED -> APPROVED` is likewise still valid here as a manual fallback (used only when an innovation has no Recognition/Mentor/Fund request at all, so the Admin Evaluations detail page shows no action button) — normally that transition goes through `PATCH /innovations/:id/approval` instead, which records the actual decision. `APPROVED -> PUBLISHED` (the Admin's separate, later publish action) has no dedicated UI beyond this generic endpoint via the Moderation page and, as of 2026-08-17, the Repository Management page. **`PUBLISHED <-> UNPUBLISHED`** (added 2026-08-17) is the Admin Repository Management module's takedown/restore toggle — same generic endpoint, same audit-log handling, deliberately not exposed on the Moderation page's transition buttons (kept scoped to the dedicated Repository Management UI). **`-> ARCHIVED`** was already reachable from most statuses before this module existed (Moderation page); the Repository Management page now also offers it (with a confirmation dialog) from `APPROVED`/`PUBLISHED`/`UNPUBLISHED`, framed as "remove from the active repository" — note `ARCHIVED`'s only forward transition is still `-> UNDER_REVIEW` (unchanged), so restoring an archived innovation requires going back through the full review pipeline, not a simple un-archive button | `INSTITUTIONAL_COORDINATOR, INNOVATION_MANAGER, PLATFORM_ADMIN, SYSTEM_ADMIN, PRELIMINARY_REVIEWER, AUTHENTICITY_REVIEWER` |
 | PATCH | `/innovations/:id/featured` | **New (2026-08-17).** Mark/unmark an innovation as featured (`UpdateFeaturedDto`: `featured: boolean`) — surfaces it in the homepage Featured section and repository `isFeatured` filtering (`GET /repository/featured`, unchanged, already read this field; this is the first admin-facing way to *set* it on an innovation — Challenges have had an equivalent toggle for longer). Independent of `reviewStatus`: can be set before publishing, but has no visible effect until the innovation is actually `PUBLISHED`. Writes `INNOVATION_FEATURED_CHANGED` with `{from, to}`, not routed through the generic `PATCH /innovations/:id` update (which logs no metadata) | `PLATFORM_ADMIN, SYSTEM_ADMIN` |
@@ -237,7 +238,7 @@ sub-resources: FAQs, news, challenges, resources, partners, feedback)
 | GET / POST / PATCH / DELETE | `/faqs/admin`, `/faqs`, `/faqs/:id`, `/faqs/:id` | Admin FAQ CRUD | `PLATFORM_ADMIN` |
 | GET | `/news` | Public news/events list (`page`, `pageSize`) | `@Public()` |
 | GET | `/news/:slug` | Public news item | `@Public()` |
-| GET / POST / PATCH / DELETE | `/news/admin`, `/news`, `/news/:id`, `/news/:id` | Admin news CRUD | `PLATFORM_ADMIN` |
+| GET / POST / PATCH / DELETE | `/news/admin`, `/news`, `/news/:id`, `/news/:id` | Admin news CRUD — `PATCH` is a full edit (any `CreateNewsDto` field) plus the `unpublish: boolean` toggle used separately by the admin panel's Unpublish/Republish button; omitting `unpublish` leaves `publishedAt` untouched, so a plain field edit never changes publish status | `PLATFORM_ADMIN` |
 | GET | `/challenges`, `/challenges/:slug` | Public challenge list/detail | `@Public()` |
 | POST / PATCH / DELETE | `/challenges`, `/challenges/:id`, `/challenges/:id` | Admin challenge CRUD (full edit — every `CreateChallengeDto` field, including previously-set ones, via `PATCH`) | `PLATFORM_ADMIN` |
 | GET | `/resources` | Public resources list (`type` filter) | `@Public()` |
@@ -250,6 +251,14 @@ sub-resources: FAQs, news, challenges, resources, partners, feedback)
 > **Note:** `apps/api/src/{challenges,partners,news,resources}/` are empty scaffold folders — the
 > actual code above lives in `cms/public-content.controller.ts` / `cms/public-content.service.ts`
 > / `cms/dto/public-content.dto.ts`. See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#important-decisions).
+
+> **Validation note (2026-08-31):** `news`'s `PATCH` uses a real `UpdateNewsDto` class (all fields
+> `@IsOptional()`, plus `unpublish?: boolean`), so it's actually validated by the global
+> `ValidationPipe` — an unknown field 400s, a duplicate `slug` 409s (`ConflictException` on Prisma
+> `P2002`), and a nonexistent `id` 404s. The sibling `faqs`/`challenges`/`resources`/`partners`
+> `PATCH` endpoints still type their body as `Partial<CreateXDto> & {...}`, a bare TS type that the
+> pipe silently skips at runtime — see [ROADMAP.md](ROADMAP.md#technical-debt) before relying on
+> them for anything validation-sensitive.
 
 ### Reporting (`/reporting`)
 
@@ -319,6 +328,15 @@ email/SMS (currently mocked — see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#impo
 
 Track breaking or notable API changes here as they land (newest first):
 
+- **2026-08-31 (R-002)** — New `DELETE /innovations/:id` (delete-draft). `reviewStatus === 'DRAFT'`
+  only, owner or privileged role. The frontend edit path (`PATCH /innovations/:id` via
+  `UpdateInnovationDto`) already existed but had no UI calling it for a general field edit — only
+  `use-innovations.ts`'s dead `useUpdateInnovation` hook. Added
+  `/dashboard/innovations/[id]/edit` (submitter-facing edit form, reusing the same field set as
+  `/submit` via a new shared `InnovationFormFields` component) and Edit/Delete-draft buttons on
+  both the Submitter Dashboard list and the manage page. No DTO/validation changes were needed on
+  the update side — `UpdateInnovationDto` was already `PartialType(CreateInnovationDto)`, properly
+  validated.
 - **2026-08-11** — New `PATCH /innovations/:id/approval` (`UpdateApprovalDto`, all fields
   optional: `recognitionApproved`/`recognitionApprovalComment`, `mentorApproved`/
   `mentorApprovalComment`, `fundApproved`/`fundApprovalComment`, `approvalLetterUrl`),

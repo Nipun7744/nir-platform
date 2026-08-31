@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { Link, useRouter } from '@/i18n/navigation';
-import { ArrowLeft, ImagePlus, FileText, UserPlus, Send, Trash2, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, ImagePlus, FileText, UserPlus, Send, Trash2, Pencil, CheckCircle2, XCircle } from 'lucide-react';
 import { useInnovation } from '@/hooks/use-repository-search';
-import { useAddAttachment, useAddTeamMember, useSubmitInnovation } from '@/hooks/use-innovations';
+import { useAddAttachment, useAddTeamMember, useSubmitInnovation, useDeleteInnovation, useRemoveAttachment } from '@/hooks/use-innovations';
 import { FileUploadButton } from '@/components/ui/file-upload-button';
 import { StagePill } from '@/components/ui/stage-pill';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: 'bg-ink-50 text-ink-500',
@@ -58,23 +59,53 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
   const router = useRouter();
   const { data: innovation, isLoading } = useInnovation(id) as { data: any; isLoading: boolean };
   const addAttachment = useAddAttachment(id);
+  const removeAttachment = useRemoveAttachment(id);
   const addTeamMember = useAddTeamMember(id);
   const submitInnovation = useSubmitInnovation();
+  const deleteInnovation = useDeleteInnovation();
   const [memberName, setMemberName] = useState('');
   const [memberRole, setMemberRole] = useState('');
+  const [confirmDeleteDraft, setConfirmDeleteDraft] = useState(false);
+  const [confirmRemoveAttachment, setConfirmRemoveAttachment] = useState<{ id: string; caption: string } | null>(null);
 
   if (isLoading) return <p className="text-ink-400">Loading…</p>;
   if (!innovation) return <p className="text-ink-400">Innovation not found.</p>;
 
   const canEdit = innovation.reviewStatus === 'DRAFT' || innovation.reviewStatus === 'REJECTED';
+  // Delete is stricter than edit — a draft nobody has looked at yet is safe to remove outright, but
+  // a rejected submission already carries review history worth keeping (R-002).
+  const canDelete = innovation.reviewStatus === 'DRAFT';
 
   return (
     <div>
-      <Link href="/dashboard/innovations" className="focus-ring mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-800">
-        <ArrowLeft className="h-4 w-4" /> Back to my innovations
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href="/dashboard/innovations" className="focus-ring inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-800">
+          <ArrowLeft className="h-4 w-4" /> Back to my innovations
+        </Link>
+        {(canEdit || canDelete) && (
+          <div className="flex items-center gap-3">
+            {canEdit && (
+              <Link
+                href={`/dashboard/innovations/${id}/edit`}
+                className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-ink-200 px-3.5 py-1.5 text-xs font-semibold text-ink-700 hover:border-brand-300 hover:text-brand-700"
+              >
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </Link>
+            )}
+            {canDelete && (
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteDraft(true)}
+                className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-ink-200 px-3.5 py-1.5 text-xs font-semibold text-ink-500 hover:border-red-300 hover:text-red-600"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Delete draft
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[innovation.reviewStatus]}`}>
           {submitterStatusLabel(innovation.reviewStatus)}
         </span>
@@ -195,10 +226,22 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
           </h2>
           <div className="mt-3 space-y-2">
             {innovation.attachments?.map((a: any) => (
-              <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700 hover:border-brand-300">
-                <FileText className="h-4 w-4 shrink-0" /> <span className="min-w-0 truncate">{a.caption ?? a.kind}</span>
-              </a>
+              <div key={a.id} className="flex items-center gap-2 rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700">
+                <a href={a.url} target="_blank" rel="noreferrer" className="focus-ring flex min-w-0 flex-1 items-center gap-2 hover:text-brand-700">
+                  <FileText className="h-4 w-4 shrink-0" /> <span className="min-w-0 truncate">{a.caption ?? a.kind}</span>
+                </a>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmRemoveAttachment({ id: a.id, caption: a.caption ?? a.kind })}
+                    className="focus-ring shrink-0 text-xs font-semibold text-ink-400 hover:text-red-600"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
             ))}
+            {!innovation.attachments?.length && <p className="text-xs text-ink-400">No files uploaded yet.</p>}
           </div>
           {canEdit && (
             <div className="mt-3">
@@ -280,6 +323,33 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
           </button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteDraft}
+        title="Delete this draft?"
+        description={`"${innovation.titleEn}" will be permanently deleted, along with its photos, documents, and team members. This cannot be undone.`}
+        confirmLabel="Delete draft"
+        pending={deleteInnovation.isPending}
+        onCancel={() => setConfirmDeleteDraft(false)}
+        onConfirm={async () => {
+          await deleteInnovation.mutateAsync(id);
+          router.push('/dashboard/innovations');
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(confirmRemoveAttachment)}
+        title="Remove this file?"
+        description={`"${confirmRemoveAttachment?.caption}" will be permanently removed from this submission. This cannot be undone.`}
+        confirmLabel="Remove"
+        pending={removeAttachment.isPending}
+        onCancel={() => setConfirmRemoveAttachment(null)}
+        onConfirm={async () => {
+          if (!confirmRemoveAttachment) return;
+          await removeAttachment.mutateAsync(confirmRemoveAttachment.id);
+          setConfirmRemoveAttachment(null);
+        }}
+      />
     </div>
   );
 }

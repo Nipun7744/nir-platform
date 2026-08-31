@@ -91,10 +91,11 @@ local `inputCls` constant). Keep this in mind before assuming a `<Button>` exist
 
 | Folder | Contents |
 |---|---|
-| `ui/` | `category-icon.tsx` (name→lucide-react icon map), `stage-pill.tsx` (colored badge for `DevelopmentStage`), `innovation-card.tsx` (repository grid card), `animated-counter.tsx` (count-up via Framer Motion), `file-upload-button.tsx` (wraps `lib/upload.ts`), `confirm-dialog.tsx` (2026-08-17 — blocking confirm modal for critical/destructive admin actions; first of its kind in this repo, reuse it rather than adding another `window.confirm`/bespoke modal), `pagination.tsx` (2026-08-17 — record-count summary + optional page-size selector + Previous/windowed-page-numbers/Next; first reusable pagination component — `repository-browse.tsx`'s inline flat page-number list predates it and wasn't retrofitted, reuse this one for new paginated admin lists instead of copying that older pattern) |
+| `ui/` | `category-icon.tsx` (name→lucide-react icon map), `stage-pill.tsx` (colored badge for `DevelopmentStage`), `innovation-card.tsx` (repository grid card), `animated-counter.tsx` (count-up via Framer Motion), `file-upload-button.tsx` (wraps `lib/upload.ts`), `confirm-dialog.tsx` (2026-08-17 — blocking confirm modal for critical/destructive actions; first of its kind in this repo, reuse it rather than adding another `window.confirm`/bespoke modal — originally admin-only contexts, extended 2026-08-31 to the Submitter Dashboard's delete-draft/remove-file flows, so treat it as app-wide, not admin-specific), `pagination.tsx` (2026-08-17 — record-count summary + optional page-size selector + Previous/windowed-page-numbers/Next; first reusable pagination component — `repository-browse.tsx`'s inline flat page-number list predates it and wasn't retrofitted, reuse this one for new paginated admin lists instead of copying that older pattern) |
 | `auth/` | `auth-card.tsx` (shared centered-card shell for sign-in/register), `sso-buttons.tsx` (disabled placeholder buttons) |
 | `layout/` | `site-header.tsx`, `site-footer.tsx`, `locale-switcher.tsx` (EN/বাংলা pill toggle), `challenge-popup.tsx` (site-wide "running challenge" modal, see below) |
 | `home/` | `hero.tsx`, `confluence-graphic.tsx` (decorative animated SVG), `stats-strip.tsx`, `quick-links.tsx`, `featured-innovations.tsx`, `category-grid.tsx`, `challenge-banner.tsx`, `news-section.tsx`, `partners-strip.tsx` — landing-page-only, each fetches its own data |
+| `submit/` | `innovation-form-fields.tsx` (2026-08-31, R-002) — the full innovation submission field set, extracted out of `app/[locale]/submit/page.tsx` so `dashboard/innovations/[id]/edit/page.tsx` can reuse it verbatim instead of forking the form; exports `InnovationFormFields`, `InnovationFormState`, `EMPTY_INNOVATION_FORM` |
 | `repository/` | `repository-browse.tsx` (search/filter UI, syncs query params), `innovation-detail.tsx` |
 | `dashboard/` | `dashboard-shell.tsx` — the shared authenticated chrome (see below) |
 | `reviews/` | `review-comment-timeline.tsx` — shared read-only comment list, reused across preliminary-review/authenticity-review/evaluation pages |
@@ -124,6 +125,20 @@ active), written twice.
   — there's no nested layout per role.
 - **`StagePill`** mirrors badge classes also present in `nir.css` — if you touch one, check the
   other stays consistent.
+- **Inline edit-row pattern for admin CRUD tabs (2026-08-31, `dashboard/admin/page.tsx`)** —
+  `ChallengesTab` and `NewsTab` (issue R-001) both edit an existing item in place rather than via a
+  separate modal: the tab keeps `editingId`/`editForm` state alongside the create-form's own
+  `form` state, a `startEdit(item)` function copies the item's fields into `editForm` (`?? ''` for
+  nullable strings, `.slice(0, 10)` for any date field feeding a `type="date"` input), and the
+  field markup itself is factored into a shared `*FormFields` component (`ChallengeFormFields`,
+  `NewsFormFields`) so create and edit render identically. The list `.map()` swaps a row for the
+  inline edit card (`border-brand-300` instead of `border-ink-100`, Save/Cancel buttons) when
+  `editingId === item.id`. Save calls the same `useUpdateNews`/`useUpdateChallenge`-style
+  `useAdminUpdate` mutation as any other partial update, sending only the edited-fields object
+  (never an unrelated status/toggle field, so editing never has a side effect on something like
+  publish status) and closes the row (`setEditingId(null)`) `onSuccess`. Reuse this shape — not a
+  modal — for the next admin tab (`ResourcesTab`, `PartnersTab`, `FaqTab`) that needs edit support;
+  none of them have it yet (create + toggle/delete only).
 - **No shared Modal/Toast/Sidebar primitive** — dialogs and toggles are built inline with local
   `useState` per component. If you need one of these more than once, that's a signal to extract
   it rather than copy the pattern again. The one modal in the app so far,
@@ -182,6 +197,23 @@ active), written twice.
   decision, not an admin). Every other page that shows `reviewStatus` (moderation,
   preliminary/authenticity review queues, evaluations, admin evaluations) is reviewer/admin-facing
   and must keep showing the real internal stage name — don't apply this relabeling there.
+- **Submitter can edit or delete their own DRAFT (edit also reaches REJECTED) submission
+  (2026-08-31, R-002)** — `dashboard/innovations/page.tsx` (list) and
+  `dashboard/innovations/[id]/page.tsx` (manage page) both show Edit + Delete-draft actions,
+  conditionally: Edit whenever `canEdit` (`reviewStatus` is `DRAFT` or `REJECTED` — the existing
+  convention those two pages already used for attachments/team-member edits, extended here rather
+  than narrowed), Delete strictly `reviewStatus === 'DRAFT'` only (a rejected submission still has
+  review history worth keeping — see the identical reasoning in
+  [API.md](API.md#innovations-innovations)'s `DELETE` row). Edit links to a new
+  `dashboard/innovations/[id]/edit` page built from the same `InnovationFormFields` component
+  `/submit` uses (see the `submit/` row above) — pre-filled via a `toFormState()` mapper, saved
+  through the `useUpdateInnovation` hook that already existed in `use-innovations.ts` but had no
+  caller anywhere in the app before this. Unlike `/submit`, the edit page doesn't auto-redirect
+  after saving (an inline "Changes saved." confirmation instead, via the mutation's own
+  `isSuccess`) — editing is meant to support multiple saves in one sitting, with an explicit "Back
+  to submission" / "Done editing" link rather than a wizard-style bounce away after one save. Both
+  pages' Delete-draft button (and the manage page's new per-attachment Remove button) go through
+  `ConfirmDialog` — see its updated note in "Component inventory" above.
 - **Reviewer pass-buttons are named after what the submitter will see, not the raw enum value.**
   The Preliminary Review page's pass button reads "Longlist" (was "Shortlist"; still transitions
   `UNDER_REVIEW -> AUTHENTICITY_REVIEW`), the Authenticity Review page's reads "Midlist" (was
@@ -400,6 +432,13 @@ active), written twice.
 
 - Routing: `src/i18n/routing.ts` — `locales: ['en', 'bn']`, `defaultLocale: 'en'`,
   `localePrefix: 'as-needed'` (EN has no prefix, BN is prefixed `/bn/...`).
+- **`localeDetection: false` (2026-08-31)** — next-intl's default behavior negotiates the locale
+  from the browser's `Accept-Language` header on a visitor's first request, which was silently
+  redirecting `/` to `/bn` for anyone with a Bangla-preferring browser despite `defaultLocale`
+  being `en`. Disabled so `/` always serves English unless the visitor explicitly switches via
+  `locale-switcher.tsx` (which still sets the `NEXT_LOCALE` cookie and is honored on later
+  visits). If bilingual auto-detection is ever wanted back, this is the flag to revisit — do it
+  deliberately, not as a side effect of an unrelated next-intl upgrade.
 - Always import `Link`/`usePathname`/`useRouter` from `src/i18n/navigation.ts`, never directly
   from `next/link` / `next/navigation` — the wrapper is what makes them locale-aware.
 - Messages: `apps/web/messages/en.json` and `messages/bn.json`, structurally identical key trees.

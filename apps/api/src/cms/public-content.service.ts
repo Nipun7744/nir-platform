@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateFaqDto,
   CreateNewsDto,
+  UpdateNewsDto,
   CreateChallengeDto,
   CreateResourceDto,
   CreatePartnerDto,
@@ -61,16 +63,29 @@ export class PublicContentService {
       },
     });
   }
-  updateNews(id: string, dto: Partial<CreateNewsDto> & { unpublish?: boolean }) {
+  async updateNews(id: string, dto: UpdateNewsDto) {
+    const existing = await this.prisma.newsPost.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('News post not found');
+
     const { unpublish, ...rest } = dto;
-    return this.prisma.newsPost.update({
-      where: { id },
-      data: {
-        ...rest,
-        eventDate: rest.eventDate ? new Date(rest.eventDate) : undefined,
-        publishedAt: unpublish ? null : undefined,
-      },
-    });
+    try {
+      return await this.prisma.newsPost.update({
+        where: { id },
+        data: {
+          ...rest,
+          eventDate: rest.eventDate ? new Date(rest.eventDate) : undefined,
+          // `unpublish` is the only thing allowed to touch publish status — a plain field edit
+          // (unpublish omitted/false) leaves publishedAt untouched, so editing a published post
+          // doesn't accidentally unpublish it, and editing an unpublished one doesn't republish it.
+          publishedAt: unpublish ? null : undefined,
+        },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException('That slug is already in use by another post');
+      }
+      throw err;
+    }
   }
   deleteNews(id: string) {
     return this.prisma.newsPost.delete({ where: { id } });

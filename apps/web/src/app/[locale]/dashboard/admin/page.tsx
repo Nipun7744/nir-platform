@@ -320,54 +320,109 @@ function CategoriesTab() {
   );
 }
 
+const EMPTY_NEWS_FORM = { slug: '', titleEn: '', titleBn: '', bodyEn: '', bodyBn: '', category: '', coverImageUrl: '' };
+
+function NewsFormFields({ form, setForm }: { form: typeof EMPTY_NEWS_FORM; setForm: (form: typeof EMPTY_NEWS_FORM) => void }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <input placeholder="Slug (url-friendly)" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} className={inputCls} />
+      <input placeholder="Category (optional)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputCls} />
+      <input placeholder="Title (English)" value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} className={inputCls} />
+      <input placeholder="Title (Bangla)" value={form.titleBn} onChange={(e) => setForm({ ...form, titleBn: e.target.value })} className={inputCls} />
+      <ImageUploadField value={form.coverImageUrl} onChange={(url) => setForm({ ...form, coverImageUrl: url })} />
+      <textarea placeholder="Body (English)" value={form.bodyEn} onChange={(e) => setForm({ ...form, bodyEn: e.target.value })} className={`${inputCls} sm:col-span-2`} rows={4} />
+      <textarea placeholder="Body (Bangla)" value={form.bodyBn} onChange={(e) => setForm({ ...form, bodyBn: e.target.value })} className={`${inputCls} sm:col-span-2`} rows={4} />
+    </div>
+  );
+}
+
 function NewsTab() {
   const { data: news, isLoading } = useAdminNews() as { data: any[]; isLoading: boolean };
   const createNews = useCreateNews();
   const updateNews = useUpdateNews();
   const deleteNews = useDeleteNews();
-  const emptyForm = { slug: '', titleEn: '', titleBn: '', bodyEn: '', bodyBn: '', category: '', coverImageUrl: '' };
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(EMPTY_NEWS_FORM);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState(EMPTY_NEWS_FORM);
+
+  const startEdit = (n: any) => {
+    setEditingId(n.id);
+    setEditForm({
+      slug: n.slug,
+      titleEn: n.titleEn,
+      titleBn: n.titleBn ?? '',
+      bodyEn: n.bodyEn,
+      bodyBn: n.bodyBn ?? '',
+      category: n.category ?? '',
+      coverImageUrl: n.coverImageUrl ?? '',
+    });
+  };
 
   return (
     <div>
       <Panel title="Publish a news / event post">
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <input placeholder="Slug (url-friendly)" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} className={inputCls} />
-          <input placeholder="Category (optional)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputCls} />
-          <input placeholder="Title (English)" value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} className={inputCls} />
-          <input placeholder="Title (Bangla)" value={form.titleBn} onChange={(e) => setForm({ ...form, titleBn: e.target.value })} className={inputCls} />
-          <ImageUploadField value={form.coverImageUrl} onChange={(url) => setForm({ ...form, coverImageUrl: url })} />
-          <textarea placeholder="Body (English)" value={form.bodyEn} onChange={(e) => setForm({ ...form, bodyEn: e.target.value })} className={`${inputCls} sm:col-span-2`} rows={4} />
-          <textarea placeholder="Body (Bangla)" value={form.bodyBn} onChange={(e) => setForm({ ...form, bodyBn: e.target.value })} className={`${inputCls} sm:col-span-2`} rows={4} />
+        <div className="mt-3">
+          <NewsFormFields form={form} setForm={setForm} />
         </div>
         <AddButton
           disabled={!form.slug || !form.titleEn || !form.bodyEn || createNews.isPending}
-          onClick={() => createNews.mutate(form, { onSuccess: () => setForm(emptyForm) })}
+          onClick={() => createNews.mutate(form, { onSuccess: () => setForm(EMPTY_NEWS_FORM) })}
           label="Publish"
         />
       </Panel>
 
       <div className="mt-6 space-y-2">
         {isLoading && <p className="text-ink-400">Loading…</p>}
-        {news?.map((n) => (
-          <div key={n.id} className="flex items-center justify-between rounded-xl border border-ink-100 bg-white px-4 py-2.5">
-            <div>
-              <p className="text-sm font-medium text-ink-800">{n.titleEn}</p>
-              <p className="text-xs text-ink-500">/{n.slug} · {n.publishedAt ? 'Published' : 'Unpublished'}</p>
+        {news?.map((n) =>
+          editingId === n.id ? (
+            <div key={n.id} className="rounded-xl border border-brand-300 bg-white p-4">
+              <NewsFormFields form={editForm} setForm={setEditForm} />
+              {updateNews.isError && (
+                <p className="mt-2 text-xs text-red-600">
+                  {(updateNews.error as any)?.message ?? 'Could not save changes — try again.'}
+                </p>
+              )}
+              <div className="mt-3 flex gap-2">
+                <button
+                  disabled={!editForm.slug || !editForm.titleEn || !editForm.bodyEn || updateNews.isPending}
+                  onClick={() =>
+                    updateNews.mutate(
+                      { id: n.id, ...editForm },
+                      { onSuccess: () => setEditingId(null) },
+                    )
+                  }
+                  className="focus-ring rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                >
+                  {updateNews.isPending ? 'Saving…' : 'Save'}
+                </button>
+                <button onClick={() => setEditingId(null)} className="focus-ring rounded-lg border border-ink-100 px-4 py-2 text-sm font-semibold text-ink-600">
+                  Cancel
+                </button>
+              </div>
             </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => updateNews.mutate({ id: n.id, unpublish: !!n.publishedAt })}
-                className="text-xs font-semibold text-ink-400 hover:text-brand-700"
-              >
-                {n.publishedAt ? 'Unpublish' : 'Republish'}
-              </button>
-              <button onClick={() => deleteNews.mutate(n.id)} className="text-xs font-semibold text-ink-400 hover:text-red-600">
-                Delete
-              </button>
+          ) : (
+            <div key={n.id} className="flex items-center justify-between rounded-xl border border-ink-100 bg-white px-4 py-2.5">
+              <div>
+                <p className="text-sm font-medium text-ink-800">{n.titleEn}</p>
+                <p className="text-xs text-ink-500">/{n.slug} · {n.publishedAt ? 'Published' : 'Unpublished'}</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => startEdit(n)} className="text-xs font-semibold text-brand-600 hover:text-brand-800">
+                  Edit
+                </button>
+                <button
+                  onClick={() => updateNews.mutate({ id: n.id, unpublish: !!n.publishedAt })}
+                  className="text-xs font-semibold text-ink-400 hover:text-brand-700"
+                >
+                  {n.publishedAt ? 'Unpublish' : 'Republish'}
+                </button>
+                <button onClick={() => deleteNews.mutate(n.id)} className="text-xs font-semibold text-ink-400 hover:text-red-600">
+                  Delete
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          ),
+        )}
       </div>
     </div>
   );

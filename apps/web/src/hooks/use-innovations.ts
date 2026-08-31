@@ -26,11 +26,33 @@ export function useUpdateInnovation(id: string) {
   });
 }
 
+// R-002: delete-draft — backend enforces DRAFT-only + ownership (InnovationsService.remove); this
+// hook just wires the call up, same shape as every other mutation in this file.
+export function useDeleteInnovation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/innovations/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-innovations'] }),
+  });
+}
+
 export function useSubmitInnovation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.post(`/innovations/${id}/submit`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-innovations'] }),
+  });
+}
+
+// R-002: lets a submitter remove one of their own uploaded files while still editable. Mirrors
+// `useRemoveAttachment` in `use-repository-admin.ts` (same underlying endpoint — ownership, not
+// role, is what the API checks) but scoped to what a submitter's own pages actually show, so it
+// doesn't invalidate the admin-only `repository-admin`/`activity-log` queries that hook does.
+export function useRemoveAttachment(innovationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (attachmentId: string) => api.delete(`/innovations/${innovationId}/attachments/${attachmentId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['innovation', innovationId] }),
   });
 }
 

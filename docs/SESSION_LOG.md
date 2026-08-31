@@ -6,6 +6,250 @@
 
 ---
 
+## 2026-08-31 (session 35) — Issue R-002: Submitter couldn't edit or delete a draft submission
+
+**Task.** Bug report: from the Submitter Dashboard, a Submitter could create a draft, upload
+photos/files, add team members, and submit for review — but had no way to edit the text fields
+entered at creation, or to delete a draft outright.
+
+**Diagnosis.** The edit path already half-existed: `PATCH /innovations/:id`
+(`InnovationsService.update`) was already implemented, ownership-checked
+(`assertOwnerOrAdmin`), correctly scoped to `DRAFT`/`REJECTED` for the owner, and validated via a
+real `UpdateInnovationDto extends PartialType(CreateInnovationDto)` — nothing wrong with it. The
+matching frontend hook, `useUpdateInnovation` in `use-innovations.ts`, also already existed — but
+grep found zero callers anywhere in the app. So the gap was purely "no UI ever calls this,"
+exactly like R-001's News situation, but on the frontend side only this time. Delete had no
+backend endpoint at all — confirmed via the full route list on `InnovationsController` (team-
+member and attachment deletes existed, whole-innovation delete didn't).
+
+**Fix — backend** (`apps/api/src/innovations/`): added `DELETE /innovations/:id` →
+`InnovationsService.remove(id, userId, roles)`. Deliberately stricter than `update`: only
+`reviewStatus === 'DRAFT'` is deletable, not `REJECTED` — a rejected submission still carries
+review history worth keeping, a draft nobody has looked at yet doesn't. Reused the same
+`assertOwnerOrAdmin` ownership check `update` already uses. Confirmed every child relation
+(team, attachments, tags, sdgTags, funding/mentor links) cascades in the Prisma schema
+(`onDelete: Cascade`), so this is a clean hard delete with no orphaned rows; `AuditLog.entityId` is
+a loose string reference (no FK), so the `INNOVATION_DELETED` audit entry survives the innovation
+itself, same pattern `create`/`update` already use for their own audit entries.
+
+**Fix — frontend:**
+- `apps/web/src/hooks/use-innovations.ts`: added `useDeleteInnovation()` and a submitter-scoped
+  `useRemoveAttachment()` (the attachment-delete endpoint already existed too — it just had no
+  caller outside the Admin Repository Management page's `use-repository-admin.ts` version, which
+  invalidates admin-only queries this context doesn't need).
+- Extracted the entire `/submit` form field set into a new shared component,
+  `apps/web/src/components/submit/innovation-form-fields.tsx` (`InnovationFormFields`,
+  `InnovationFormState`, `EMPTY_INNOVATION_FORM`), and refactored `/submit/page.tsx` to use it —
+  pure refactor, no behavior change to creation.
+- New page `apps/web/src/app/[locale]/dashboard/innovations/[id]/edit/page.tsx`: loads the
+  submission via the existing `useInnovation(id)`, pre-fills `InnovationFormFields` from it
+  (`toFormState()`), guards non-`DRAFT`/`REJECTED` items with a plain "no longer editable" message
+  instead of a form, and saves through `useUpdateInnovation(id)`. Unlike `/submit`, it doesn't
+  auto-redirect after saving — shows an inline "Changes saved." confirmation (from the mutation's
+  own `isSuccess`) and leaves the form open, since editing an existing draft is naturally a
+  multi-save workflow, not a one-shot wizard; "Back to submission" / "Done editing" links take the
+  user back to the manage page when they're done.
+- `dashboard/innovations/page.tsx` (list) and `dashboard/innovations/[id]/page.tsx` (manage page):
+  added Edit (links to the new edit page, shown whenever `canEdit` — the pages' existing
+  DRAFT-or-REJECTED convention, unchanged) and Delete draft (strictly `DRAFT`-only, behind
+  `ConfirmDialog`) actions. The list page's row markup had to change from a single wrapping
+  `<Link>` to a `<div>` with an inner `<Link>` for the title/code, since a `<button>` can't nest
+  inside an `<a>`. Also added a per-attachment Remove button on the manage page (behind the same
+  `ConfirmDialog`), using the new `useRemoveAttachment` hook — the endpoint existed, nothing in the
+  submitter-facing UI called it before. Skipped building a distinct "Replace file" control (unlike
+  the Admin Repository Management page's `MediaManager`, which has one) — remove-then-re-upload via
+  the already-existing upload button covers the same outcome without new UI surface; noted as a
+  deliberate scope call, not an oversight.
+
+**Verification.**
+- API, via `curl` as `innovator1@nir.gov.bd` (fresh throwaway drafts, all cleaned up after):
+  editing a draft left every untouched field unchanged (confirmed `problemStatement` survived a
+  title/summary-only edit) and `reviewStatus` untouched; a non-owner (`innovator2@nir.gov.bd`) got
+  403 on both edit and delete; no token got 401; submitting the draft for review
+  (`UNDER_REVIEW`) made both edit and delete 400 immediately after, and confirmed even an admin
+  can't force it back to `DRAFT` via `PATCH /innovations/:id/status` to reopen the hole
+  (`updateStatus`'s transition table has no route back to `DRAFT`) — had to delete that one test
+  row directly via Prisma since the intentionally-strict endpoints correctly refused; a full
+  create → add attachment → remove attachment → delete-draft happy path all returned 200 and the
+  item was confirmed gone from `GET /innovations/mine` afterward.
+- UI, via Playwright against the running dev server: Edit link and Delete button appear only on
+  `DRAFT` rows in the list (spot-checked against a live mix of DRAFT/MIDLISTED/UNDER_REVIEW/
+  PUBLISHED items — none of the non-draft rows show either button); clicking Edit opens the edit
+  page with every field correctly pre-filled; editing the title and saving shows the inline success
+  message; "Back to submission" shows the updated title and unchanged DRAFT status on the manage
+  page; Delete draft opens the `ConfirmDialog` with the expected copy, confirming it removes the
+  item and redirects to the list, where it's gone. Screenshots of the manage page, edit page, and
+  list page confirmed the new buttons match the existing design system with no unrelated layout
+  changes.
+
+**Files touched:** `apps/api/src/innovations/innovations.service.ts`,
+`apps/api/src/innovations/innovations.controller.ts`, `apps/web/src/hooks/use-innovations.ts`,
+`apps/web/src/components/submit/innovation-form-fields.tsx` (new),
+`apps/web/src/app/[locale]/submit/page.tsx`,
+`apps/web/src/app/[locale]/dashboard/innovations/page.tsx`,
+`apps/web/src/app/[locale]/dashboard/innovations/[id]/page.tsx`,
+`apps/web/src/app/[locale]/dashboard/innovations/[id]/edit/page.tsx` (new), `docs/API.md`,
+`docs/UI_GUIDELINES.md`, `docs/ROADMAP.md` (Known issues — resolved entry), `docs/SESSION_LOG.md`
+(this entry).
+
+**Next steps.** None outstanding for this issue. If a future request wants an in-place "Replace
+file" control on the submitter's own Attachments panel (matching the admin `MediaManager` UX),
+that's a small addition on top of what's here — the `useReplaceAttachment`-equivalent backend
+endpoint (`PATCH /innovations/:id/attachments/:attachmentId`) already exists and just needs a
+submitter-scoped hook + button, same shape as this session's `useRemoveAttachment`.
+
+---
+
+## 2026-08-31 (session 34) — Issue R-001: Platform Admin couldn't edit News & Events
+
+**Task.** Bug report: Platform Administrators could create, unpublish/republish, and delete News
+& Events posts from `/dashboard/admin` (News tab), but there was no way to edit an existing one.
+
+**Diagnosis.** The backend already had a fully working, `PLATFORM_ADMIN`-gated `PATCH /news/:id`
+(`cms/public-content.controller.ts` → `PublicContentService.updateNews`) — nothing to build there
+in principle. The gap was purely in the frontend: `NewsTab` (`dashboard/admin/page.tsx`) only ever
+called that endpoint with `{ id, unpublish }` for the Unpublish/Republish toggle; there was no UI
+path to send a general field edit. While wiring that up, found a real validation gap in the same
+endpoint: its `@Body()` was typed `Partial<CreateNewsDto> & { unpublish?: boolean }` — a bare
+TypeScript type, not a class-validator class — which NestJS's global `ValidationPipe` silently
+skips at runtime (metatype resolves to `Object`, and Nest's pipe explicitly bypasses validation for
+native JS types). So the update endpoint accepted **any** payload shape with no whitelist,
+required-field, or type checking at all.
+
+**Fix — backend** (`apps/api/src/cms/`): added a real `UpdateNewsDto` class
+(`dto/public-content.dto.ts`, all fields `@IsOptional()` + `unpublish?: boolean`) and switched the
+controller/service to use it instead of the bare `Partial<>` type, so validation actually runs.
+`updateNews` now also 404s via `NotFoundException` if the id doesn't exist (previously would have
+bubbled a raw Prisma error) and 409s via `ConflictException` on a duplicate `slug`
+(`Prisma.PrismaClientKnownRequestError` `P2002`, same pattern already used in
+`users.controller.ts`). Left `publishedAt` handling as it already was — `unpublish` is the only
+field that can touch it, so a plain field-edit payload (no `unpublish` key) leaves the current
+publish/unpublish state untouched in both directions; this was already correct, just re-verified.
+
+**Fix — frontend** (`apps/web/src/app/[locale]/dashboard/admin/page.tsx`): extracted the existing
+create-form JSX into a `NewsFormFields` component, added `editingId`/`editForm` state and a
+`startEdit(item)` helper to `NewsTab`, and added an **Edit** button per row that swaps that row
+for an inline edit card (same field set as creation, pre-filled) with Save/Cancel — mirroring the
+pattern `ChallengesTab` already established for its own inline edit (first documented now, see
+[UI_GUIDELINES.md](UI_GUIDELINES.md#reusable-patterns)). Save sends only the edited fields (no
+`unpublish` key), reusing the existing `useUpdateNews` mutation, whose `onSuccess` already
+invalidates the `admin-news` query — so the listing refreshes and shows the updated post
+automatically, no extra plumbing needed. Unpublish/Republish and Delete buttons are untouched.
+
+**Verification.**
+- API, via `curl` as `admin@nir.gov.bd`: editing a published post's title left `publishedAt` set;
+  editing an unpublished post's title left it `null`; a slug collision returned 409; no token
+  returned 401; an `innovator1@nir.gov.bd` token returned 403; a nonexistent id returned 404; an
+  unknown field returned 400 (confirms the validation fix actually took effect — this would have
+  silently passed before). All test edits reverted afterward, no leftover data.
+- UI, via Playwright against the running dev server logged in as `admin@nir.gov.bd`: Edit button
+  present on every row; clicking it pre-filled slug/title/body/cover-image-preview correctly from
+  the existing item; editing the title and saving updated the listing immediately and closed the
+  edit row; the row's Unpublished/Published status and its Unpublish-or-Republish + Delete buttons
+  were unchanged after the edit. Reverted the test edit afterward.
+
+**Files touched:** `apps/api/src/cms/dto/public-content.dto.ts`, `apps/api/src/cms/public-content.controller.ts`,
+`apps/api/src/cms/public-content.service.ts`, `apps/web/src/app/[locale]/dashboard/admin/page.tsx`,
+`docs/API.md`, `docs/UI_GUIDELINES.md`, `docs/ROADMAP.md` (Known issues — resolved entry; Technical
+debt — new entry), `docs/SESSION_LOG.md` (this entry).
+
+**Next steps / known residual.** The same `Partial<CreateXDto> & {...}` validation-bypass pattern
+this fix closed for `news` is still present on `faqs`/`challenges`/`resources`/`partners`'s PATCH
+endpoints in the same controller — flagged in [ROADMAP.md](ROADMAP.md#technical-debt), not fixed
+here (out of scope for this issue). Separately, `ResourcesTab`/`PartnersTab`/`FaqTab` still have no
+Edit UI (create + toggle/delete only) — same inline-edit pattern would apply if that's ever asked
+for; not part of this ticket.
+
+---
+
+## 2026-08-31 (session 33) — Ran the project locally; locale auto-detect was overriding English default
+
+**Task 1 — run the project.** No blockers beyond the known machine-specific setup in
+[SETUP.md](SETUP.md): installed `apps/web`'s `node_modules` (missing), rebuilt `apps/api` (`npm
+run build`), started both with the documented workaround (`node dist/main.js` for the API instead
+of `start:dev`, `npm run dev` for the web app). Confirmed API on :4000 (Swagger at `/api/docs`,
+`/api/v1/reporting/public-stats` returning live data) and web on :3000 (HTTP 200), Postgres
+already reachable on :5433.
+
+**Task 2 — Ecosystem Partners marquee (built, then reverted).** User initially asked for the
+homepage "Ecosystem Partners" strip to become a continuous two-row sliding/marquee animation.
+Implemented it (new `marquee-ltr`/`marquee-rtl` keyframes in `tailwind.config.ts`, a two-row
+duplicated-track rewrite of `partners-strip.tsx`, CSS-only hover-to-pause) and verified it worked
+via Playwright. User then said the change wasn't needed after all — fully reverted
+`tailwind.config.ts` and `partners-strip.tsx` to their pre-session state and removed the
+marquee-related additions from `UI_GUIDELINES.md`. No trace of this feature remains in the
+codebase or docs; mentioned here only so the next session doesn't reintroduce it without being
+asked.
+
+**Task 3 — default locale was silently resolving to Bangla for BN-preferring browsers.** In the
+same message, user reported the default link/locale should always be English, not Bangla.
+Reproduced: `curl` against `/` with `Accept-Language: bn` returned a 307 to `/bn` even though
+`src/i18n/routing.ts` already declared `defaultLocale: 'en'` — next-intl's `localeDetection`
+defaults to `true` and negotiates the served locale from the browser's `Accept-Language` header
+on first visit (no cookie yet), which silently overrides the configured default for anyone with
+a Bangla-preferring browser (i.e. most of the platform's actual audience). **Fix:** set
+`localeDetection: false` in `routing.ts`. Re-verified: `/` now returns 200 (stays English)
+regardless of `Accept-Language`, `/bn` still serves Bangla directly, and the `locale-switcher.tsx`
+UI path (which sets the `NEXT_LOCALE` cookie explicitly) is unaffected — cookie-based preference
+still works for a returning visitor who has switched before.
+
+**Files touched:** `apps/web/src/i18n/routing.ts` (the actual fix), `docs/UI_GUIDELINES.md` (i18n
+section — documented `localeDetection: false` and why), `docs/SESSION_LOG.md` (this entry).
+`apps/web/tailwind.config.ts` and `apps/web/src/components/home/partners-strip.tsx` were touched
+and then reverted — no net diff there.
+
+**Next steps.** None outstanding. If auto-detecting locale from the browser is ever wanted again,
+that's a deliberate product decision, not a default to fall back into — see the note in
+[UI_GUIDELINES.md](UI_GUIDELINES.md#i18n--bilingual-rules).
+
+---
+
+## 2026-08-30 (session 32) — Fixed innovation-submission 500 (duplicate `innovationCode`)
+
+**Task.** User ran the project and reported "Internal server error" when saving an innovation
+draft from `/bn/submit`.
+
+**Diagnosis.** Reproduced via `POST /api/v1/innovations` as `innovator1@nir.gov.bd` → HTTP 500.
+Ran the API in the foreground to capture the stack trace: Prisma `PrismaClientKnownRequestError`
+— `Unique constraint failed on the fields: (innovationCode)` in `InnovationsService.create`.
+Root cause in `apps/api/src/common/services/id-generator.service.ts`: `nextInnovationCode()`
+built the code as `NIR-<year>-<(count of this year's innovations) + 1>`. The local DB has 51
+innovations but their codes already run up to `NIR-2026-000074` (the 23 test-innovation deletion
+from session 12/13 left gaps at 24–27, 29, 33–44), so the generator produced `NIR-2026-000052`,
+which already exists. Every insert collided, and since the insert never lands, `count` never
+moved — permanently wedged. `nextIrn()` (used by self-registration in `auth.service.ts`) had the
+identical count-based bug.
+
+**Fix.** Rewrote both methods to take the running number from the highest code already issued
+for the current year — `findFirst` with `where: { … startsWith: prefix }` + `orderBy … 'desc'`
+(safe as a lexical sort because the suffix is zero-padded to fixed width 6) — instead of a row
+count. Handles deletions and non-contiguous seed codes. Rebuilt (`npm run build` in `apps/api`),
+restarted the API, re-tested: two consecutive creates now succeed as `NIR-2026-000075` /
+`NIR-2026-000076`. Deleted those two test rows afterward (plus their team-member + audit-log
+rows) so the next real submission is still `NIR-2026-000075` with no gap.
+
+**Known residual.** Still a check-then-insert race under truly concurrent creates — noted in
+ROADMAP known issues; closing it properly wants a Postgres sequence or a retry-on-P2002 loop.
+Not addressed here (not the reported problem, not reproducible single-user).
+
+**Files touched:** `apps/api/src/common/services/id-generator.service.ts`, `docs/ROADMAP.md`
+(Known issues — Resolved entry), `docs/DATABASE.md` (ID-generation note), `docs/SESSION_LOG.md`
+(this entry).
+
+**Also this session:** started the app per the `run` skill — both dev servers (`apps/web` on
+:3000, `apps/api` on :4000) were already running from a prior session; followed
+[SETUP.md](SETUP.md)'s build-then-`node dist/main.js` path for the API (this machine's
+`nest start --watch` is broken). Postgres reachable on :5433.
+
+**Deploy.** Not deployed — the running Railway API has the same latent bug, but deploys on this
+project only happen when explicitly asked. Flag for the next deploy: this fix should ship.
+
+**Next steps:** none blocking. Optionally harden the generator against the concurrent-insert
+race (see ROADMAP). The pre-existing uncommitted edits to `docs/DATABASE.md` / `docs/ROADMAP.md`
+("48 models, 24 enums", migration 19) predate this session and are unrelated.
+
+---
+
 ## 2026-08-30 (session 31) — Government seal added to the header identity bar
 
 **Task.** User asked for the official Bangladesh government seal to appear before "Government of

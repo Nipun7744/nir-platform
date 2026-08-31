@@ -324,6 +324,32 @@ export class InnovationsService {
     return updated;
   }
 
+  /**
+   * Delete-draft (R-002) — deliberately stricter than `update`: only a true DRAFT can be removed,
+   * for the owner or a privileged role (same ownership rule as `update`, via assertOwnerOrAdmin).
+   * REJECTED is editable (see `update` above) but not deletable — a rejected submission still has
+   * review history worth keeping, unlike a draft nobody has looked at yet. Every child relation
+   * (team, attachments, tags, sdgTags, funding/mentor links) cascades in the schema, so this is a
+   * clean hard delete; AuditLog.entityId is a loose string reference (no FK), so the "deleted"
+   * record survives the innovation itself.
+   */
+  async remove(id: string, userId: string, roles: Role[]) {
+    const innovation = await this.assertOwnerOrAdmin(id, userId, roles);
+    if (innovation.reviewStatus !== 'DRAFT') {
+      throw new BadRequestException('Only a draft submission can be deleted');
+    }
+
+    await this.prisma.innovation.delete({ where: { id } });
+
+    await this.auditLog.record({
+      actorId: userId,
+      action: 'INNOVATION_DELETED',
+      entityType: 'Innovation',
+      entityId: id,
+      metadata: { innovationCode: innovation.innovationCode, titleEn: innovation.titleEn },
+    });
+  }
+
   async submit(id: string, userId: string) {
     const innovation = await this.prisma.innovation.findUnique({ where: { id } });
     if (!innovation) throw new NotFoundException('Innovation not found');

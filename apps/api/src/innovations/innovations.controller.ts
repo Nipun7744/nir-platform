@@ -101,6 +101,12 @@ export class InnovationsController {
     return this.innovationsService.update(id, dto, user.id, user.roles);
   }
 
+  /** Delete-draft (R-002) — DRAFT-only, owner or privileged role; see InnovationsService.remove. */
+  @Delete(':id')
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.innovationsService.remove(id, user.id, user.roles);
+  }
+
   @Post(':id/submit')
   submit(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.innovationsService.submit(id, user.id);

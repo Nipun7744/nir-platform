@@ -4,6 +4,7 @@ import { PublicContentService } from './public-content.service';
 import {
   CreateFaqDto,
   CreateNewsDto,
+  UpdateNewsDto,
   CreateChallengeDto,
   CreateResourceDto,
   CreatePartnerDto,
@@ -50,7 +51,7 @@ export class PublicContentController {
   @Post('news') @UseGuards(RolesGuard) @Roles(Role.PLATFORM_ADMIN) createNews(@Body() dto: CreateNewsDto) {
     return this.service.createNews(dto);
   }
-  @Patch('news/:id') @UseGuards(RolesGuard) @Roles(Role.PLATFORM_ADMIN) updateNews(@Param('id') id: string, @Body() dto: Partial<CreateNewsDto> & { unpublish?: boolean }) {
+  @Patch('news/:id') @UseGuards(RolesGuard) @Roles(Role.PLATFORM_ADMIN) updateNews(@Param('id') id: string, @Body() dto: UpdateNewsDto) {
     return this.service.updateNews(id, dto);
   }
   @Delete('news/:id') @UseGuards(RolesGuard) @Roles(Role.PLATFORM_ADMIN) deleteNews(@Param('id') id: string) {

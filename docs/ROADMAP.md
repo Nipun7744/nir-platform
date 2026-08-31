@@ -13,7 +13,7 @@
   Stakeholder/Partner need none).
 - Bilingual (EN/BN) UI via `next-intl`, font-swap approach (Bricolage Grotesque/Instrument Sans
   for EN, Hind Siliguri for BN).
-- Prisma schema covering all SRS domains (47 models, 23 enums), 11 migrations applied.
+- Prisma schema covering all SRS domains (48 models, 24 enums), 19 migrations applied.
 - Seed script with demo accounts for every role.
 - Preliminary Reviewer / Authenticity Reviewer review stages added and review-comment history
   (`ReviewComment`) added, separate from the SRS's originally simpler single-review flow.
@@ -279,6 +279,58 @@ completed work)*
 
 ## Known issues
 
+- **Resolved (2026-08-31, issue R-002): Submitter couldn't edit or delete a draft submission** —
+  the Submitter Dashboard let a submitter create a draft, upload photos/files, add team members,
+  and submit for review, but had no way to change any of the text fields entered at creation or to
+  delete a draft outright. The backend edit path (`PATCH /innovations/:id`, ownership + DRAFT/
+  REJECTED-status checked, real `PartialType` validation) already existed but had no UI caller —
+  `use-innovations.ts`'s `useUpdateInnovation` hook was dead code. Delete had no backend endpoint
+  at all. Added `DELETE /innovations/:id` (`InnovationsService.remove` — DRAFT-only, stricter than
+  edit's DRAFT-or-REJECTED, owner or privileged role, cascades cleanly per the schema's `onDelete:
+  Cascade` child relations — see [API.md](API.md#innovations-innovations)), a new
+  `dashboard/innovations/[id]/edit` page built on a `submit/innovation-form-fields.tsx` component
+  extracted from `/submit` (so create and edit share the exact same field set, never drift), and
+  Edit/Delete-draft actions on both the Submitter Dashboard list and the manage page (Delete behind
+  `ConfirmDialog`). Also wired up remove-attachment (`DELETE /innovations/:id/attachments/:id`,
+  already existed, unused by any submitter-facing UI before this) so a submitter can remove an
+  uploaded file while still editable — "replace" is covered by remove-then-re-upload with the
+  existing upload control rather than a new dedicated Replace UI (unlike the Admin Repository
+  Management page's `MediaManager`, which does have one — not proportionate to add here for a
+  first cut). Verified end-to-end via API calls and Playwright: edit preserves every untouched
+  field and never changes `reviewStatus`; non-owner tokens get 403 on both edit and delete;
+  unauthenticated requests get 401; once a draft is submitted for review (`UNDER_REVIEW`), both
+  edit and delete correctly 400 (not even an admin can force a submitted innovation back to DRAFT
+  to reopen this path — `updateStatus`'s `ALLOWED_TRANSITIONS` has no route back to `DRAFT`); the
+  list page only renders Edit/Delete on `DRAFT` rows, confirmed against a live mix of
+  DRAFT/MIDLISTED/UNDER_REVIEW/PUBLISHED items.
+- **Resolved (2026-08-31, issue R-001): Platform Admin couldn't edit an existing News & Event
+  post** — the admin panel's News tab only offered Publish (create), Unpublish/Republish, and
+  Delete; there was no way to change a post's title/body/image/etc. after creation. The backend
+  `PATCH /news/:id` endpoint already existed and was already `PLATFORM_ADMIN`-gated, but nothing
+  in the UI called it for a general field edit (only for the unpublish toggle). Added an Edit
+  button per row (`dashboard/admin/page.tsx` `NewsTab`) that opens the same field set used for
+  creation, pre-filled from the existing row, with Save/Cancel — same pattern already used by the
+  Challenges tab. Also closed a real validation gap found while fixing this: `updateNews`'s
+  `@Body()` was typed `Partial<CreateNewsDto> & {...}`, a bare TS type that erases to `Object` at
+  runtime, which NestJS's global `ValidationPipe` silently skips — so the update endpoint accepted
+  any payload shape with no validation. Replaced it with a real `UpdateNewsDto` class (see
+  [API.md](API.md#cms-cms-module--content-media-notification-templates-and-all-public-content)),
+  and added `NotFoundException`/`ConflictException` (P2002 slug collision) handling. Verified: edit
+  preserves publish status in both directions (editing a published post doesn't unpublish it and
+  vice versa — `unpublish` is the only field allowed to touch `publishedAt`), non-`PLATFORM_ADMIN`
+  tokens get 403, unauthenticated requests get 401, a duplicate slug gets 409, an unknown field
+  gets 400, editing a deleted/nonexistent id gets 404.
+- **Resolved (2026-08-30): `innovationCode` / `irn` generator collided on every insert** —
+  `IdGeneratorService.nextInnovationCode()` / `nextIrn()` derived the running number from a
+  `count()` of that year's rows (`NIR-<year>-<count+1>`). Any deletion or non-contiguous seed
+  code desyncs the count from the real high-water mark, after which every `innovation.create`
+  (and every self-registration, via `nextIrn`) fails the `@unique` constraint with a bare
+  500 "Internal server error" — and because the failed insert never lands, the count never
+  advances, so it stays wedged. Hit in local dev: 51 rows but codes already up to
+  `NIR-2026-000074` (the 23 test-innovation deletion left gaps). Fixed by taking the suffix
+  from the highest code already issued for the year (`findFirst` + `orderBy … desc` on the
+  zero-padded column) instead of a count. Residual: still a check-then-insert race under
+  concurrent creates — acceptable for now, would need a DB sequence / retry-on-P2002 to close.
 - **Resolved (2026-08-17): dedicated "Publish" UI now exists** — the Admin Repository Management
   page (`/dashboard/admin/repository`) covers `APPROVED -> PUBLISHED` (first publish),
   `PUBLISHED -> UNPUBLISHED` (takedown), and `UNPUBLISHED -> PUBLISHED` (re-publish), plus
@@ -341,6 +393,14 @@ completed work)*
   in `dashboard/admin/page.tsx`, `ChipSelect` in `register/page.tsx`) — see
   [UI_GUIDELINES.md](UI_GUIDELINES.md#component-inventory-appswebsrccomponents). Worth extracting
   to a shared component if a third use case shows up.
+- **`cms/public-content.controller.ts`'s other PATCH endpoints likely have the same unvalidated-
+  body bug just fixed for `updateNews`** (2026-08-31) — `updateFaq`, `updateChallenge`,
+  `updateResource`, `updatePartner` all still type their `@Body()` as `Partial<CreateXDto> & {...}`,
+  a bare TS type rather than a class-validator class, which the global `ValidationPipe` silently
+  skips at runtime (no `whitelist`/`forbidNonWhitelisted`/type-coercion actually applied to PATCH
+  bodies on any of these). Only `news` got a proper `UpdateNewsDto` so far, scoped to issue R-001 —
+  the same fix (hand-written `Update*Dto` class per resource, all fields `@IsOptional()`) should be
+  applied to the rest before they're relied on for anything security-sensitive.
 - **16 bulk-imported innovations have inferred category/type/stage, not source-confirmed values**
   (`NIR-2026-000059`–`NIR-2026-000074`, 2026-08-13 import — see
   [SESSION_LOG.md](SESSION_LOG.md#2026-08-13-session-12--local-env-started-bulk-imported-30-innovations-from-external-template)).

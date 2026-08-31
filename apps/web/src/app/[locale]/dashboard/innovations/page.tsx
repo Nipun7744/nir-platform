@@ -1,9 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import { Link } from '@/i18n/navigation';
-import { Plus } from 'lucide-react';
-import { useMyInnovations } from '@/hooks/use-innovations';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { useMyInnovations, useDeleteInnovation } from '@/hooks/use-innovations';
 import { StagePill } from '@/components/ui/stage-pill';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: 'bg-ink-50 text-ink-500',
@@ -35,6 +37,8 @@ function submitterStatusLabel(reviewStatus: string) {
 
 export default function MyInnovationsPage() {
   const { data, isLoading } = useMyInnovations() as { data: any[]; isLoading: boolean };
+  const deleteInnovation = useDeleteInnovation();
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; titleEn: string } | null>(null);
 
   return (
     <div>
@@ -47,24 +51,43 @@ export default function MyInnovationsPage() {
 
       <div className="mt-6 space-y-3">
         {isLoading && <p className="text-ink-400">Loading…</p>}
-        {data?.map((innovation) => (
-          <Link
-            key={innovation.id}
-            href={`/dashboard/innovations/${innovation.id}`}
-            className="focus-ring flex flex-col gap-2 rounded-2xl border border-ink-100 bg-white p-5 shadow-card transition hover:-translate-y-0.5 hover:shadow-lg sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div>
-              <p className="font-mono text-[11px] uppercase tracking-wide text-ink-400">{innovation.innovationCode}</p>
-              <h2 className="mt-1 font-display text-base font-bold text-ink-900">{innovation.titleEn}</h2>
+        {data?.map((innovation) => {
+          const isDraft = innovation.reviewStatus === 'DRAFT';
+          return (
+            <div
+              key={innovation.id}
+              className="flex flex-col gap-3 rounded-2xl border border-ink-100 bg-white p-5 shadow-card transition hover:-translate-y-0.5 hover:shadow-lg sm:flex-row sm:items-center sm:justify-between"
+            >
+              <Link href={`/dashboard/innovations/${innovation.id}`} className="focus-ring min-w-0 flex-1">
+                <p className="font-mono text-[11px] uppercase tracking-wide text-ink-400">{innovation.innovationCode}</p>
+                <h2 className="mt-1 truncate font-display text-base font-bold text-ink-900">{innovation.titleEn}</h2>
+              </Link>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[innovation.reviewStatus]}`}>
+                  {submitterStatusLabel(innovation.reviewStatus)}
+                </span>
+                <StagePill stage={innovation.developmentStage} />
+                {isDraft && (
+                  <>
+                    <Link
+                      href={`/dashboard/innovations/${innovation.id}/edit`}
+                      className="focus-ring inline-flex items-center gap-1 rounded-full border border-ink-200 px-2.5 py-1 text-xs font-semibold text-ink-700 hover:border-brand-300 hover:text-brand-700"
+                    >
+                      <Pencil className="h-3 w-3" /> Edit
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete({ id: innovation.id, titleEn: innovation.titleEn })}
+                      className="focus-ring inline-flex items-center gap-1 rounded-full border border-ink-200 px-2.5 py-1 text-xs font-semibold text-ink-500 hover:border-red-300 hover:text-red-600"
+                    >
+                      <Trash2 className="h-3 w-3" /> Delete
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[innovation.reviewStatus]}`}>
-                {submitterStatusLabel(innovation.reviewStatus)}
-              </span>
-              <StagePill stage={innovation.developmentStage} />
-            </div>
-          </Link>
-        ))}
+          );
+        })}
         {!isLoading && data?.length === 0 && (
           <div className="rounded-2xl border border-dashed border-ink-200 bg-white p-12 text-center text-ink-500">
             You haven't submitted any innovations yet.{' '}
@@ -72,6 +95,20 @@ export default function MyInnovationsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(confirmDelete)}
+        title="Delete this draft?"
+        description={`"${confirmDelete?.titleEn}" will be permanently deleted, along with its photos, documents, and team members. This cannot be undone.`}
+        confirmLabel="Delete draft"
+        pending={deleteInnovation.isPending}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={async () => {
+          if (!confirmDelete) return;
+          await deleteInnovation.mutateAsync(confirmDelete.id);
+          setConfirmDelete(null);
+        }}
+      />
     </div>
   );
 }

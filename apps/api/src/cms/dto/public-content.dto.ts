@@ -21,6 +21,22 @@ export class CreateNewsDto {
   @IsOptional() @IsString() category?: string;
 }
 
+// All fields optional (a PATCH may touch just one), plus the unpublish/republish toggle.
+// A hand-written class rather than `Partial<CreateNewsDto>` — the global ValidationPipe only
+// validates an actual class-validator class; a bare `Partial<...>` TS type erases to `Object` at
+// runtime and silently skips validation.
+export class UpdateNewsDto {
+  @IsOptional() @IsString() slug?: string;
+  @IsOptional() @IsString() titleEn?: string;
+  @IsOptional() @IsString() titleBn?: string;
+  @IsOptional() @IsString() bodyEn?: string;
+  @IsOptional() @IsString() bodyBn?: string;
+  @IsOptional() @IsString() coverImageUrl?: string;
+  @IsOptional() @IsDateString() eventDate?: string;
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsBoolean() unpublish?: boolean;
+}
+
 export class CreateChallengeDto {
   @IsString() slug!: string;
   @IsString() titleEn!: string;
