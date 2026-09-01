@@ -234,6 +234,14 @@ migration — add a new one.
 [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#demo-accounts). Re-running it is expected to be
 idempotent for lookups (upserts) — verify before assuming that holds for anything new you add.
 
+**Innovation content is not from `seed.ts`.** The local dev DB's innovations came from a one-off
+spreadsheet import (`apps/api/scripts/import-innovation-bulk.*`, 2026-08-13). The Railway
+production DB additionally received a one-off sync of 30 local-only published innovations on
+2026-09-01 (`apps/api/scripts/import-prod-sync.*` — plain-CJS, idempotent by `innovationCode`;
+see [SESSION_LOG.md](SESSION_LOG.md) session 37 and [SETUP.md](SETUP.md#railway-appsapi--postgresql)).
+Local and production innovation sets are therefore *not* identical — e.g. `NIR-2025-000006` is
+`PUBLISHED` locally but `ARCHIVED` in production (see [ROADMAP.md](ROADMAP.md#known-issues)).
+
 ## Schema design decisions
 
 See [PROJECT_CONTEXT.md § Important Decisions](PROJECT_CONTEXT.md#important-decisions) for the

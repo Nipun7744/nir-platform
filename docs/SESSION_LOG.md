@@ -48,8 +48,9 @@ prod, so the importer's skip-if-exists correctly did not touch it. That's why pr
 `PATCH /innovations/:id/status` as admin, or a one-row update — not done without a decision.)
 
 **Files modified:** `railway.json` (wired then reverted — net no change), `docs/SESSION_LOG.md`,
-`docs/ROADMAP.md`. **Files added:** `apps/api/scripts/{export-prod-sync.ts,import-prod-sync.js,
-prod-sync-data.json,prod-sync-assets/3617b2cd-…jpg}`.
+`docs/ROADMAP.md`, `docs/SETUP.md`, `docs/DATABASE.md`. **Files added:**
+`apps/api/scripts/{export-prod-sync.ts,import-prod-sync.js,prod-sync-data.json,
+prod-sync-assets/3617b2cd-…jpg}`.
 
 **Next steps:**
 - Decide on `NIR-2025-000006` (above).
