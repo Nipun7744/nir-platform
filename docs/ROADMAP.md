@@ -279,6 +279,13 @@ completed work)*
 
 ## Known issues
 
+- **`NIR-2025-000006` diverges between local and production** (2026-09-01) — "Smart Traffic
+  Signal Optimization System" is `PUBLISHED` + `isFeatured` in the local dev DB but `ARCHIVED`
+  + not featured in the Railway production DB (someone archived it there deliberately). The
+  session-37 prod sync skipped it (skip-if-exists), which is why production shows 36 published
+  innovations, not 37. Decide whether to un-archive + feature it in prod to match local, or
+  archive it locally to match prod — either way, resolve the drift rather than leaving it.
+
 - **Resolved (2026-08-31, issue R-002): Submitter couldn't edit or delete a draft submission** —
   the Submitter Dashboard let a submitter create a draft, upload photos/files, add team members,
   and submit for review, but had no way to change any of the text fields entered at creation or to
@@ -406,7 +413,9 @@ completed work)*
   [SESSION_LOG.md](SESSION_LOG.md#2026-08-13-session-12--local-env-started-bulk-imported-30-innovations-from-external-template)).
   The source spreadsheet rows were missing `Category*`/`Innovation Type*`; the import script
   guessed from title/summary text. Needs a spot-check pass in `/dashboard/admin` before these are
-  treated as authoritative.
+  treated as authoritative. **As of 2026-09-01 these are also live in the production DB** (session
+  37 prod sync), so the spot-check now affects the public site — do it in prod, or fix locally
+  and re-sync the corrected rows.
 
 ## Milestones
 

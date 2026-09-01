@@ -6,6 +6,64 @@
 
 ---
 
+## 2026-09-01 (session 37) — Ran the app locally; synced 30 local-only innovations to production
+
+**Task 1 — ran the app.** Built `packages/shared` + `apps/api` and started the API via
+`node dist/main.js` (the `nest start --watch` workaround per [SETUP.md](SETUP.md)); started
+`apps/web` with `npm run dev`. Both verified against real requests — API `reporting/public-stats`
+returned live data, web homepage + `/repository` rendered. No new environment gotchas. One note
+for future sessions: backgrounded stdout is block-buffered on this machine, so the `.log` files
+for `node dist/main.js` / `next dev` stay empty even while the servers run fine — verify with
+`curl` / a port check, not by tailing the log.
+
+**Task 2 — "upload the 37 innovations to Vercel for publish".** Clarified with the user: Vercel
+only hosts the frontend; the live site reads from the Railway API + Postgres, so this meant
+getting the local `PUBLISHED` innovations into the **Railway production DB**. Local had 37
+published; production had 6 (the original seed subset `NIR-2025-000001/2/3/5/7/8`). User chose:
+sync only the ~31 not already in prod, via the temp-`railway.json`-`startCommand` path (same as
+session 18 — `railway ssh`/`tcp-proxy` still blocked here).
+
+- **New files** (`apps/api/scripts/`): `export-prod-sync.ts` (local → DB-agnostic JSON:
+  category by slug, submitter by email, region ids/SDG codes are seed-stable), `import-prod-sync.js`
+  (plain CJS — ts-node isn't installed in the Railway container under `NODE_ENV=production`;
+  idempotent, skips existing `innovationCode`), `prod-sync-data.json` (31 innovations),
+  `prod-sync-assets/` (1 photo attachment — the only attachment across all 31).
+- **Verified before deploy** against a throwaway local Postgres schema (`prodsync_test`,
+  `prisma db push` + a minimal cats/regions/users/sdg seed): 31 created, 0 errors, re-run skipped
+  all 31. Schema dropped after.
+- **Deploy:** commit `ce552a2` wired `node apps/api/scripts/import-prod-sync.js` into
+  `railway.json`'s `startCommand`; `railway up --service api --detach`. Logs showed
+  `created=30 skipped=1 errors=0`. Commit `97c6692` reverted the `startCommand` and redeployed
+  clean (confirmed no `[prod-sync]` line in the newest deploy's logs).
+- **Result:** production went 6 → **36** published innovations
+  (`totalOrganizations` 3 → 26). The frontend is fully client-fetched against the API, so no
+  Vercel rebuild was needed — the new innovations and their `/repository/[slug]` pages are live
+  immediately.
+
+**Decision — `NIR-2025-000006` ("Smart Traffic Signal Optimization System") left as-is.** It's
+the 1 skipped row: it already exists in the production DB but with `reviewStatus: ARCHIVED` and
+`isFeatured: false` (locally it's `PUBLISHED` + featured). Someone deliberately archived it in
+prod, so the importer's skip-if-exists correctly did not touch it. That's why prod is at 36, not
+37. **Open question for the user:** un-archive + feature it in prod to match local? (One
+`PATCH /innovations/:id/status` as admin, or a one-row update — not done without a decision.)
+
+**Files modified:** `railway.json` (wired then reverted — net no change), `docs/SESSION_LOG.md`,
+`docs/ROADMAP.md`. **Files added:** `apps/api/scripts/{export-prod-sync.ts,import-prod-sync.js,
+prod-sync-data.json,prod-sync-assets/3617b2cd-…jpg}`.
+
+**Next steps:**
+- Decide on `NIR-2025-000006` (above).
+- The `apps/api/scripts/prod-sync-*` files are one-offs kept for provenance (like the earlier
+  `import-innovation-bulk.*`) — safe to delete once no re-run is expected.
+- User linked a Google Drive folder of innovation imagery
+  (`drive.google.com/drive/folders/1NNgrnzp8eMDBmTePwqTKl3KPvngDJ_6z`) — not consumed this
+  session (only the 1 existing DB attachment was carried over). If those images should be
+  attached to the imported innovations, that's a follow-up: download, map to `innovationCode`,
+  upload via the admin photo endpoints or a second bundle onto the Railway volume.
+- Per [SETUP.md](SETUP.md), the temp-`startCommand` seed path has now been used twice — if
+  syncing prod becomes routine, set up a real one-off Railway job or get `tcp-proxy`/`ssh`
+  approved for this environment.
+
 ## 2026-08-31 (session 36) — Deployed R-001, R-002, and the locale-default fix to production
 
 Committed and pushed sessions 33–35's work (commit `3f13aef`) to `master`: the News edit fix
