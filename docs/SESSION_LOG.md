@@ -6,6 +6,56 @@
 
 ---
 
+## 2026-09-28 (session 38) — Ran the app locally (verification only, no code changes)
+
+**Task — "Run this project."** Brought the full local stack up from a cold repo state and verified
+it with real HTTP requests. Nothing under `apps/`, `packages/`, or `docs/` was changed apart from
+this entry and one [SETUP.md](SETUP.md) note; `git status --short` shows only the pre-existing
+untracked `Documents/NIR Test ID Password`.
+
+- **Docker path unusable here** — `docker` is not on PATH on this machine, so the `docker compose`
+  path in the README does not apply. Confirmed the two native Postgres Windows services
+  (`postgresql-x64-16`, `postgresql-x64-17`) are both running and listening on 5432 and 5433; the
+  project DB (`nir_dev`) is on **5433** as documented, reached via `apps/api/.env`.
+- **Cold-start state matched the documented `tsc` trap:** `packages/shared/dist` existed and
+  `node_modules/.prisma/client` was already generated, but `apps/api/dist` did **not** exist while
+  stale `tsconfig.build.tsbuildinfo` / `tsconfig.tsbuildinfo` *did*. Deleted both `.tsbuildinfo`
+  files first, then `npm run build:shared` → `npm run build:api` (exit 0, `dist/main.js` emitted),
+  and ran the API with `node dist/main.js` from `apps/api` — never `npm run start:dev`.
+- `npx prisma migrate status` from `apps/api`: "19 migrations found … Database schema is up to
+  date!" — no migrate or seed step was needed, existing `nir_dev` data is intact and current.
+- **Verified live.** API: `GET /api/v1/reporting/public-stats` → 200 with
+  `totalInnovations: 37`, `totalInnovators: 16`, `totalOrganizations: 26`, `totalCategories: 20`;
+  `POST /api/v1/auth/login` with `admin@nir.gov.bd` / `Password123!` → 200 with roles
+  `PLATFORM_ADMIN,SYSTEM_ADMIN` and an `accessToken`; `/api/docs` → 200;
+  `/api/v1/repository/search?sort=newest&page=1&pageSize=2`, `/repository/featured`, and
+  `/reporting/public-breakdown` → 200 with rows. Web (Next.js 14.2.35 dev, ready in 7.6s): `/`,
+  `/repository`, `/news`, `/statistics`, `/resources`, `/sign-in`, `/register`, `/submit`, `/bn`
+  all → 200.
+- **Smoke-test route gotchas (re-discovered, worth not re-discovering again):** the public list
+  endpoint is `/api/v1/repository/search` — there is **no** bare `GET /api/v1/repository`, and its
+  DTO rejects unknown params (a bare `?limit=2` is a 400, not a bug). The login page is `/sign-in`,
+  not `/login` — a 404 there is expected, not a regression. Every page lives under
+  `apps/web/src/app/[locale]/`, so PowerShell needs `-LiteralPath` to list that directory.
+- **Correction to session 37's "background logs stay empty" note:** backgrounded stdout *is*
+  capturable if the launcher does the redirect instead of the shell — `Start-Process node` with
+  `-RedirectStandardOutput`/`-RedirectStandardError` for the API, and `cmd /c npm run dev > … 2> …`
+  for the web, both wrote complete logs (`Nest application successfully started`,
+  `✓ Ready in 7.6s`), so tailing them works as a health check alongside port/HTTP checks. Details
+  added to [SETUP.md](SETUP.md).
+
+**How it was left running:** two detached `Start-Process` background processes — API on :4000,
+web dev on :3000 — logging to a new repo-root `.logs/` dir (`api.out.log`, `api.err.log`,
+`web.out.log`, `web.err.log`). `.logs/*.log` is already covered by `.gitignore`'s `*.log`, so the
+working tree stays clean. Stop with `Stop-Process -Id <api>,<web>` (or `Get-Process node |
+Stop-Process` if nothing else Node is running); restart via SETUP.md § Standard local run. Backend
+edits need `npm run build:api && node dist/main.js` again — no hot reload.
+
+**Next steps:** none created by this session. Still open and untouched: the `nest start --watch`
+build-cache fix tracked in [ROADMAP.md](ROADMAP.md).
+
+---
+
 ## 2026-09-01 (session 37) — Ran the app locally; synced 30 local-only innovations to production
 
 **Task 1 — ran the app.** Built `packages/shared` + `apps/api` and started the API via

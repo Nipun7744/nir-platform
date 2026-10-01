@@ -28,6 +28,18 @@ native local install.
   switching to a plain `tsc --watch` + a separate process manager that restarts `node dist/main`
   on file change (nodemon or similar), rather than relying on `nest-cli`'s watch pipeline. Nobody
   has done this yet — see [ROADMAP.md](ROADMAP.md).
+- **Backgrounding the two servers (how to get logs you can actually read):** let the launcher do
+  the redirect rather than the shell — e.g. `Start-Process node -ArgumentList 'dist/main.js'
+  -WorkingDirectory <repo>\apps\api -WindowStyle Hidden -PassThru
+  -RedirectStandardOutput <repo>\.logs\api.out.log -RedirectStandardError <repo>\.logs\api.err.log`
+  for the API, and the same `Start-Process cmd -ArgumentList '/c','npm run dev > …web.out.log 2>
+  …web.err.log'` shape for `apps/web`. Session 37 recorded these logs as always empty; that only
+  holds for block-buffered output with *no* explicit redirect — with the redirects above both
+  files fill up normally, so tailing them is a valid check next to the port/HTTP checks. Put the
+  log dir where `*.log` is already git-ignored (repo-root `.logs/` is). Note `Start-Process` takes
+  a plain string for `-WorkingDirectory`, and PowerShell needs `-LiteralPath` for the
+  `apps/web/src/app/[locale]` directory.
+
 - **pgAdmin 4 (`C:\Users\<user>\AppData\Local\Programs\pgAdmin 4\runtime\pgAdmin4.exe`) won't
   launch when started from an automation tool / non-interactive script on this machine** — the
   process exits cleanly (code 0) in well under a second, no window ever appears, and nothing is
