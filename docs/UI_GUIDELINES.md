@@ -214,6 +214,24 @@ active), written twice.
   to submission" / "Done editing" link rather than a wizard-style bounce away after one save. Both
   pages' Delete-draft button (and the manage page's new per-attachment Remove button) go through
   `ConfirmDialog` — see its updated note in "Component inventory" above.
+- **Admin "Submit & publish" reuses the submitter pages rather than a separate admin form
+  (2026-11-04)** — Repository Management's header has an **Add innovation** button (same
+  `rounded-full bg-brand-600` pill + `Plus` icon as "New submission" on `/dashboard/innovations`)
+  linking to the ordinary `/submit` page, whose footnote text switches for admins. The manage page
+  (`dashboard/innovations/[id]/page.tsx`) then swaps its bottom "Ready for review?" card for a
+  same-styled **"Ready to publish?"** card (`Globe` icon, "Submit & publish") when
+  `canPublishDirect` — admin role **and** `DRAFT` **and** `submittedById === current user`, mirroring
+  the API's own-draft-only rule. Publishing goes through `ConfirmDialog` (it's public and bypasses
+  review), shows the API error inline in the card on failure, and redirects to
+  `/dashboard/admin/repository` on success. "My innovations" in the sidebar is now also visible to
+  `PLATFORM_ADMIN`/`SYSTEM_ADMIN` so admins can get back to unpublished drafts.
+- **Public "Submitted by" card (`components/repository/innovation-detail.tsx`)** normally shows
+  the team's Lead Innovator (falling back to the first team member), linked to
+  `/dashboard/submitters/:id` for roles allowed to view submitter profiles. For admin-created
+  innovations (API field `submittedByAdmin`, non-null only when `Innovation.createdByAdmin`) it
+  shows the admin's name/avatar/designation instead, **unlinked** (that route is an innovator
+  profile page), and the card renders even if the team is empty. Team members still appear in the
+  separate Team section.
 - **Reviewer pass-buttons are named after what the submitter will see, not the raw enum value.**
   The Preliminary Review page's pass button reads "Longlist" (was "Shortlist"; still transitions
   `UNDER_REVIEW -> AUTHENTICITY_REVIEW`), the Authenticity Review page's reads "Midlist" (was

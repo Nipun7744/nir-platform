@@ -239,6 +239,21 @@ since each was an explicit scope call:
   reversible and non-destructive (matches the pre-existing Challenge featured-toggle's lack of
   confirmation). See [API.md](API.md#innovations-innovations), [DATABASE.md](DATABASE.md), and
   [UI_GUIDELINES.md](UI_GUIDELINES.md).
+- **Admin "Submit & publish" (added 2026-11-04)** — a Platform/System Admin can add an
+  innovation and publish it directly, skipping the review pipeline entirely. Entry point: "Add
+  innovation" on `/dashboard/admin/repository` (or "My innovations", now also in the admin
+  sidebar) → the normal `/submit` form → the manage page `/dashboard/innovations/[id]`, where admins
+  see a "Ready to publish?" panel with a **Submit & publish** button (confirmation dialog) instead
+  of "Submit for review"; on success it redirects to Repository Management, where the innovation
+  can be unpublished/archived/featured like any other. Admins need no `Innovator` profile to create
+  one (so they don't inflate the public "innovators" count); no "Lead Innovator" team row is
+  auto-created — the admin adds the real innovator/team by name. The public detail page's
+  **"Submitted by" shows the admin's name** for these (via `Innovation.createdByAdmin` — set only by
+  this flow, so the bulk-imported innovations that also list the admin as submitter keep showing
+  their real lead innovator); the team members still appear in the Team section. The name is not
+  linked to `/dashboard/submitters/:id`, which is an innovator profile page. **Only the admin's own drafts can
+  be published this way** — an innovator's draft still has to go through the full review pipeline.
+  See [API.md](API.md#innovations-innovations).
 - Full history of Preliminary/Authenticity reviewer comments is kept in `ReviewComment`
   (separate from `Innovation.reviewRemarks`, which only holds the latest note), so context isn't
   lost across reject/resubmit loops.

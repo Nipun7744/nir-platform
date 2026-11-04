@@ -89,6 +89,13 @@ you change one, change both.
 
 ### Component 1 — Innovation Submission & Evaluation
 
+- **`Innovation.createdByAdmin`** (Boolean, `@default(false)`, migration
+  `20261104084951_add_created_by_admin_flag`, added 2026-11-04) — set `true` only by
+  `InnovationsService.create` when a Platform/System Admin with no `Innovator` profile creates the
+  innovation (the admin "Submit & publish" flow). Drives the public "Submitted by" card crediting the
+  admin instead of the lead innovator. Deliberately a flag, not "submitter holds an admin role": the
+  32 bulk-imported/prod-synced innovations also have the admin as `submittedById` but must keep
+  crediting their real innovator, and they stay `false`.
 - **`Organization`** → **`Innovator`** (1:1 with `User`, has `irn`, optional org link,
   `nidVerified`) → **`Innovation`** (the central entity: bilingual title/summary, problem
   statement, TRL 1–9, `innovationType`, `developmentStage`, `ipStatus`, `fundingSource`,
@@ -216,6 +223,7 @@ Applied so far (`apps/api/prisma/migrations/`, oldest first):
 17. `20260812043826_add_challenge_banner_image`
 18. `20260812101124_add_innovation_approved_status`
 19. `20260817054146_add_unpublished_review_status`
+20. `20261104084951_add_created_by_admin_flag` — `Innovation.createdByAdmin` (see Component 1 below)
 
 Note migrations 9 and 11 (`add_due_diligence_reviewer`, `rename_due_diligence_to_authenticity_reviewer`):
 a "Due Diligence Reviewer" role was added then renamed to "Authenticity Reviewer" within the same

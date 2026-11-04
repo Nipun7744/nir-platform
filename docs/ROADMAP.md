@@ -5,6 +5,9 @@
 
 ## Completed
 
+- **Admin "Submit & publish" (2026-11-04)** — Platform/System Admins can create an innovation
+  (no Innovator profile needed) and publish their own draft directly via
+  `POST /innovations/:id/publish`; the public "Submitted by" credits the admin for these (`Innovation.createdByAdmin`). See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules).
 - Full JWT access+refresh auth with argon2 hashing, admin-approval-gated registration, RBAC via
   `Role[]` claim (14 roles).
 - All 8 SRS components implemented end-to-end (backend module + frontend routes) — see
@@ -13,7 +16,7 @@
   Stakeholder/Partner need none).
 - Bilingual (EN/BN) UI via `next-intl`, font-swap approach (Bricolage Grotesque/Instrument Sans
   for EN, Hind Siliguri for BN).
-- Prisma schema covering all SRS domains (48 models, 24 enums), 19 migrations applied.
+- Prisma schema covering all SRS domains (48 models, 24 enums), 20 migrations applied.
 - Seed script with demo accounts for every role.
 - Preliminary Reviewer / Authenticity Reviewer review stages added and review-comment history
   (`ReviewComment`) added, separate from the SRS's originally simpler single-review flow.

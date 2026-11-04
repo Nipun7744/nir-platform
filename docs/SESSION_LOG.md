@@ -6,6 +6,66 @@
 
 ---
 
+## 2026-11-04 (session 40) — Admin "Submit & publish" for innovations
+
+**Task — "Create an option for the Platform Administrator to submit and publish an innovation."**
+
+- **Blocker found first:** `InnovationsService.create` required an `Innovator` profile, and
+  `admin@nir.gov.bd` has none — admins couldn't create innovations at all. Now admins
+  (`PLATFORM_ADMIN`/`SYSTEM_ADMIN`) skip that check; no "Lead Innovator" team row is auto-created
+  for them. Deliberately did **not** auto-create an Innovator profile/IRN for admins, since that
+  would count them in the public "innovators" stat.
+- **New `POST /innovations/:id/publish`** (`publishDirect`): admin's own `DRAFT` → `PUBLISHED`
+  directly, audit action `INNOVATION_ADMIN_PUBLISHED`. Own-drafts-only so it can't bypass review
+  for innovators' work. `ALLOWED_TRANSITIONS` left unchanged.
+- **Frontend:** "Add innovation" button on Repository Management → `/submit`; "My innovations"
+  sidebar item now visible to admins; manage page shows a "Ready to publish?" panel with
+  **Submit & publish** (ConfirmDialog) for admins instead of "Submit for review", redirecting to
+  Repository Management; `/submit` helper text adjusted for admins. New hook
+  `usePublishInnovationDirect`.
+- **Decision:** guarded to both `PLATFORM_ADMIN` and `SYSTEM_ADMIN`, matching every other admin
+  innovation guard (repository/approval/featured).
+- **Verified** against the running API: admin create (201, team 0) → add team → publish (201,
+  `PUBLISHED`, `publishedAt` set) → public view 200, appears in `/repository/search`, activity log
+  shows `INNOVATION_ADMIN_PUBLISHED`; innovator calling publish → 403; admin publishing an
+  innovator's draft → 403; re-publish → 400. Web `tsc --noEmit` clean; changed pages return 200.
+  The two test innovations (+ their audit rows) were deleted from the local DB afterwards.
+- **Files:** `apps/api/src/innovations/innovations.{service,controller}.ts`,
+  `apps/web/src/hooks/use-innovations.ts`, `apps/web/src/components/dashboard/dashboard-shell.tsx`,
+  `apps/web/src/app/[locale]/submit/page.tsx`,
+  `apps/web/src/app/[locale]/dashboard/innovations/[id]/page.tsx`,
+  `apps/web/src/app/[locale]/dashboard/admin/repository/page.tsx`,
+  `apps/web/src/components/repository/innovation-detail.tsx`, `apps/api/prisma/schema.prisma`,
+  `apps/api/prisma/migrations/20261104084951_add_created_by_admin_flag/`; docs: API, DATABASE,
+  ROLES, PROJECT_CONTEXT, ROADMAP, UI_GUIDELINES, this log.
+
+- **Follow-up (same session, user feedback): public "Submitted by" must show the admin.** Before,
+  the card derived the submitter from `team`, so an admin-created innovation showed the first team
+  member (or no card at all). Found that **32 existing imported innovations also have the admin as
+  `submittedById`** (with real innovators in `team`), so "submitter has an admin role" would have
+  relabelled all of them — user chose to scope it to the new flow only. Added
+  `Innovation.createdByAdmin` (migration `20261104084951_add_created_by_admin_flag`, applied
+  locally), set in `create`; `findOneForViewer` returns `submittedByAdmin` (admin's public profile
+  fields, no roles) only when it's true; `components/repository/innovation-detail.tsx` prefers it
+  and doesn't link it to the submitter-profile page. Verified: admin-created → "Platform
+  Administrator"; NIR-2026-000045 (imported) → still "Animesh Biswas". Test data removed.
+
+**Next steps:** not committed or deployed — needs commit + push (Vercel) + `railway up` (API; the
+start command's `prisma migrate deploy` will apply the new migration on Railway).
+
+---
+
+## 2026-11-04 (session 39) — Ran the app locally (no code changes)
+
+Followed [SETUP.md](SETUP.md) § Standard local run exactly as session 38 did: Postgres already
+listening on 5433, deleted `apps/api` `.tsbuildinfo` files, `npm run build:shared` +
+`npm run build:api` (both exit 0), then started the API (`node dist/main.js`) and web
+(`npm run dev`) via `Start-Process` with logs in `.logs/`. Verified
+`GET /api/v1/reporting/public-stats` → 200 and web `/` → 200. No new issues found.
+**Next steps:** none from this session.
+
+---
+
 ## 2026-09-28 (session 38) — Ran the app locally (verification only, no code changes)
 
 **Task — "Run this project."** Brought the full local stack up from a cold repo state and verified
