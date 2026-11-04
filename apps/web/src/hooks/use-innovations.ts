@@ -44,6 +44,20 @@ export function useSubmitInnovation() {
   });
 }
 
+// Admin "Submit & publish" — own DRAFT straight to PUBLISHED (InnovationsService.publishDirect).
+export function usePublishInnovationDirect() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post(`/innovations/${id}/publish`),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['my-innovations'] });
+      queryClient.invalidateQueries({ queryKey: ['innovation', id] });
+      queryClient.invalidateQueries({ queryKey: ['repository-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-log', undefined] });
+    },
+  });
+}
+
 // R-002: lets a submitter remove one of their own uploaded files while still editable. Mirrors
 // `useRemoveAttachment` in `use-repository-admin.ts` (same underlying endpoint — ownership, not
 // role, is what the API checks) but scoped to what a submitter's own pages actually show, so it

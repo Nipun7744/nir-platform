@@ -25,7 +25,7 @@ const ADMIN_ROLES = [Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN];
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-  { href: '/dashboard/innovations', label: 'My innovations', icon: Lightbulb, roles: [Role.INNOVATION_SUBMITTER] },
+  { href: '/dashboard/innovations', label: 'My innovations', icon: Lightbulb, roles: [Role.INNOVATION_SUBMITTER, ...ADMIN_ROLES] },
   { href: '/dashboard/evaluations', label: 'Evaluations', icon: ClipboardCheck, roles: [Role.EXPERT_EVALUATOR] },
   { href: '/dashboard/preliminary-review', label: 'Preliminary review', icon: ListChecks, roles: [Role.PRELIMINARY_REVIEWER] },
   { href: '/dashboard/authenticity-review', label: 'Authenticity review', icon: SearchCheck, roles: [Role.AUTHENTICITY_REVIEWER] },

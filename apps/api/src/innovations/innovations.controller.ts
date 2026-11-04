@@ -34,7 +34,7 @@ export class InnovationsController {
 
   @Post()
   create(@Body() dto: CreateInnovationDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.innovationsService.create(dto, user.id);
+    return this.innovationsService.create(dto, user.id, user.roles);
   }
 
   @Get('mine')
@@ -110,6 +110,14 @@ export class InnovationsController {
   @Post(':id/submit')
   submit(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.innovationsService.submit(id, user.id);
+  }
+
+  /** Admin "Submit & publish" — own DRAFT straight to PUBLISHED; see InnovationsService.publishDirect. */
+  @Post(':id/publish')
+  @UseGuards(RolesGuard)
+  @Roles(Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN)
+  publishDirect(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.innovationsService.publishDirect(id, user.id);
   }
 
   @Patch(':id/status')

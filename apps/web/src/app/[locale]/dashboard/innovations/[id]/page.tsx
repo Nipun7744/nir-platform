@@ -2,9 +2,20 @@
 
 import { useState } from 'react';
 import { Link, useRouter } from '@/i18n/navigation';
-import { ArrowLeft, ImagePlus, FileText, UserPlus, Send, Trash2, Pencil, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, ImagePlus, FileText, UserPlus, Send, Trash2, Pencil, CheckCircle2, XCircle, Globe, AlertCircle } from 'lucide-react';
+import { Role } from '@nir/shared';
 import { useInnovation } from '@/hooks/use-repository-search';
-import { useAddAttachment, useAddTeamMember, useSubmitInnovation, useDeleteInnovation, useRemoveAttachment } from '@/hooks/use-innovations';
+import {
+  useAddAttachment,
+  useAddTeamMember,
+  useSubmitInnovation,
+  useDeleteInnovation,
+  useRemoveAttachment,
+  usePublishInnovationDirect,
+} from '@/hooks/use-innovations';
+import { useHasRole } from '@/hooks/use-require-auth';
+import { useAuthStore } from '@/store/auth-store';
+import { ApiError } from '@/lib/api-client';
 import { FileUploadButton } from '@/components/ui/file-upload-button';
 import { StagePill } from '@/components/ui/stage-pill';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -63,6 +74,10 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
   const addTeamMember = useAddTeamMember(id);
   const submitInnovation = useSubmitInnovation();
   const deleteInnovation = useDeleteInnovation();
+  const publishDirect = usePublishInnovationDirect();
+  const isAdmin = useHasRole(Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN);
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const [memberName, setMemberName] = useState('');
   const [memberRole, setMemberRole] = useState('');
   const [confirmDeleteDraft, setConfirmDeleteDraft] = useState(false);
@@ -75,6 +90,9 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
   // Delete is stricter than edit — a draft nobody has looked at yet is safe to remove outright, but
   // a rejected submission already carries review history worth keeping (R-002).
   const canDelete = innovation.reviewStatus === 'DRAFT';
+  // Admins publish their own drafts directly instead of sending them through review — the API
+  // (InnovationsService.publishDirect) enforces the same own-DRAFT-only rule.
+  const canPublishDirect = isAdmin && innovation.reviewStatus === 'DRAFT' && innovation.submittedById === currentUserId;
 
   return (
     <div>
@@ -308,7 +326,30 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
         </section>
       </div>
 
-      {canEdit && (
+      {canPublishDirect && (
+        <div className="mt-8 rounded-2xl border border-brand-200 bg-brand-50/50 p-5">
+          <h2 className="font-display text-base font-bold text-ink-900">Ready to publish?</h2>
+          <p className="mt-1 text-sm text-ink-600">
+            As a Platform Administrator you can publish this innovation directly to the public repository, skipping the
+            review pipeline. You can unpublish or archive it later from Repository Management.
+          </p>
+          {publishDirect.isError && (
+            <p className="mt-2 flex items-center gap-1.5 text-sm text-red-600">
+              <AlertCircle className="h-4 w-4" />
+              {publishDirect.error instanceof ApiError ? publishDirect.error.message : 'Something went wrong'}
+            </p>
+          )}
+          <button
+            onClick={() => setConfirmPublish(true)}
+            disabled={publishDirect.isPending}
+            className="focus-ring mt-3 inline-flex items-center gap-2 rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+          >
+            <Globe className="h-4 w-4" /> {publishDirect.isPending ? 'Publishing…' : 'Submit & publish'}
+          </button>
+        </div>
+      )}
+
+      {canEdit && !canPublishDirect && (
         <div className="mt-8 rounded-2xl border border-brand-200 bg-brand-50/50 p-5">
           <h2 className="font-display text-base font-bold text-ink-900">Ready for review?</h2>
           <p className="mt-1 text-sm text-ink-600">
@@ -323,6 +364,23 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
           </button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmPublish}
+        title="Publish this innovation?"
+        description={`"${innovation.titleEn}" will be published to the public repository immediately, without going through review.`}
+        confirmLabel="Publish"
+        pending={publishDirect.isPending}
+        onCancel={() => setConfirmPublish(false)}
+        onConfirm={async () => {
+          try {
+            await publishDirect.mutateAsync(id);
+            router.push('/dashboard/admin/repository');
+          } finally {
+            setConfirmPublish(false);
+          }
+        }}
+      />
 
       <ConfirmDialog
         open={confirmDeleteDraft}

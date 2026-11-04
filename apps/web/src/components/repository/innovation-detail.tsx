@@ -109,7 +109,10 @@ export function InnovationDetail({ slug }: { slug: string }) {
 
   const photo = innovation.attachments?.find((a: any) => a.kind === 'PHOTO');
   const leadInnovator = innovation.team?.find((m: any) => m.roleInTeam === 'Lead Innovator') ?? innovation.team?.[0];
-  const submitterProfile = leadInnovator?.innovator?.user;
+  // Admin-created innovations credit the admin, not the team — the API sets `submittedByAdmin` only
+  // for those (see InnovationsService.findOneForViewer).
+  const submittedByAdmin = innovation.submittedByAdmin;
+  const submitterProfile = submittedByAdmin ?? leadInnovator?.innovator?.user;
   const submitterName = submitterProfile?.fullName ?? leadInnovator?.displayName;
   const submitterSubtitle =
     [submitterProfile?.designation, submitterProfile?.institution].filter(Boolean).join(', ') ||
@@ -229,7 +232,7 @@ export function InnovationDetail({ slug }: { slug: string }) {
         </div>
 
         <aside className="min-w-0 space-y-6">
-          {leadInnovator && (
+          {(leadInnovator || submittedByAdmin) && (
             <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
               <h3 className="text-sm font-bold uppercase tracking-wide text-ink-500">Submitted by</h3>
               <div className="mt-3 flex items-center gap-3">
@@ -246,7 +249,7 @@ export function InnovationDetail({ slug }: { slug: string }) {
                   </span>
                 )}
                 <div className="min-w-0">
-                  {canViewSubmitterProfile ? (
+                  {canViewSubmitterProfile && !submittedByAdmin ? (
                     <Link
                       href={`/dashboard/submitters/${innovation.submittedById}`}
                       className="focus-ring truncate text-sm font-bold text-ink-900 hover:text-brand-700 hover:underline"

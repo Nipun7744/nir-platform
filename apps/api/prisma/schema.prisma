@@ -432,6 +432,12 @@ model Innovation {
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
   submittedById  String
+  // True only for innovations a Platform/System Admin created through the admin "Submit & publish"
+  // flow (InnovationsService.create) — the public "Submitted by" card then credits the admin
+  // instead of the team's lead innovator. Deliberately a flag rather than "submitter has an admin
+  // role": bulk-imported innovations also have the admin as submittedById but must keep crediting
+  // their real innovator.
+  createdByAdmin Boolean @default(false)
   latitude       Float?
   longitude      Float?
 

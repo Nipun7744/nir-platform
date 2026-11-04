@@ -89,12 +89,19 @@ export class InnovationsService {
     return innovation;
   }
 
-  async create(dto: CreateInnovationDto, userId: string) {
+  /**
+   * Platform/System Admins can create innovations without an Innovator profile (they add an
+   * innovation on someone's behalf and publish it directly — see `publishDirect`). No "Lead
+   * Innovator" team row is created for them; they add the real team by name on the manage page.
+   */
+  async create(dto: CreateInnovationDto, userId: string, roles: Role[] = []) {
     const innovator = await this.prisma.innovator.findUnique({
       where: { userId },
       include: { user: { select: { fullName: true } } },
     });
-    if (!innovator) {
+    const adminRoles: Role[] = [Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN];
+    const isAdmin = roles.some((r) => adminRoles.includes(r));
+    if (!innovator && !isAdmin) {
       throw new BadRequestException('Only registered innovators can submit an innovation');
     }
 
@@ -110,14 +117,17 @@ export class InnovationsService {
         innovationCode,
         slug,
         submittedById: userId,
+        createdByAdmin: !innovator && isAdmin,
         reviewStatus: 'DRAFT',
-        team: {
-          create: {
-            innovatorId: innovator.id,
-            displayName: innovator.user.fullName,
-            roleInTeam: 'Lead Innovator',
-          },
-        },
+        team: innovator
+          ? {
+              create: {
+                innovatorId: innovator.id,
+                displayName: innovator.user.fullName,
+                roleInTeam: 'Lead Innovator',
+              },
+            }
+          : undefined,
         tags: tagIds?.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
         sdgTags: sdgTagIds?.length ? { create: sdgTagIds.map((sdgTagId) => ({ sdgTagId })) } : undefined,
       },
@@ -289,7 +299,18 @@ export class InnovationsService {
       });
     }
 
-    return innovation;
+    // Admin-created innovations (see `create`/`publishDirect`) credit the admin on the public
+    // "Submitted by" card instead of the team's lead innovator. Null for every other innovation —
+    // including bulk-imported ones whose submittedById is also the admin (see the schema comment on
+    // `createdByAdmin`) — which keep showing the lead innovator from `team` exactly as before.
+    const submittedByAdmin = innovation.createdByAdmin
+      ? await this.prisma.user.findUnique({
+          where: { id: innovation.submittedById },
+          select: { fullName: true, avatarUrl: true, designation: true, institution: true },
+        })
+      : null;
+
+    return { ...innovation, submittedByAdmin };
   }
 
   async update(id: string, dto: UpdateInnovationDto, userId: string, roles: Role[]) {
@@ -369,6 +390,41 @@ export class InnovationsService {
       action: 'INNOVATION_SUBMITTED_FOR_REVIEW',
       entityType: 'Innovation',
       entityId: id,
+    });
+
+    return updated;
+  }
+
+  /**
+   * Admin "Submit & publish" — moves an admin's own DRAFT straight to PUBLISHED, bypassing the
+   * review pipeline (and ALLOWED_TRANSITIONS, which deliberately has no DRAFT -> PUBLISHED edge for
+   * anyone else). Restricted to drafts the admin created themselves, so it can never be used to
+   * publish an innovator's unsubmitted draft without their consent. Guarded to PLATFORM_ADMIN/
+   * SYSTEM_ADMIN in the controller.
+   */
+  async publishDirect(id: string, actorId: string) {
+    const innovation = await this.prisma.innovation.findUnique({ where: { id } });
+    if (!innovation) throw new NotFoundException('Innovation not found');
+    if (innovation.submittedById !== actorId) {
+      throw new ForbiddenException('Only innovations you created yourself can be published directly');
+    }
+    if (innovation.reviewStatus !== 'DRAFT') {
+      throw new BadRequestException('Only a draft can be published directly');
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.innovation.update({
+      where: { id },
+      data: { reviewStatus: 'PUBLISHED', submittedAt: now, publishedAt: now },
+      include: DETAIL_INCLUDE,
+    });
+
+    await this.auditLog.record({
+      actorId,
+      action: 'INNOVATION_ADMIN_PUBLISHED',
+      entityType: 'Innovation',
+      entityId: id,
+      metadata: { from: 'DRAFT', to: 'PUBLISHED' },
     });
 
     return updated;

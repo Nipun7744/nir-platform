@@ -19,6 +19,7 @@ export default function SubmitInnovationPage() {
   const { data: regions } = useRegions();
   const { data: profile } = useCurrentUser() as { data: any };
   const isMinistryFocalPoint = Boolean(user?.roles.includes(Role.MINISTRY_FOCAL_POINT));
+  const isAdmin = Boolean(user?.roles.some((r) => r === Role.PLATFORM_ADMIN || r === Role.SYSTEM_ADMIN));
   const { data: cycles } = useMinistryCycles() as { data: any[] };
   const createInnovation = useCreateInnovation();
 
@@ -90,7 +91,9 @@ export default function SubmitInnovationPage() {
           {createInnovation.isPending ? 'Saving…' : 'Save draft & continue'}
         </button>
         <p className="text-xs text-ink-400">
-          This saves as a draft. You'll be able to attach photos and documents next, and submit for review when ready.
+          {isAdmin
+            ? "This saves as a draft. You'll be able to attach photos, documents, and the innovation team next, then publish it directly to the repository."
+            : "This saves as a draft. You'll be able to attach photos and documents next, and submit for review when ready."}
         </p>
       </form>
     </div>

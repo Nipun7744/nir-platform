@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from '@/i18n/navigation';
-import { Archive, Film, History, ImageOff, Layers, RotateCcw, Star } from 'lucide-react';
+import { Archive, Film, History, ImageOff, Layers, Plus, RotateCcw, Star } from 'lucide-react';
 import {
   useRepositoryInnovations,
   useRemoveAttachment,
@@ -339,7 +339,12 @@ export default function RepositoryManagementPage() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-extrabold text-ink-900">Repository Management</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-2xl font-extrabold text-ink-900">Repository Management</h1>
+        <Link href="/submit" className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+          <Plus className="h-4 w-4" /> Add innovation
+        </Link>
+      </div>
       <p className="mt-1 text-ink-600">
         View, publish, and unpublish innovations in the public repository; mark ones as featured, archive ones that
         are no longer active, and manage their photos and videos.
