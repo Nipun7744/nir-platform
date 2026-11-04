@@ -88,6 +88,48 @@ npm run dev
 - Postgres: `localhost:5433`
 - Prisma Studio (if run): `npx prisma studio` → http://localhost:5555
 
+## Git remotes — where to push (standing rule, set 2026-11-04)
+
+**Always push new work to the GitLab `development` branch** —
+`https://gitlab.a2i.gov.bd/a2i-nir/a2i_nir`, git remote name `gitlab`. That repo belongs to the a2i
+team and promotes code through merge requests: `development → uat → master`. Never push directly
+to its `uat` or `master`, and never force-push any of its branches.
+
+| Remote | URL | Role |
+|---|---|---|
+| `gitlab` | https://gitlab.a2i.gov.bd/a2i-nir/a2i_nir.git | **Default push target — `development` branch only.** |
+| `origin` | https://github.com/Nipun7744/nir-platform.git | The original repo behind the Vercel/Railway deployment below. Pushing its `master` auto-deploys the web app, so push here only when explicitly asked. |
+
+**The two repos have unrelated git histories.** GitLab started from its own "First Commit"
+snapshot of this project, then added team commits (Docker multi-environment setup, release version
+in the footer). As a result:
+- `git push gitlab master` is rejected ("fetch first"). Don't "fix" that with `--force` — it would
+  wipe the team's commits.
+- Work committed on the local `master` (GitHub lineage) has to be moved over: create a branch from
+  `gitlab/development`, cherry-pick the new commits onto it, then fast-forward `development`:
+  ```bash
+  git fetch gitlab
+  git worktree add -b tmp-gl <scratch-dir> gitlab/development   # keeps the main checkout untouched
+  cd <scratch-dir> && git cherry-pick <commit>...                # code applies cleanly; docs may conflict
+  git push gitlab tmp-gl:development                             # fast-forward only, no force
+  git push gitlab --delete tmp-gl 2>/dev/null; git branch -D tmp-gl  # clean up
+  ```
+  This is how the admin "Submit & publish" feature reached GitLab (session 40). Cherry-pick
+  conflicts so far have only been in `docs/SESSION_LOG.md`, where GitLab's copy was missing later
+  entries — resolve by keeping the longer, newest-first log, never by dropping entries.
+- Simpler long-term option, not yet adopted: do day-to-day work on a local branch that tracks
+  `gitlab/development` (`git switch -c development --track gitlab/development`), so that
+  `git push gitlab development` works directly with no cherry-picking.
+
+**Auth:** Git Credential Manager prompts in a popup window. Enter your GitLab username, and a
+Personal Access Token with the `write_repository` scope as the password — account passwords are
+rejected with "HTTP Basic: Access denied". From a non-interactive shell, set
+`GIT_TERMINAL_PROMPT=0`, but don't set `GCM_INTERACTIVE=never` (that blocks the popup). Once a
+token has been accepted, the login is saved.
+
+**Deploying from GitLab:** a server running GitLab code must run `prisma migrate deploy` whenever a
+merge adds migrations — e.g. `20261104084951_add_created_by_admin_flag` (session 40).
+
 ## Production Deployment
 
 Live since 2026-08-13. Split across two providers because the API's file-upload-to-local-disk
@@ -99,7 +141,7 @@ and persistent DB connections don't fit Vercel's serverless model.
 | `apps/web` (Next.js) | Vercel (project `nir-platform-web`) | https://nir-platform-web.vercel.app |
 | `apps/api` (NestJS) | Railway (project `nir-platform`, service `api`) | https://api-production-2d78.up.railway.app (`/api/v1`, Swagger at `/api/docs`) |
 | PostgreSQL | Railway (service `Postgres`, same project) | internal only, referenced by other services as `${{Postgres.DATABASE_URL}}` |
-| Source | GitHub | https://github.com/Nipun7744/nir-platform (public) |
+| Source | GitHub | https://github.com/Nipun7744/nir-platform (public) — the team's main repo is now GitLab `development`; see [Git remotes](#git-remotes--where-to-push-standing-rule-set-2026-11-04) |
 
 ### Vercel (`apps/web`)
 

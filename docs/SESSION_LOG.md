@@ -50,8 +50,20 @@
   and doesn't link it to the submitter-profile page. Verified: admin-created → "Platform
   Administrator"; NIR-2026-000045 (imported) → still "Animesh Biswas". Test data removed.
 
-**Next steps:** not committed or deployed — needs commit + push (Vercel) + `railway up` (API; the
-start command's `prisma migrate deploy` will apply the new migration on Railway).
+- **Pushed (same session):** to GitHub `origin/master` (`b1d7e31` code, `ea521f2` docs). Then to the
+  a2i GitLab repo (`gitlab` remote, `gitlab.a2i.gov.bd/a2i-nir/a2i_nir`). Its history turned out to
+  be unrelated to GitHub's, and it uses a `development → uat → master` merge-request flow, so the two
+  commits were cherry-picked onto `gitlab/development` (`5db44c6`, `7ecef42`; only conflict was
+  `SESSION_LOG.md`) and `development` was fast-forwarded. The temporary feature branch was then
+  deleted. GitLab `uat`/`master` untouched.
+- **New standing rule (user):** always push new work to the GitLab **`development`** branch. Recorded
+  in [SETUP.md § Git remotes](SETUP.md#git-remotes--where-to-push-standing-rule-set-2026-11-04), with
+  the cherry-pick procedure and auth notes.
+
+**Next steps:** open a GitLab merge request `development → uat`. Whatever server deploys it must run
+`prisma migrate deploy` for the new migration. The GitHub-side Railway API was not redeployed
+(`railway up` not run), so on the Vercel/Railway demo the "Submit & publish" button won't work until
+that's done — only relevant if that demo is still in use.
 
 ---
 
