@@ -275,6 +275,15 @@ Postgres, API, and web each run in their own container; `postgres_data` and `api
 persistent volumes. The API container runs `prisma migrate deploy` automatically on boot — seed
 manually once: `docker compose exec api npx ts-node prisma/seed.ts`.
 
+**Two API URLs, don't conflate them.** `NEXT_PUBLIC_API_URL` is what the *browser* calls (e.g.
+`https://dev.challenge.gov.bd`, where a reverse proxy routes `/api/v1` to the api container).
+`API_INTERNAL_URL` (default `http://api:4000`) is where the *web container* proxies `/uploads/*`
+and where `next/image` fetches photos from. Both are baked in at `web` build time, so rebuild
+(`docker compose up --build web`) after changing either. If `API_INTERNAL_URL` is unset the rewrite
+falls back to the public URL — behind Cloudflare that request loops back through the CDN and
+gets a 403 "Error 1000: DNS points to prohibited IP", so every uploaded image breaks (seen on
+dev.challenge.gov.bd, 2026-11-05).
+
 ## Demo accounts
 
 See [PROJECT_CONTEXT.md § Demo Accounts](PROJECT_CONTEXT.md#demo-accounts) — password

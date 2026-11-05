@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-11-05 (session 41) — GitLab sync + images broken on dev.challenge.gov.bd
+
+- **Synced GitLab `development` into local `master`** (`e912d98`): sdas's Docker fixes
+  (Prisma build order, workspace node_modules), multi-environment `docker-compose.yml`
+  (`NIR_BIND_IP`, `*_HOST_PORT`, `*_DATA_SOURCE`, `CORS_ORIGIN`; Postgres port no longer
+  published) and the footer "Version: v0.1.1". Histories are unrelated, so applied as a file sync,
+  not a merge. Local is still ahead by the session-38 SETUP.md note.
+- **Bug: no uploaded images on https://dev.challenge.gov.bd.** The web image was built with
+  `NEXT_PUBLIC_API_URL=https://dev.challenge.gov.bd`; the `/uploads/*` rewrite in
+  `next.config.mjs` therefore proxied server-side back out through Cloudflare, which answers 403
+  "Error 1000: DNS points to prohibited IP" (and `/_next/image` → 400 "isn't a valid image").
+  API calls themselves were fine (`/api/v1/repository/search` 200).
+- **Fix:** new build-time `API_INTERNAL_URL` (compose default `http://api:4000`) used by the
+  rewrite, falling back to `NEXT_PUBLIC_API_URL` → Vercel/Railway and local dev unchanged.
+- **Files:** `apps/web/next.config.mjs`, `apps/web/Dockerfile`, `docker-compose.yml`,
+  `.env.example`, `docs/SETUP.md`.
+- **Next steps:** push to GitLab `development`, then on the server `docker compose up -d --build
+  web` and re-check an image URL returns 200. If images still 404 afterwards, the files aren't
+  in the server's uploads volume (`apps/api/uploads/` is git-ignored) and need copying over.
+
+---
+
 ## 2026-11-04 (session 40) — Admin "Submit & publish" for innovations
 
 **Task — "Create an option for the Platform Administrator to submit and publish an innovation."**

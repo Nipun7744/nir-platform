@@ -14,6 +14,9 @@ RUN npm install --workspaces --include-workspace-root --no-audit --no-fund
 FROM base AS build
 ARG NEXT_PUBLIC_API_URL=http://localhost:4000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# rewrites() is evaluated at build time, so the internal proxy target must be a build arg too
+ARG API_INTERNAL_URL
+ENV API_INTERNAL_URL=$API_INTERNAL_URL
 COPY --from=deps /repo/node_modules ./node_modules
 #COPY --from=deps /repo/apps/web/node_modules ./apps/web/node_modules
 #COPY --from=deps /repo/packages/shared/node_modules ./packages/shared/node_modules
