@@ -14,21 +14,22 @@ RUN npm install --workspaces --include-workspace-root --no-audit --no-fund
 # ---- build: compile shared package + api ----
 FROM base AS build
 COPY --from=deps /repo/node_modules ./node_modules
-COPY --from=deps /repo/apps/api/node_modules ./apps/api/node_modules
-COPY --from=deps /repo/packages/shared/node_modules ./packages/shared/node_modules
+#COPY --from=deps /repo/apps/api/node_modules ./apps/api/node_modules
+#COPY --from=deps /repo/packages/shared/node_modules ./packages/shared/node_modules
 COPY package.json package-lock.json* ./
 COPY packages/shared packages/shared
 COPY apps/api apps/api
 RUN npm run build --workspace=packages/shared
-RUN npm run build --workspace=apps/api
 RUN npx --workspace=apps/api prisma generate
+RUN npm run build --workspace=apps/api
+#RUN npx --workspace=apps/api prisma generate
 
 # ---- runtime: slim image with only what's needed to run ----
 FROM base AS runtime
 ENV NODE_ENV=production
 COPY --from=build /repo/node_modules ./node_modules
-COPY --from=build /repo/apps/api/node_modules ./apps/api/node_modules
-COPY --from=build /repo/packages/shared/node_modules ./packages/shared/node_modules
+#COPY --from=build /repo/apps/api/node_modules ./apps/api/node_modules
+#COPY --from=build /repo/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=build /repo/packages/shared/dist ./packages/shared/dist
 COPY --from=build /repo/packages/shared/package.json ./packages/shared/package.json
 COPY --from=build /repo/apps/api/dist ./apps/api/dist

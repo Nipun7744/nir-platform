@@ -49,6 +49,7 @@ export function SiteFooter() {
 
       <div className="container-page flex flex-wrap items-center justify-between gap-4 border-t border-navy-line py-5 text-xs">
         <span>© {year} {t('rights')}</span>
+        <span className="text-white/80">Version: v0.1.1</span>
         <span className="flex gap-1">
           <span className="hover:underline">{t('privacy')}</span> · <span className="hover:underline">{t('terms')}</span> · <span className="hover:underline">{t('accessibility')}</span>
         </span>
