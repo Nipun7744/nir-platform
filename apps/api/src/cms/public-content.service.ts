@@ -5,7 +5,6 @@ import {
   CreateFaqDto,
   CreateNewsDto,
   UpdateNewsDto,
-  CreateChallengeDto,
   CreateResourceDto,
   CreatePartnerDto,
   CreateFeedbackDto,
@@ -91,39 +90,7 @@ export class PublicContentService {
     return this.prisma.newsPost.delete({ where: { id } });
   }
 
-  // Innovation Challenges / Calls
-  challenges() {
-    return this.prisma.challenge.findMany({ orderBy: { deadline: 'asc' } });
-  }
-  async challengeBySlug(slug: string) {
-    const challenge = await this.prisma.challenge.findUnique({ where: { slug } });
-    if (!challenge) throw new NotFoundException('Challenge not found');
-    return challenge;
-  }
-  async createChallenge(dto: CreateChallengeDto) {
-    if (dto.isFeatured) await this.prisma.challenge.updateMany({ data: { isFeatured: false } });
-    return this.prisma.challenge.create({
-      data: {
-        ...dto,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        deadline: dto.deadline ? new Date(dto.deadline) : undefined,
-      },
-    });
-  }
-  async updateChallenge(id: string, dto: Partial<CreateChallengeDto>) {
-    if (dto.isFeatured) await this.prisma.challenge.updateMany({ where: { id: { not: id } }, data: { isFeatured: false } });
-    return this.prisma.challenge.update({
-      where: { id },
-      data: {
-        ...dto,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        deadline: dto.deadline ? new Date(dto.deadline) : undefined,
-      },
-    });
-  }
-  deleteChallenge(id: string) {
-    return this.prisma.challenge.delete({ where: { id } });
-  }
+  // Innovation Challenges / Calls — moved to challenges/challenges.service.ts (2026-11-10).
 
   // Resources
   resources(type?: string) {

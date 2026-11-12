@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -6,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Role } from '@prisma/client';
+import { OtpChannel, OtpPurpose, Role } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,6 +19,10 @@ import { MentorshipService } from '../mentorship/mentorship.service';
 import { MinistriesService } from '../ministries/ministries.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { SendOtpDto } from './dto/send-otp.dto';
+import { CaptchaService } from './captcha.service';
+import { OTP_CODE_LENGTH, OtpService } from './otp.service';
+import { bdMobileForms, normalizeBdMobile } from '../common/utils/phone';
 
 export interface TokenPair {
   accessToken: string;
@@ -38,7 +43,73 @@ export class AuthService {
     private readonly funding: FundingService,
     private readonly mentorship: MentorshipService,
     private readonly ministries: MinistriesService,
+    private readonly captcha: CaptchaService,
+    private readonly otp: OtpService,
   ) {}
+
+  /** Public settings the sign-in/register pages need (no secrets). */
+  securityConfig() {
+    return {
+      captcha: { provider: this.captcha.provider, siteKey: this.captcha.siteKey },
+      otp: {
+        channels: this.otp.channels,
+        codeLength: OTP_CODE_LENGTH,
+        ttlSeconds: this.otp.ttlSeconds,
+        resendSeconds: this.otp.resendSeconds,
+      },
+    };
+  }
+
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
+  private requirePhone(phone: string | undefined): string {
+    const normalized = normalizeBdMobile(phone);
+    if (!normalized) throw new BadRequestException('Enter a valid Bangladeshi mobile number (e.g. 01712345678).');
+    return normalized;
+  }
+
+  /** Phones stored before normalization was introduced may be in any of these shapes. */
+  private async phoneTaken(e164: string): Promise<boolean> {
+    const f = bdMobileForms(e164);
+    const hit = await this.prisma.user.findFirst({
+      where: { phone: { in: [f.e164, f.international, f.local] } },
+      select: { id: true },
+    });
+    return Boolean(hit);
+  }
+
+  /** Step 1 of registration: send a code to the email address or phone the user will verify. */
+  async sendRegistrationOtp(dto: SendOtpDto, ip?: string) {
+    if (!this.otp.isChannelEnabled(dto.channel)) {
+      throw new BadRequestException(`Verification by ${dto.channel === 'SMS' ? 'SMS' : 'email'} is not available.`);
+    }
+    // CAPTCHA first — every send costs an email/SMS, and the checks below reveal whether an account exists.
+    await this.captcha.verify(dto.captchaToken, ip);
+
+    let target: string;
+    if (dto.channel === OtpChannel.EMAIL) {
+      const email = dto.email!.trim();
+      if (await this.prisma.user.findUnique({ where: { email }, select: { id: true } })) {
+        throw new ConflictException('An account with this email already exists');
+      }
+      target = this.normalizeEmail(email);
+    } else {
+      target = this.requirePhone(dto.phone);
+      if (await this.phoneTaken(target)) {
+        throw new ConflictException('An account with this phone number already exists');
+      }
+    }
+
+    return this.otp.send({
+      purpose: OtpPurpose.REGISTRATION,
+      channel: dto.channel,
+      target,
+      locale: dto.locale ?? 'en',
+      ip,
+    });
+  }
 
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
@@ -69,13 +140,33 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('An account with this email already exists');
 
+    // A phone is optional, but if given it's stored normalized (+8801XXXXXXXXX) and must be unique.
+    const phone = dto.phone ? this.requirePhone(dto.phone) : undefined;
+    if (dto.otpChannel === OtpChannel.SMS && !phone) {
+      throw new BadRequestException('A phone number is required to verify by SMS.');
+    }
+    if (phone && (await this.phoneTaken(phone))) {
+      throw new ConflictException('An account with this phone number already exists');
+    }
+
+    // Step 2 of registration: the code sent by sendRegistrationOtp() must match before anything is created.
+    await this.otp.verifyAndConsume({
+      purpose: OtpPurpose.REGISTRATION,
+      channel: dto.otpChannel,
+      target: dto.otpChannel === OtpChannel.EMAIL ? this.normalizeEmail(dto.email) : phone!,
+      code: dto.otpCode,
+    });
+    const verifiedAt = new Date();
+
     const passwordHash = await argon2.hash(dto.password);
     const irn = await this.idGenerator.nextIrn();
 
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
-        phone: dto.phone,
+        phone,
+        emailVerifiedAt: dto.otpChannel === OtpChannel.EMAIL ? verifiedAt : undefined,
+        phoneVerifiedAt: dto.otpChannel === OtpChannel.SMS ? verifiedAt : undefined,
         passwordHash,
         fullName: dto.fullName,
         roles: [Role.INNOVATION_SUBMITTER],
@@ -108,6 +199,7 @@ export class AuthService {
       action: 'USER_REGISTERED',
       entityType: 'User',
       entityId: user.id,
+      metadata: { verifiedBy: dto.otpChannel },
     });
 
     await this.notifications.send({
@@ -124,7 +216,10 @@ export class AuthService {
     };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, ip?: string) {
+    // Every attempt, before touching the account — so credential stuffing can't skip it.
+    await this.captcha.verify(dto.captchaToken, ip);
+
     const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (!user) throw new UnauthorizedException('Invalid credentials');
 

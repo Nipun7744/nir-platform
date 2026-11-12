@@ -92,12 +92,14 @@ local `inputCls` constant). Keep this in mind before assuming a `<Button>` exist
 | Folder | Contents |
 |---|---|
 | `ui/` | `category-icon.tsx` (name→lucide-react icon map), `stage-pill.tsx` (colored badge for `DevelopmentStage`), `innovation-card.tsx` (repository grid card), `animated-counter.tsx` (count-up via Framer Motion), `file-upload-button.tsx` (wraps `lib/upload.ts`), `confirm-dialog.tsx` (2026-08-17 — blocking confirm modal for critical/destructive actions; first of its kind in this repo, reuse it rather than adding another `window.confirm`/bespoke modal — originally admin-only contexts, extended 2026-08-31 to the Submitter Dashboard's delete-draft/remove-file flows, so treat it as app-wide, not admin-specific), `pagination.tsx` (2026-08-17 — record-count summary + optional page-size selector + Previous/windowed-page-numbers/Next; first reusable pagination component — `repository-browse.tsx`'s inline flat page-number list predates it and wasn't retrofitted, reuse this one for new paginated admin lists instead of copying that older pattern) |
-| `auth/` | `auth-card.tsx` (shared centered-card shell for sign-in/register), `sso-buttons.tsx` (disabled placeholder buttons) |
+| `auth/` | `auth-card.tsx` (shared centered-card shell for sign-in/register), `sso-buttons.tsx` (disabled placeholder buttons), `captcha-widget.tsx` (2026-11-12 — `CaptchaWidget` with a `reset()` ref: one component for Turnstile/reCAPTCHA v2/hCaptcha, provider + site key from `useSecurityConfig()`; renders nothing for provider `none`; **always call `reset()` after a submit**, because tokens are single-use. The one deliberate `forwardRef` in the codebase, needed for the imperative reset) |
 | `layout/` | `site-header.tsx`, `site-footer.tsx`, `locale-switcher.tsx` (EN/বাংলা pill toggle), `challenge-popup.tsx` (site-wide "running challenge" modal, see below) |
 | `home/` | `hero.tsx`, `confluence-graphic.tsx` (decorative animated SVG), `stats-strip.tsx`, `quick-links.tsx`, `featured-innovations.tsx`, `category-grid.tsx`, `challenge-banner.tsx`, `news-section.tsx`, `partners-strip.tsx` — landing-page-only, each fetches its own data |
 | `submit/` | `innovation-form-fields.tsx` (2026-08-31, R-002) — the full innovation submission field set, extracted out of `app/[locale]/submit/page.tsx` so `dashboard/innovations/[id]/edit/page.tsx` can reuse it verbatim instead of forking the form; exports `InnovationFormFields`, `InnovationFormState`, `EMPTY_INNOVATION_FORM` |
 | `repository/` | `repository-browse.tsx` (search/filter UI, syncs query params), `innovation-detail.tsx` |
 | `dashboard/` | `dashboard-shell.tsx` — the shared authenticated chrome (see below) |
+| `challenge-form/` | (2026-11-10) `dynamic-form.tsx` — `DynamicForm` renders any challenge's configured fields (all 11 `FormFieldType`s, accessible labels/`aria-describedby`, inline errors; `preview` disables file upload) + `validateDynamicForm` (client mirror of the API's `validateResponses` — instant feedback only, the server is authoritative); `challenge-responses.tsx` — read-only `ChallengeResponses` panel (renders nothing when `challengeResponses` is null, i.e. for the public); `types.ts` — shared DTO types, type/mapping labels, and `ALLOWED_FILE_EXTENSIONS` (**must match** `apps/api/src/challenges/challenge-rules.ts`) |
+| `admin/` | (2026-11-10) `challenge-form-builder.tsx` — the admin form builder (local edits, HTML5 drag-and-drop **plus** up/down buttons for keyboard users, inline field editor, "Start from recommended fields" template, Preview with "Test validation", single "Save form" → `PUT /challenges/:id/form`, server errors listed verbatim, delete via `ConfirmDialog`) |
 | `reviews/` | `review-comment-timeline.tsx` — shared read-only comment list, reused across preliminary-review/authenticity-review/evaluation pages |
 
 Two small chip-multi-select implementations exist independently (not extracted into a shared
@@ -109,6 +111,31 @@ expertise-tag pickers). Same visual pattern (`border-brand-300 bg-brand-50 text-
 active), written twice.
 
 ## Reusable patterns
+
+- **CAPTCHA-gated actions + OTP step (2026-11-12).** The submit stays disabled until
+  `useSecurityConfig()` has loaded and, if a provider is configured, the widget has produced a
+  token; a small hint ("Complete the security check to continue.") shows meanwhile. After every
+  attempt (success or failure) call `captchaRef.current?.reset()`. The register page is two
+  steps in one component (`step: 'details' | 'verify'`), and it scrolls to the top on every step
+  change. The details form ends with an
+  Email/SMS radio-card choice (the phone label drops "(optional)" and becomes `required` when SMS
+  is picked), then the CAPTCHA, then "Send verification code". The verify step is a separate
+  `AuthCard` with a large monospace code input (`inputMode=numeric`,
+  `autoComplete=one-time-code`), a resend button with a countdown (the CAPTCHA widget only
+  appears once a resend is allowed, since each send needs a fresh token), and "Change details".
+  New strings live in the `auth` namespace in both `en.json` and `bn.json`.
+
+- **Gating the general "Submit an Innovation" entry points (2026-11-10).** Never hard-code a
+  `/submit` link: in client components use `useGeneralSubmissionOpen()` (`hooks/use-settings.ts`,
+  true only once the backend confirms the switch is on — so a disabled switch never flashes the
+  button); in server components wrap the link in `<GeneralSubmitGate>`
+  (`components/layout/general-submit-gate.tsx`, used by the footer). Challenge CTAs ("Apply now"
+  in the homepage banner/popup, "Submit Innovation" on `/challenges`) go to
+  `/challenges/:slug/submit` and render only when `challenge.acceptingSubmissions` is true.
+- **Post-login return path (2026-11-10).** Send users to `/sign-in?next=<path>`; read it with
+  `safeNextPath()` (`lib/safe-next.ts` — same-site paths only, rejects `//host` and `/\host`
+  open-redirect tricks) and pass it on with `withNext()`. Pages that call `useSearchParams` must
+  render inside `<Suspense>` (sign-in/register now wrap an `…Inner` component for this).
 
 - **Homepage "Browse by category" grid (`components/home/category-grid.tsx`) shows only the
   first 6 categories on mobile, all of them from `sm:` (640px) up** (2026-08-23) — pure CSS via
@@ -166,6 +193,32 @@ active), written twice.
   [DATABASE.md](DATABASE.md#component-4--communication--cms)), falling back to the first OPEN
   challenge if none is featured. Reuse this exact fallback chain (`featured ?? first-open`) in any
   new UI that has to pick one challenge to highlight — don't invent a different tie-break.
+- **Popup = teaser, details page = full write-up (2026-11-11).** The running-challenge popup
+  stays short on purpose (it interrupts the visitor): description clamped to 3 lines
+  (`line-clamp-3`) plus an amber "N days left" badge; everything else lives on
+  `/challenges/[slug]`. Don't add sections to the popup — add them to the details page.
+  "Days left" everywhere comes from `challengeDaysLeft()` (`lib/challenge-dates.ts`), which
+  mirrors the API's end-of-deadline-day-UTC rule (`0` = "Last day to apply", `null` once passed).
+- **Challenge details page (`app/[locale]/challenges/[slug]/page.tsx`, redesigned 2026-11-11)** —
+  NIR flat palette; header (status/featured/days-left pills, title, organizer) → banner (16:9 on
+  mobile, 21:9 from `lg`) → `lg:grid-cols-[minmax(0,1fr)_320px]` two-column body (both children
+  `min-w-0`). Main column: an "On this page" chip nav (only when > 2 sections) and sections in a
+  fixed order — Overview, The problem, Who can apply, Timeline (vertical list; past phases greyed),
+  Evaluation, Prizes (`prizeInfoEn` headline + `prizeDetails*`), Resources (icon + truncated
+  label links, new tab), FAQ (native `<details>` accordion), Additional information. **A section
+  renders only when its data exists**, so old challenges just show Overview. Admin text is shown
+  with `whitespace-pre-line` (line breaks kept, never HTML). Sidebar: sticky (`lg:top-36`) card with
+  dates/prize/organizer + Submit button or the API's `closedReason`, and an optional Contact card.
+  Mobile: a fixed bottom "Submit your innovation" bar (only when `acceptingSubmissions`), so the
+  page has `pb-32` below `lg`. Strings live in the new `challengeDetail` message namespace (EN+BN);
+  Bn content columns fall back to En.
+- **Admin challenge form — "Details page content" (2026-11-11).** `ChallengeFormFields` in
+  `dashboard/admin/page.tsx` now ends with a collapsible `ChallengeDetailsFields` block (open by
+  default once anything is filled): the five text sections, repeatable rows with Add/Remove for
+  timeline phases, resources (each with its own Upload button → `/uploads/...`) and FAQ, contact
+  fields, and a nested "বাংলা translations" block (`titleBn`, `descriptionBn`, Bn sections).
+  `challengeToForm()` / `challengeFormToPayload()` map API ⇄ form; half-filled list rows are
+  dropped on save rather than failing validation.
 - **Challenge timeline display** — `Challenge.startDate` is optional; every public display
   (banner, popup, `/challenges` list, `/challenges/[slug]` detail) shows `startDate – deadline` as
   a range when `startDate` is set, and falls back to the pre-existing single-`deadline` display
@@ -185,7 +238,7 @@ active), written twice.
   entry in `SUBMITTER_STATUS_LABELS` and simply reads "APPROVED") falls through to the raw
   `reviewStatus.replace(/_/g, ' ')` as before. `APPROVED` does have its own `STATUS_STYLES` entry
   (`bg-brand-100 text-brand-800`, matching `PUBLISHED`'s shade), and so does `UNPUBLISHED`
-  (`bg-sun-100 text-sun-700`, added 2026-08-17 alongside the Admin Repository Management module —
+  (`bg-sun-100 text-sun-700` — ⚠️ `sun-700` is **not** defined in `tailwind.config.ts` (the `sun` ramp stops at 600), so this text color silently doesn't apply; found 2026-11-10, not fixed — see ROADMAP; added 2026-08-17 alongside the Admin Repository Management module —
   a submitter's own innovation can land in this status if an admin unpublishes it, so this page
   needed the entry even though neither page is part of that module) — every new `ReviewStatus`
   value needs one of these or it silently renders with no pill color at all (this happened once

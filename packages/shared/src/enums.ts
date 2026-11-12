@@ -153,3 +153,32 @@ export const ROLE_LABELS: Record<Role, string> = {
   [Role.PRELIMINARY_REVIEWER]: "Preliminary Reviewer",
   [Role.AUTHENTICITY_REVIEWER]: "Authenticity Reviewer",
 };
+
+/** How an innovation entered the platform (Innovation.submissionChannel). */
+export enum SubmissionChannel {
+  GENERAL = "GENERAL",
+  CHALLENGE = "CHALLENGE",
+}
+
+/** Field types for the challenge submission form builder (ChallengeFormField.type). */
+export enum FormFieldType {
+  SHORT_TEXT = "SHORT_TEXT",
+  LONG_TEXT = "LONG_TEXT",
+  NUMBER = "NUMBER",
+  EMAIL = "EMAIL",
+  PHONE = "PHONE",
+  SELECT = "SELECT",
+  RADIO = "RADIO",
+  CHECKBOX = "CHECKBOX",
+  DATE = "DATE",
+  FILE = "FILE",
+  MULTI_FILE = "MULTI_FILE",
+}
+
+/** Optional binding of a challenge form field to a core Innovation column. */
+export enum InnovationFieldMapping {
+  TITLE = "TITLE",
+  SUMMARY = "SUMMARY",
+  PROBLEM_STATEMENT = "PROBLEM_STATEMENT",
+  PROPOSED_SOLUTION = "PROPOSED_SOLUTION",
+}

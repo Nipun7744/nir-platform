@@ -8,7 +8,7 @@
 
 - **PostgreSQL 16**, accessed exclusively through **Prisma ORM**
   (`apps/api/src/prisma`, schema at `apps/api/prisma/schema.prisma`).
-- **48 models**, **24 enums**, organized in the schema file by SRS component (see section
+- **51 models**, **29 enums**, organized in the schema file by SRS component (see section
   headers/comments in `schema.prisma` itself).
 - IDs are `cuid()` strings everywhere. `Innovation` additionally carries a human-readable unique
   `innovationCode` (e.g. `NIR-2026-000123`); `Innovator` carries a unique `irn`
@@ -44,6 +44,9 @@
 | `NotificationStatus` | QUEUED, SENT, FAILED |
 | `EoiStatus` | SUBMITTED, ACKNOWLEDGED, IN_DISCUSSION, AGREEMENT_SIGNED, DECLINED |
 | `ChallengeStatus` | UPCOMING, OPEN, CLOSED, EVALUATING, COMPLETED |
+| `SubmissionChannel` | GENERAL, CHALLENGE — `Innovation.submissionChannel` (2026-11-10) |
+| `FormFieldType` | SHORT_TEXT, LONG_TEXT, NUMBER, EMAIL, PHONE, SELECT, RADIO, CHECKBOX, DATE, FILE, MULTI_FILE — `ChallengeFormField.type` |
+| `InnovationFieldMapping` | TITLE, SUMMARY, PROBLEM_STATEMENT, PROPOSED_SOLUTION — `ChallengeFormField.mapsTo` |
 | `SessionMode` | ONLINE, IN_PERSON |
 | `SessionStatus` | PROPOSED, CONFIRMED, COMPLETED, CANCELLED |
 | `AttachmentKind` | PHOTO, VIDEO, DOCUMENT, PUBLICATION, PATENT |
@@ -65,6 +68,19 @@ you change one, change both.
   `evaluatorCategoryIds` / `preliminaryReviewerCategoryIds` / `authenticityReviewerCategoryIds`
   (String arrays of `Category.id`, one per specialization role). Optional 1:1 profiles:
   `innovatorProfile`, `investorProfile`, `mentorProfile`, `ministryProfile`.
+  `emailVerifiedAt` / `phoneVerifiedAt` (2026-11-12): set at registration to whichever address the
+  OTP was verified against. Accounts created before then have both `null`. `phone` is stored
+  normalized (`+8801XXXXXXXXX`) for registrations from 2026-11-12 on; older rows keep whatever was
+  typed, so lookups by phone must try the `+880…`/`880…`/`01…` spellings (see
+  `AuthService.phoneTaken`).
+- **`OtpCode`** (2026-11-12) — one-time passcodes sent **before** an account exists, so it has no
+  `userId`/FK. Fields: `purpose` (`OtpPurpose`: `REGISTRATION`), `channel` (`OtpChannel`:
+  `EMAIL`/`SMS`), `target` (lower-cased email or E.164 phone), `codeHash` (HMAC-SHA256 of
+  `target:code`, keyed by `OTP_SECRET` or `JWT_ACCESS_SECRET`; the code itself is never stored),
+  `attempts`, `expiresAt`, `consumedAt?` (also set on older codes when a newer one is sent),
+  `requestIp?`. Index `[target, purpose, createdAt]` serves both the cooldown/hourly-cap queries
+  and the latest-code lookup. Rows aren't purged; the table grows with one row per send. A cleanup
+  job is a ROADMAP item.
 - **`RefreshToken`** — `tokenHash` (unique, SHA-256), `expiresAt`, `revokedAt`. Cascades on
   `User` delete.
 - **`AuditLog`** — `actorId?` (nullable, `SetNull` on user delete so history survives),
@@ -88,6 +104,18 @@ you change one, change both.
 `DIVISION`/`DISTRICT` hierarchy via `parentId`), `Ministry` (`code`, bilingual name).
 
 ### Component 1 — Innovation Submission & Evaluation
+
+- **Submission channels (migration `20261110080636_challenge_submissions_and_form_builder`,
+  2026-11-10)** — `Innovation.submissionChannel` (`SubmissionChannel`, default `GENERAL`, indexed),
+  `Innovation.challengeId` (nullable FK → `Challenge`, **`onDelete: Restrict`** so a challenge with
+  submissions can't be deleted out from under them, indexed) and `Innovation.challengeResponses`
+  (`Json?`). Every pre-existing row became `GENERAL` with no challenge. `challengeResponses` is an
+  array of snapshots `{fieldId, key, label, type, value, files?: [{url, name, mimeType,
+  sizeBytes}]}` — label/type are copied at submission time so later form edits never change a
+  past submission. `ChallengeFormField` rows are referenced only loosely (`fieldId`), not by FK.
+- **`PlatformSetting`** (`key` PK, `value Json`, `updatedById`, `updatedAt`) — admin switches,
+  read through `SettingsService` which supplies defaults for missing keys. Only key so far:
+  `generalSubmissionEnabled` (default `true` when no row exists).
 
 - **`Innovation.createdByAdmin`** (Boolean, `@default(false)`, migration
   `20261104084951_add_created_by_admin_flag`, added 2026-11-04) — set `true` only by
@@ -172,12 +200,32 @@ delivery record), `MediaAsset`, `FaqItem`, `FeedbackGrievance` (nullable `userId
 feedback allowed), `NewsPost`, `ResourceDocument` (`ResourceType`), `Challenge`
 (`ChallengeStatus`, `isFeatured: Boolean @default(false)`, `startDate`/`deadline` — the timeline
 shown publicly; `deadline` doubles as "end date"; `bannerImageUrl: String?` — same upload flow as
-`NewsPost.coverImageUrl`, via `POST /uploads`), `Partner`.
+`NewsPost.coverImageUrl`, via `POST /uploads`; plus `isPublished` (default true), `isActive`
+(default true), `submissionsEnabled` (default false), `updatedAt` — added 2026-11-10, see
+[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules) for how they combine), `ChallengeFormField`
+(the challenge's dynamic submission form, 1:N, cascade-deleted with the challenge; unique
+`[challengeId, key]`, ordered by `sortOrder`; `options`/`acceptedFileTypes` are `String[]`;
+`maxFileSizeMb`/`maxFiles`/`mapsTo` nullable), `Partner`.
+
+**Challenge details-page content (migration 22, 2026-11-11)** — all nullable, each one shown as a
+section on `/challenges/[slug]` only when set: bilingual text pairs `problemStatementEn/Bn`,
+`eligibilityEn/Bn`, `evaluationCriteriaEn/Bn`, `prizeDetailsEn/Bn`, `additionalInfoEn/Bn` (the
+Bangla site falls back to En when the Bn column is empty), `contactName`/`contactEmail`/
+`contactPhone`, and three `Json` lists — `timelinePhases` `[{label, date?: 'YYYY-MM-DD',
+description?}]`, `faqs` `[{question, answer}]`, `resources` `[{label, url}]`. The lists are
+JSON rather than child tables because they are small, ordered, edited as a whole from one admin
+form and never queried individually; their shape is enforced by the DTOs, not the schema. The
+service stores blank text as `NULL`. `prizeInfoEn` stays the one-line prize headline; `prizeDetails*`
+is the longer breakdown.
+
+`Challenge.categoryId` is still a plain string (no FK) — validated in `ChallengesService` instead,
+to avoid a migration failing on any legacy row with a stale id. It is required (service-level) for
+a challenge to accept submissions.
 
 `Challenge.isFeatured` is enforced single-valued at the service layer, not the schema: whenever
-`createChallenge`/`updateChallenge` sets `isFeatured: true` on one row, it first `updateMany`s
+`create`/`update` sets `isFeatured: true` on one row, it first `updateMany`s
 every other `Challenge` to `isFeatured: false` in the same call (see
-`cms/public-content.service.ts`). Public UI (homepage banner, the site-wide "running challenge"
+`challenges/challenges.service.ts` — moved from `cms/public-content.service.ts` 2026-11-10). Public UI (homepage banner, the site-wide "running challenge"
 popup) picks, among `status: OPEN` challenges, the featured one first, falling back to the first
 OPEN challenge if none is featured — see the CMS section of [API.md](API.md) and
 [UI_GUIDELINES.md](UI_GUIDELINES.md).
@@ -224,6 +272,16 @@ Applied so far (`apps/api/prisma/migrations/`, oldest first):
 18. `20260812101124_add_innovation_approved_status`
 19. `20260817054146_add_unpublished_review_status`
 20. `20261104084951_add_created_by_admin_flag` — `Innovation.createdByAdmin` (see Component 1 below)
+21. `20261110080636_challenge_submissions_and_form_builder` — enums `SubmissionChannel`/`FormFieldType`/
+    `InnovationFieldMapping`; `Challenge.isPublished/isActive/submissionsEnabled/updatedAt`;
+    `Innovation.submissionChannel/challengeId/challengeResponses`; tables `ChallengeFormField`,
+    `PlatformSetting`. Purely additive (new columns all have defaults or are nullable) — safe on a
+    populated DB. **Servers deploying GitLab code must run `prisma migrate deploy`** (the Docker
+    API container does this on boot).
+22. `20261111104946_challenge_detail_sections` — optional public details-page content on
+    `Challenge` (see Component 4 below). Purely additive (all nullable).
+23. `20261112044745_registration_otp` — enums `OtpChannel`/`OtpPurpose`, table `OtpCode`,
+    `User.phoneVerifiedAt`. Purely additive.
 
 Note migrations 9 and 11 (`add_due_diligence_reviewer`, `rename_due_diligence_to_authenticity_reviewer`):
 a "Due Diligence Reviewer" role was added then renamed to "Authenticity Reviewer" within the same

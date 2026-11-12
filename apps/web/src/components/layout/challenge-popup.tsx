@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { Link, usePathname } from '@/i18n/navigation';
 import { useChallenges } from '@/hooks/use-content';
+import { challengeDaysLeft } from '@/lib/challenge-dates';
 
 const DISMISSED_KEY_PREFIX = 'nir-challenge-popup-dismissed:';
 
@@ -20,7 +21,7 @@ export function ChallengePopup() {
   const t = useTranslations('home.challengePopup');
   const pathname = usePathname();
   const { data } = useChallenges();
-  const openChallenges = data?.filter((c) => c.status === 'OPEN');
+  const openChallenges = data?.filter((c) => c.status === 'OPEN' && c.isActive !== false);
   const challenge = openChallenges?.find((c) => c.isFeatured) ?? openChallenges?.[0];
   const [open, setOpen] = useState(false);
 
@@ -30,12 +31,18 @@ export function ChallengePopup() {
     setOpen(true);
   }, [challenge]);
 
+  const hiddenRoute = HIDDEN_ROUTES.some((route) => pathname.startsWith(route));
+  const show = open && Boolean(challenge) && !hiddenRoute;
+
+  // Lock page scroll only while the popup is actually on screen. Keying this on `open` locked
+  // scrolling on the hidden routes (/register, /sign-in, /dashboard) behind an invisible popup.
   useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : '';
+    if (!show) return;
+    document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = '';
     };
-  }, [open]);
+  }, [show]);
 
   const close = () => {
     if (challenge) sessionStorage.setItem(DISMISSED_KEY_PREFIX + challenge.slug, '1');
@@ -43,17 +50,15 @@ export function ChallengePopup() {
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!show) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const hiddenRoute = HIDDEN_ROUTES.some((route) => pathname.startsWith(route));
-  const show = open && Boolean(challenge) && !hiddenRoute;
+  }, [show]);
+  const daysLeft = challengeDaysLeft(challenge?.deadline);
 
   return (
     <AnimatePresence>
@@ -101,11 +106,17 @@ export function ChallengePopup() {
                   </span>
                   {t('eyebrow')}
                 </span>
+                {daysLeft !== null && (
+                  <span className="ml-2 inline-flex rounded-full bg-amber/20 px-3 py-1 text-xs font-semibold text-amber-deep">
+                    {t('daysLeft', { count: daysLeft })}
+                  </span>
+                )}
 
                 <h2 id="challenge-popup-title" className="my-3.5 font-display text-2xl font-bold text-navy">
                   {challenge.titleEn}
                 </h2>
-                <p className="text-slate">{challenge.descriptionEn}</p>
+                {/* Teaser only — the full write-up lives on the details page ("View details"). */}
+                <p className="line-clamp-3 text-slate">{challenge.descriptionEn}</p>
 
                 <div className="my-6 flex flex-wrap gap-8">
                   {challenge.deadline && (
@@ -126,13 +137,15 @@ export function ChallengePopup() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3.5">
-                  <Link
-                    href="/submit"
-                    onClick={close}
-                    className="focus-ring rounded-full bg-nirgreen-deep px-[26px] py-[13px] text-base font-semibold text-white transition hover:bg-nirgreen-dark"
-                  >
-                    {t('applyNow')}
-                  </Link>
+                  {challenge.acceptingSubmissions && (
+                    <Link
+                      href={`/challenges/${challenge.slug}/submit`}
+                      onClick={close}
+                      className="focus-ring rounded-full bg-nirgreen-deep px-[26px] py-[13px] text-base font-semibold text-white transition hover:bg-nirgreen-dark"
+                    >
+                      {t('applyNow')}
+                    </Link>
+                  )}
                   <Link
                     href={`/challenges/${challenge.slug}`}
                     onClick={close}

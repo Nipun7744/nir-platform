@@ -1,0 +1,17 @@
+-- AlterTable
+ALTER TABLE "Challenge" ADD COLUMN     "additionalInfoBn" TEXT,
+ADD COLUMN     "additionalInfoEn" TEXT,
+ADD COLUMN     "contactEmail" TEXT,
+ADD COLUMN     "contactName" TEXT,
+ADD COLUMN     "contactPhone" TEXT,
+ADD COLUMN     "eligibilityBn" TEXT,
+ADD COLUMN     "eligibilityEn" TEXT,
+ADD COLUMN     "evaluationCriteriaBn" TEXT,
+ADD COLUMN     "evaluationCriteriaEn" TEXT,
+ADD COLUMN     "faqs" JSONB,
+ADD COLUMN     "prizeDetailsBn" TEXT,
+ADD COLUMN     "prizeDetailsEn" TEXT,
+ADD COLUMN     "problemStatementBn" TEXT,
+ADD COLUMN     "problemStatementEn" TEXT,
+ADD COLUMN     "resources" JSONB,
+ADD COLUMN     "timelinePhases" JSONB;

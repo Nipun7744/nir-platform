@@ -19,6 +19,8 @@ import { UpdateStatusDto } from './dto/update-status.dto';
 import { UpdateApprovalDto } from './dto/update-approval.dto';
 import { RepositoryFilterDto } from './dto/repository-filter.dto';
 import { ActivityLogFilterDto } from './dto/activity-log-filter.dto';
+import { SettingsService } from '../settings/settings.service';
+import { submissionState } from '../challenges/challenge-rules';
 
 // ToR Module 1 workflow: Under Review -> Authenticity Review -> Shortlisted/Rejected -> Selected ->
 // Approved -> Published/Archived. SELECTED -> APPROVED is the Admin's approval decision (Recognition/
@@ -62,6 +64,7 @@ const DETAIL_INCLUDE = {
   sdgTags: { include: { sdgTag: true } },
   successStory: true,
   awards: true,
+  challenge: { select: { id: true, slug: true, titleEn: true } },
 } as const;
 
 @Injectable()
@@ -70,7 +73,33 @@ export class InnovationsService {
     private readonly prisma: PrismaService,
     private readonly idGenerator: IdGeneratorService,
     private readonly auditLog: AuditLogService,
+    private readonly settings: SettingsService,
   ) {}
+
+  /**
+   * Server-side gate for the two submission channels (see PROJECT_CONTEXT.md#business-rules):
+   * a GENERAL innovation needs the admin's general-submission switch on; a CHALLENGE innovation
+   * needs its challenge to be currently accepting submissions. Admins bypass the general switch
+   * (their "Submit & publish" flow is an internal tool, not public submission).
+   */
+  private async assertChannelOpen(innovation: { challengeId: string | null }, roles: Role[] = []) {
+    if (innovation.challengeId) {
+      const challenge = await this.prisma.challenge.findUnique({
+        where: { id: innovation.challengeId },
+        include: { _count: { select: { formFields: true } } },
+      });
+      const state = challenge
+        ? submissionState({ ...challenge, formFieldCount: challenge._count.formFields })
+        : { acceptingSubmissions: false, closedReason: 'This challenge no longer exists.' };
+      if (!state.acceptingSubmissions) throw new ForbiddenException(state.closedReason);
+      return;
+    }
+    const adminRoles: Role[] = [Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN];
+    if (roles.some((r) => adminRoles.includes(r))) return;
+    if (!(await this.settings.isGeneralSubmissionEnabled())) {
+      throw new ForbiddenException('General innovation submission is currently closed. Please check the open innovation challenges.');
+    }
+  }
 
   private async assertOwnerOrAdmin(innovationId: string, userId: string, roles: Role[]) {
     const innovation = await this.prisma.innovation.findUnique({ where: { id: innovationId } });
@@ -104,6 +133,8 @@ export class InnovationsService {
     if (!innovator && !isAdmin) {
       throw new BadRequestException('Only registered innovators can submit an innovation');
     }
+    // CreateInnovationDto has no challengeId (whitelisted out), so this is always a GENERAL draft.
+    await this.assertChannelOpen({ challengeId: null }, roles);
 
     const innovationCode = await this.idGenerator.nextInnovationCode();
     const baseSlug = slugify(dto.titleEn, { lower: true, strict: true });
@@ -264,6 +295,19 @@ export class InnovationsService {
     if (!innovation) throw new NotFoundException('Innovation not found');
 
     const isPublic = innovation.reviewStatus === 'PUBLISHED';
+    const reviewAccessRoles: Role[] = [
+      Role.PLATFORM_ADMIN,
+      Role.SYSTEM_ADMIN,
+      Role.INSTITUTIONAL_COORDINATOR,
+      Role.INNOVATION_MANAGER,
+      Role.PRELIMINARY_REVIEWER,
+      Role.AUTHENTICITY_REVIEWER,
+      Role.EXPERT_EVALUATOR,
+    ];
+    // Challenge form answers can hold personal data (email, phone, uploaded documents) — only the
+    // submitter and review/admin roles see them, even once the innovation is publicly PUBLISHED.
+    const canSeeResponses =
+      viewer?.id === innovation.submittedById || Boolean(viewer?.roles.some((r) => reviewAccessRoles.includes(r)));
     if (!isPublic) {
       const isOwner = viewer?.id === innovation.submittedById;
       const fullAccessRoles: Role[] = [
@@ -310,7 +354,11 @@ export class InnovationsService {
         })
       : null;
 
-    return { ...innovation, submittedByAdmin };
+    return {
+      ...innovation,
+      challengeResponses: canSeeResponses ? innovation.challengeResponses : null,
+      submittedByAdmin,
+    };
   }
 
   async update(id: string, dto: UpdateInnovationDto, userId: string, roles: Role[]) {
@@ -371,12 +419,18 @@ export class InnovationsService {
     });
   }
 
-  async submit(id: string, userId: string) {
+  async submit(id: string, userId: string, roles: Role[] = []) {
     const innovation = await this.prisma.innovation.findUnique({ where: { id } });
     if (!innovation) throw new NotFoundException('Innovation not found');
     if (innovation.submittedById !== userId) throw new ForbiddenException('Not your submission');
     if (innovation.reviewStatus !== 'DRAFT' && innovation.reviewStatus !== 'REJECTED') {
       throw new BadRequestException('Only a draft or rejected submission can be submitted for review');
+    }
+    // A GENERAL draft can only be sent while general submission is open. Re-submitting a REJECTED
+    // general innovation continues an existing review, so it isn't blocked by the switch. A
+    // CHALLENGE innovation always needs its challenge to still be accepting submissions.
+    if (innovation.challengeId || innovation.reviewStatus === 'DRAFT') {
+      await this.assertChannelOpen(innovation, roles);
     }
 
     const updated = await this.prisma.innovation.update({

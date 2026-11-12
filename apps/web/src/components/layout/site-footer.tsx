@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
+import { GeneralSubmitGate } from './general-submit-gate';
 
 export function SiteFooter() {
   const t = useTranslations('footer');
@@ -29,7 +30,10 @@ export function SiteFooter() {
         <div>
           <h3 className="mb-4 text-base font-semibold text-white">{t('participate')}</h3>
           <ul className="grid list-none gap-2.5 p-0 text-sm">
-            <li><Link href="/submit" className="text-[#E4EBF5] no-underline hover:underline">{tNav('submit')}</Link></li>
+            <GeneralSubmitGate>
+              <li><Link href="/submit" className="text-[#E4EBF5] no-underline hover:underline">{tNav('submit')}</Link></li>
+            </GeneralSubmitGate>
+            <li><Link href="/challenges" className="text-[#E4EBF5] no-underline hover:underline">{tNav('challenges')}</Link></li>
             <li><Link href="/register?role=mentor" className="text-[#E4EBF5] no-underline hover:underline">{t('registerInnovator')}</Link></li>
             <li><Link href="/register?role=investor" className="text-[#E4EBF5] no-underline hover:underline">{t('registerInvestor')}</Link></li>
             <li><Link href="/register?role=ministry" className="text-[#E4EBF5] no-underline hover:underline">{t('ministryPortal')}</Link></li>

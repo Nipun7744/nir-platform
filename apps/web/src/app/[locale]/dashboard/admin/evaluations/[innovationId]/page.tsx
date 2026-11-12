@@ -10,6 +10,7 @@ import { useUpdateInnovationApproval } from '@/hooks/use-innovations';
 import { useUploadFile } from '@/hooks/use-admin';
 import { useSubmitterProfile } from '@/hooks/use-submitter-profile';
 import { ReviewCommentTimeline } from '@/components/reviews/review-comment-timeline';
+import { ChallengeResponses } from '@/components/challenge-form/challenge-responses';
 
 function readableLabel(value?: string) {
   if (!value) return '—';
@@ -374,6 +375,9 @@ export default function AdminInnovationEvaluationPage({ params }: { params: { in
               <Image src={photo.url} alt={photo.caption ?? innovation.titleEn} fill className="object-cover" sizes="700px" />
             </div>
           )}
+
+          {/* Challenge form answers — null for viewers without review access (API strips them). */}
+          <ChallengeResponses challenge={innovation.challenge} responses={innovation.challengeResponses} />
 
           <section>
             <h2 className="font-display text-base font-bold text-ink-900">Problem statement</h2>

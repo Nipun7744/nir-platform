@@ -6,6 +6,183 @@
 
 ---
 
+## 2026-11-12 (session 44) — Registration OTP (email/SMS) + CAPTCHA on every login
+
+- **Ran the project** (SETUP.md path: PG on 5433 already current, shared + API built with `tsc`,
+  `node dist/main.js`, web `npm run dev`). Both healthy.
+- **Task (updated requirements):** (1) OTP verification at registration by phone or email;
+  (2) CAPTCHA on every login attempt; (3) identify all prerequisites, configuration, third-party
+  services and integrations.
+- **Decisions** (made by me, open to revision):
+  - *Verify before create.* Two-step registration: `POST /auth/otp/send`, then
+    `POST /auth/register` with `otpChannel` + `otpCode`. No unverified accounts are ever created.
+    The existing admin-approval gate still applies afterwards.
+  - *Pluggable providers, no vendor lock-in.* CAPTCHA: Turnstile / reCAPTCHA v2 / hCaptcha (one
+    server check, one widget component). Email: SMTP via `nodemailer`. SMS: a template-driven
+    generic HTTP client, because BD aggregators (SSL Wireless, BulkSMSBD, …) all differ; it also
+    covers Twilio. Recommended Turnstile, since the dev site is already behind Cloudflare.
+  - *CAPTCHA also on OTP send*, beyond the requirement: every send costs an SMS (SMS-pumping
+    abuse), and the 409 "already registered" response would otherwise allow account enumeration.
+  - *Fail closed, fail loud.* Production (`NODE_ENV=production`) refuses to boot unless
+    `CAPTCHA_PROVIDER`/`MAIL_TRANSPORT`/`SMS_PROVIDER` are set explicitly. CAPTCHA provider
+    outage → 503 (not a bypass).
+  - CAPTCHA site key served by `GET /auth/security-config`, not a `NEXT_PUBLIC_*` var, so key
+    changes need no web rebuild.
+  - Phones are now stored normalized (`+8801XXXXXXXXX`); uniqueness checks try legacy spellings.
+  - Added opt-in `TRUST_PROXY` (main.ts) — per-IP throttles were already effectively global behind
+    a proxy; the new tighter auth throttles made that matter.
+- **Bug fixed — `/register` (and `/sign-in`, `/dashboard/*`) couldn't scroll.** In
+  `components/layout/challenge-popup.tsx` the body scroll lock followed `open`, not `show`. On the
+  routes where the popup is deliberately hidden, an *invisible* popup still set
+  `body { overflow: hidden }` whenever a challenge was OPEN and not yet dismissed this session.
+  Now the lock and the Escape handler follow `show`. It surfaced because the OTP/CAPTCHA
+  additions made the register form taller than the viewport.
+- **Browser-verified (Claude in Chrome, Turnstile test keys, console mail/SMS):** `/register`
+  scrolls with an undismissed popup; registration via email OTP and via SMS OTP both complete
+  (DB: `emailVerifiedAt` / `phoneVerifiedAt` set, phone stored `+8801799000112`, account inactive
+  pending approval); `/sign-in` CAPTCHA renders, the login reaches the API (pending-approval
+  error) and the widget resets afterwards. The test accounts and OTP rows were deleted.
+- **Real SMTP configured locally:** Google Workspace `smtp.gmail.com:587` (STARTTLS) as
+  `support-challenge@a2i.gov.bd`, Reply-To `noreply-challenge@a2i.gov.bd`, in the gitignored
+  `apps/api/.env` (`MAIL_TRANSPORT=smtp`). `MailService` gained `MAIL_REPLY_TO` and
+  `SMTP_REQUIRE_TLS` (default true, so it won't fall back to plaintext on 587), and both were added
+  to `.env.example`, `docker-compose.yml` and SETUP.md. Connection + auth verified with
+  `transporter.verify()` (no mail sent); API rebuilt and restarted. The server `.env` still needs
+  the same values before deploy.
+- **Bug fixed — register verify step opened scrolled off-screen.** The step switch kept the tall
+  details form's scroll offset, so the code input sat above the viewport. `register/page.tsx` now
+  scrolls to the top whenever `step` changes.
+- **DB:** migration `20261112044745_registration_otp` (`OtpCode`, enums `OtpChannel`/`OtpPurpose`,
+  `User.phoneVerifiedAt`).
+- **Verified:** API build clean; `npm test` 28/28 (new `sms-gateway.test.js`: URL/JSON/form escaping,
+  success pattern, misconfig, BD phone normalization); `npm run test:e2e` 23/23 (new
+  `auth-security.e2e.test.js`, 13 cases: CAPTCHA required/accepted on login and OTP send, 409 on
+  taken email/phone, resend cooldown 429, wrong code → attempts left, 5-attempt lockout, code bound
+  to its address and single-use, email/phone verified flags, phone normalization; existing
+  challenge suite still passes with CAPTCHA). The production boot guard was checked by hand.
+  Console OTP delivery checked in the API log (EN + BN). Web `tsc --noEmit` clean;
+  `/sign-in`, `/register` (en + bn) compile and return 200. **Not looked at in a browser:** the
+  Chrome extension wasn't connected, so the widget rendering and the two-step UX are unverified
+  visually.
+- **Files:** API — `prisma/schema.prisma`, new migration, `package.json` (nodemailer, test
+  scripts), `.env.example` (new), `src/main.ts`, `src/app.module.ts`, `src/messaging/*` (new),
+  `src/common/utils/{phone,env-choice}.ts` (new), `src/auth/{captcha,otp}.service.ts` (new),
+  `src/auth/{auth.service,auth.controller,auth.module}.ts`, `src/auth/dto/{send-otp (new),register,login}.dto.ts`,
+  `test/{auth-security.e2e,sms-gateway}.test.js` (new), `test/challenge-submissions.e2e.test.js`.
+  Web — `src/components/auth/captcha-widget.tsx` (new), `src/hooks/use-auth.ts`,
+  `src/app/[locale]/{sign-in,register}/page.tsx`, `messages/{en,bn}.json`. Root —
+  `docker-compose.yml`, `.env.example`. Docs — SETUP (new prerequisites/config section), API,
+  DATABASE, PROJECT_CONTEXT, ROADMAP, UI_GUIDELINES. Local-only: `apps/api/.env` (Turnstile test
+  keys, console transports).
+- **Next steps:**
+  1. **Before pushing to GitLab `development`:** add the new vars to the server's `.env`
+     (at least `CAPTCHA_PROVIDER`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY`, `MAIL_TRANSPORT`,
+     `SMS_PROVIDER`, and probably `TRUST_PROXY`). Otherwise the API container won't boot and the
+     deploy rolls back. Same for Railway if `origin` is ever pushed.
+  2. Procure the CAPTCHA keys, SMTP account (+ SPF/DKIM/DMARC) and an SMS gateway (sender ID,
+     balance, IP whitelist) — see SETUP.md.
+  3. Visual pass in a browser (desktop + 375px; Bangla).
+  4. ROADMAP tech-debt items: purge old `OtpCode` rows; route notifications through the real
+     transports.
+
+---
+
+## 2026-11-11 (session 43) — Richer challenge details page
+
+- **Ran the project** (same SETUP.md path). Answered: no cache server exists (no Redis etc.);
+  popup banner is 16:7 (recommend ~1600×700, keep the subject centred — the same image is cropped
+  to 16:9 / 4:3 / 8:5 elsewhere).
+- **Task — "show more details when I click the popup's details".** Decision (agreed with user):
+  keep the popup a short teaser, put the content on `/challenges/[slug]`, using structured
+  optional fields rather than one rich-text blob.
+  - *DB:* migration `20261111104946_challenge_detail_sections` — Bn/En text pairs (problem,
+    eligibility, evaluation criteria, prize details, additional info), contact name/email/phone,
+    JSON lists `timelinePhases`/`faqs`/`resources`.
+  - *API:* `ChallengeDetailsDto` base for create/update (nested validation; resource URLs must be
+    http(s) or `/uploads/` — blocks `javascript:` links; email validated); service trims and
+    stores blanks as `NULL`.
+  - *Web:* redesigned details page (section nav, timeline, FAQ accordion, resources, sticky
+    sidebar with Submit/closed reason + contact, mobile apply bar, EN/BN via new `challengeDetail`
+    namespace); popup gets a days-left badge and a 3-line description clamp
+    (`lib/challenge-dates.ts`); admin Challenges form gets a collapsible "Details page content"
+    editor with list rows, resource upload and Bangla translations.
+- **Verified:** API build clean; scripted API check against the live server (create/patch, blank →
+  null, list trimming, 400 on `javascript:` URL and bad email, delete) passed. Web `tsc --noEmit`
+  clean; `/en|bn/challenges/<slug>`, `/dashboard/admin`, `/` return 200 and compile cleanly.
+  **Not looked at in a browser** (Chrome extension not connected).
+- **Test data left on purpose:** a published OPEN challenge `zz-details-preview` ("Clean Water
+  Innovation Challenge (TEST)") with every section filled, so the page can be reviewed at
+  `http://localhost:3000/challenges/zz-details-preview`. Delete it from Platform admin →
+  Challenges when done (it has no submissions).
+- **Files:** `apps/api/prisma/schema.prisma`, new migration,
+  `apps/api/src/challenges/dto/challenge.dto.ts`, `apps/api/src/challenges/challenges.service.ts`,
+  `apps/web/messages/{en,bn}.json`, `apps/web/src/hooks/use-content.ts`,
+  `apps/web/src/lib/challenge-dates.ts` (new), `apps/web/src/components/layout/challenge-popup.tsx`,
+  `apps/web/src/app/[locale]/challenges/[slug]/page.tsx`,
+  `apps/web/src/app/[locale]/dashboard/admin/page.tsx`; docs: DATABASE, API, UI_GUIDELINES,
+  PROJECT_CONTEXT, ROADMAP (also corrected stale model/enum/migration counts: 50/27/22).
+- **Next steps:** visual pass in a browser (desktop + 375px; check the sticky sidebar offset under
+  the header and the mobile bottom bar); delete the test challenge; commit + push to GitLab
+  `development` together with session 42's still-uncommitted work; servers need
+  `prisma migrate deploy`.
+
+---
+
+## 2026-11-10 (session 42) — Admin-controlled general submission + challenge-based submission
+
+- **Ran the project** (API via `tsc` + `node dist/main.js`, web via `npm run dev`, PG on 5433 —
+  per SETUP.md) — both healthy.
+- **Implemented two independent submission channels** (full rules in PROJECT_CONTEXT.md §
+  Business Rules):
+  - *General submission switch* — `PlatformSetting` + `SettingsModule`
+    (`GET/PATCH /settings/submission`); enforced in `InnovationsService.create`/`submit`;
+    all public `/submit` links gated (header, hero, footer, `/challenges` callout), `/submit`
+    shows a closed notice.
+  - *Challenge-based submission* — new `ChallengesModule` (challenge CRUD moved out of `cms/`),
+    `Challenge.isPublished/isActive/submissionsEnabled`, `ChallengeFormField` (dynamic form),
+    `Innovation.submissionChannel/challengeId/challengeResponses`. Submissions become
+    `UNDER_REVIEW` innovations → existing Primary → Authenticity → Expert → Admin workflow,
+    untouched. Pure rules (validation, submission window) in `challenge-rules.ts`.
+  - *Auth* — `/challenges/:slug/submit` redirects anonymous users to `/sign-in?next=…`; sign-in
+    and register preserve `next` (validated by `lib/safe-next.ts`); API 401s anonymous.
+  - *Admin UI* — Platform admin → Challenges: category, publish/active/submissions switches,
+    submission counts, form builder (`components/admin/challenge-form-builder.tsx`); new
+    `/dashboard/admin/submissions` page (general switch + monitoring with channel/challenge/
+    status/user/date filters) + sidebar entry.
+  - *Review views* — `ChallengeResponses` panel on the repository detail (used by reviewer
+    queues), submitter manage page, expert and admin evaluation pages; challenge badge on "My
+    innovations". `challengeResponses` is stripped for public viewers.
+- **Migration** `20261110080636_challenge_submissions_and_form_builder` (additive) — applied to
+  the local DB.
+- **Tests:** replaced the dead `jest` script with Node's test runner. `npm test` — 20/20 unit
+  tests pass; `npm run test:e2e` — 12/12 pass against the live API (cleanup verified: no leftover
+  rows). Web: `tsc --noEmit` clean; all new/changed routes return 200 on the dev server.
+  **Not click-tested in a browser** (Chrome extension not connected).
+- **Files:** API — `prisma/schema.prisma`, new migration, `src/challenges/*` (new),
+  `src/settings/*` (new), `src/app.module.ts`, `src/cms/public-content.{controller,service}.ts`,
+  `src/cms/dto/public-content.dto.ts`, `src/innovations/innovations.{module,service,controller}.ts`,
+  `test/*.test.js` (new), `package.json`. Shared — `packages/shared/src/enums.ts`. Web —
+  `hooks/use-settings.ts` (new), `hooks/use-content.ts`, `hooks/use-admin.ts`,
+  `lib/api-client.ts` (`api.put`), `lib/safe-next.ts` (new), `components/challenge-form/*` (new),
+  `components/admin/challenge-form-builder.tsx` (new), `components/layout/general-submit-gate.tsx`
+  (new), `site-header`, `site-footer`, `challenge-popup`, `home/hero`, `home/challenge-banner`,
+  `dashboard-shell`, `repository/innovation-detail`, pages `challenges`, `challenges/[slug]`,
+  `challenges/[slug]/submit` (new), `submit`, `sign-in`, `register`, `dashboard/admin`,
+  `dashboard/admin/submissions` (new), `dashboard/innovations`, `dashboard/innovations/[id]`,
+  `dashboard/evaluations/[innovationId]`, `dashboard/admin/evaluations/[innovationId]`. All
+  `docs/` files updated.
+- **Decisions:** challenge submissions are plain `Innovation` rows (keeps the review pipeline
+  unchanged); answers stored as immutable JSON snapshots; general switch defaults ON; new
+  challenges created unpublished from the admin UI; challenge category required to enable
+  submissions (it routes reviewers); admins bypass the general switch; REJECTED general
+  resubmission still allowed when closed. See PROJECT_CONTEXT.md § Important Decisions.
+- **Next steps:** manual browser pass of the new UI (see ROADMAP Known issues); commit and push
+  to GitLab `development` (not done this session — not requested); servers must run
+  `prisma migrate deploy`. Consider a Bangla (`bn`) pass on the new strings — they're English-only
+  like the rest of the admin UI and the existing challenge pages.
+
+---
+
 ## 2026-11-05 (session 41) — GitLab sync + images broken on dev.challenge.gov.bd
 
 - **Synced GitLab `development` into local `master`** (`e912d98`): sdas's Docker fixes
@@ -25,6 +202,13 @@
 - **Next steps:** push to GitLab `development`, then on the server `docker compose up -d --build
   web` and re-check an image URL returns 200. If images still 404 afterwards, the files aren't
   in the server's uploads volume (`apps/api/uploads/` is git-ignored) and need copying over.
+  *(Fix pushed to GitLab `development` as `cd438aa`; server rebuild still pending.)*
+- **Added CI/CD:** `.gitlab-ci.yml` (verify → deploy over SSH → smoke, manual rollback) +
+  `deploy/deploy.sh` (backup, health-checked compose deploy, auto-rollback) + `.gitattributes`
+  (`*.sh` LF). Decision: build on the server with the existing compose file rather than via a
+  container registry — no registry/runner details known yet, and it matches how the server is
+  already deployed. Lockfile verified in sync for `npm ci`. Not yet run in GitLab: needs a runner
+  and the CI variables listed in SETUP.md § CI/CD.
 
 ---
 

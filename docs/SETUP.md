@@ -88,6 +88,157 @@ npm run dev
 - Postgres: `localhost:5433`
 - Prisma Studio (if run): `npx prisma studio` → http://localhost:5555
 
+### Testing from a phone on the same Wi-Fi
+
+`CORS_ORIGIN` accepts a comma-separated list (`apps/api/src/main.ts`). Point the browser-facing
+URL at the PC's LAN IP and allow both origins, then rebuild/restart both servers:
+- `apps/web/.env.local`: `NEXT_PUBLIC_API_URL=http://<LAN-IP>:4000` and
+  `API_INTERNAL_URL=http://localhost:4000` (server-side `/uploads` proxy)
+- `apps/api/.env`: `CORS_ORIGIN="http://localhost:3000,http://<LAN-IP>:3000"`
+- Open `http://<LAN-IP>:3000` on the phone. On a **Public** Windows network profile, inbound
+  3000/4000 are blocked until you add a firewall allow rule (admin):
+  `New-NetFirewallRule -DisplayName 'NIR dev (3000,4000)' -Direction Inbound -Protocol TCP -LocalPort 3000,4000 -Action Allow -Profile Any`
+- The LAN IP changes with DHCP — update both files if it does. Using the LAN URL on the PC too
+  avoids mixed localhost/LAN auth state.
+
+## Tests (API)
+
+There's no Jest — the `test` script previously pointed at a `jest` binary that was never installed.
+Tests use Node's built-in runner against the compiled `dist/` output (no extra dependencies):
+
+```bash
+cd apps/api
+npm run build          # tests import dist/, so build first
+npm test               # unit: challenge-rules (validation, submission window, form definitions),
+                       #       sms-gateway (SMS template/escaping, BD phone normalization)
+npm run test:e2e       # end-to-end against a RUNNING API (default http://localhost:4000/api/v1,
+                       # override with NIR_API_URL) + the dev DB; logs in as the seeded
+                       # admin@nir.gov.bd / innovator1@nir.gov.bd (Password123!)
+```
+
+The challenge e2e suite creates a throwaway challenge, submissions and an upload, toggles the
+general submission switch, and **cleans all of it up afterwards** (DB rows via Prisma; the switch
+is restored to its original value). The auth e2e suite (`auth-security.e2e.test.js`) covers login
+CAPTCHA and registration OTP; it registers two throwaway users and deletes them afterwards. Both
+skip themselves if the API isn't reachable. The uploaded test PDF stays in `apps/api/uploads/`
+(git-ignored).
+
+- Logins in the e2e suites send Cloudflare's dummy token `XXXX.DUMMY.TOKEN.XXXX`, which only the
+  Turnstile **test** secret accepts. Against an API with real CAPTCHA keys, set
+  `CAPTCHA_PROVIDER=none` for the test run or pass a token via `NIR_CAPTCHA_TOKEN`.
+- The OTP send endpoint is throttled to 10/min per IP and one run uses about 8, so **wait a minute
+  between back-to-back runs** or the second run fails with 429s.
+
+## Registration OTP & login CAPTCHA — prerequisites and configuration
+
+Added 2026-11-12 (session 44). Behaviour is described in [API.md](API.md#auth-endpoints-auth) and
+[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules). This section covers **what has to be
+procured and configured** so it works outside local dev.
+
+### Startup rule (important for every deployment)
+
+`CAPTCHA_PROVIDER`, `MAIL_TRANSPORT` and `SMS_PROVIDER` are **required when
+`NODE_ENV=production`**, which both Dockerfiles set. If any is unset or blank, the API **refuses to
+start** and logs which one is missing. Turning a feature off in production takes an explicit value
+(`CAPTCHA_PROVIDER=none`, `MAIL_TRANSPORT=console`, `SMS_PROVIDER=console`), never omission.
+Outside production they default to `none`/`console`. Misconfiguration also fails at startup, e.g.
+`MAIL_TRANSPORT=smtp` without `SMTP_HOST`, or a CAPTCHA provider without its keys.
+
+So **before the next GitLab deploy**, add these variables to the server's `.env`
+(`docker-compose.yml` passes them through to the API container). Without them the new API
+container won't boot, and `deploy.sh`'s health check rolls the deploy back.
+
+### Third-party services needed
+
+| Need | Options | What to obtain |
+|---|---|---|
+| **CAPTCHA** (login + OTP send) | **Cloudflare Turnstile** (recommended: free, mostly invisible, and dev.challenge.gov.bd is already behind Cloudflare). Google reCAPTCHA v2 checkbox (free tier, then billed through Google Cloud). hCaptcha (free tier). | A **site key** (public) and **secret key**, from a widget registered for every hostname the site is served on (dev, UAT, production). |
+| **Email** (OTP by email) | Any SMTP server: an a2i/government mail relay, Amazon SES, SendGrid, Brevo, Mailgun, Google Workspace. | SMTP host, port, username and password, plus a **From address on a domain you control** with **SPF, DKIM and DMARC** DNS records, or codes land in spam. |
+| **SMS** (OTP by SMS) | A Bangladeshi SMS aggregator with an HTTP API: SSL Wireless, BulkSMSBD, Alpha SMS, MiMSMS, an operator enterprise API, or an a2i/government gateway if one is available to the project. Twilio also works but is costly for BD numbers. | API credentials, a **BTRC-approved sender ID** (masking) or non-masking number, a **prepaid balance**, and usually **whitelisting of the server's outbound IP** with the gateway. Bangla (Unicode) SMS is 70 characters per segment, so the Bangla OTP text costs 2 segments and the English one costs 1. |
+
+You only need SMS **or** email if you restrict `OTP_CHANNELS` (e.g. `OTP_CHANNELS=EMAIL` hides the
+SMS option on the register page; then set `SMS_PROVIDER=console`).
+
+### Infrastructure prerequisites
+
+- **Outbound network from the API host:** HTTPS (443) to the CAPTCHA verify endpoint
+  (`challenges.cloudflare.com` / `www.google.com` / `api.hcaptcha.com`) and the SMS gateway, plus
+  SMTP (587, or 465) to the mail server. Some hosts block outbound SMTP by default.
+- **Browsers** load the widget script from the same provider domain. There is no CSP today; if one
+  is added, allow that domain in `script-src` and `frame-src`.
+- **`TRUST_PROXY`**: set it to the number of reverse-proxy hops in front of the API (e.g. `2` for
+  Cloudflare → nginx). Otherwise every request looks like it comes from the proxy, so per-IP rate
+  limits (login 20/min, register 20/min, OTP send 10/min) become **global** limits shared by all
+  users, and the IP passed to CAPTCHA verification is wrong.
+- **Migration** `20261112044745_registration_otp` (`OtpCode` table, `User.phoneVerifiedAt`) runs
+  automatically in the Docker API container (`prisma migrate deploy`). For Railway, run it the
+  usual way.
+
+### Environment variables (API)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `CAPTCHA_PROVIDER` | `none` (dev) / **required** (prod) | `turnstile` \| `recaptcha` \| `hcaptcha` \| `none` |
+| `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` | — | Required unless provider is `none`. The site key is served to browsers via `GET /auth/security-config`, so the **web app needs no CAPTCHA env var and no rebuild** when keys change. |
+| `OTP_CHANNELS` | `EMAIL,SMS` | Which verification methods the register page offers. |
+| `OTP_SECRET` | `JWT_ACCESS_SECRET` | HMAC key for stored codes. |
+| `OTP_TTL_SECONDS` / `OTP_RESEND_SECONDS` / `OTP_MAX_SENDS_PER_HOUR` / `OTP_MAX_ATTEMPTS` | 300 / 60 / 5 / 5 | Per target address. |
+| `MAIL_TRANSPORT` | `console` (dev) / **required** (prod) | `smtp` \| `console` (console = log only) |
+| `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_SECURE` (`true` iff port 465), `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | — | `SMTP_HOST` + `MAIL_FROM` required for `smtp`. |
+| `SMTP_REQUIRE_TLS` | `true` | With `SMTP_SECURE=false`, refuse to send unless STARTTLS succeeds. Set `false` only for an internal relay without TLS. |
+| `MAIL_REPLY_TO` | unset | Optional `Reply-To` header on every email. |
+
+**The a2i account in use (2026-11-12):** Google Workspace SMTP: `smtp.gmail.com:587`, STARTTLS
+(`SMTP_SECURE=false`, `SMTP_REQUIRE_TLS=true`), user and from `support-challenge@a2i.gov.bd`,
+Reply-To `noreply-challenge@a2i.gov.bd`. `SMTP_PASS` is a Google **app password** for that account
+(it needs 2-Step Verification on). It's kept only in the gitignored `apps/api/.env` and the server
+`.env`, never in git or docs. Gmail caps sending at about 2,000 messages/day per Workspace user,
+which is fine for OTPs. A dedicated provider (SES/SendGrid) is the upgrade if volume grows.
+| `SMS_PROVIDER` | `console` (dev) / **required** (prod) | `http` \| `console` |
+| `SMS_HTTP_URL`, `SMS_HTTP_METHOD`, `SMS_HTTP_BODY`, `SMS_HTTP_CONTENT_TYPE`, `SMS_HTTP_HEADERS` (JSON), `SMS_HTTP_SUCCESS_PATTERN` (regex) | — | Generic gateway client; see below. |
+| `TRUST_PROXY` | unset | See above. |
+
+### SMS gateway templates
+
+`SMS_PROVIDER=http` is a template-driven client, because every BD aggregator has its own API.
+Placeholders: `{to}` (8801XXXXXXXXX), `{to_e164}` (+8801XXXXXXXXX), `{to_local}` (01XXXXXXXXX),
+`{message}`, `{ref}` (unique per message). Each is escaped for where it appears: URL-encoded in the
+URL, JSON-escaped in a JSON body, form-encoded in a form body. The method defaults to GET, or POST
+when a body is set; the content type is inferred from the body (`{…}` → JSON, otherwise
+form-urlencoded). Without `SMS_HTTP_SUCCESS_PATTERN`, any 2xx counts as success. Many gateways
+return 200 even on failure, so **set a pattern**.
+
+Illustrative shapes only. **Confirm field names and success responses against the vendor's
+current API docs** before relying on them:
+
+```bash
+# SSL Wireless (JSON POST)
+SMS_PROVIDER=http
+SMS_HTTP_URL=https://smsplus.sslwireless.com/api/v3/send-sms
+SMS_HTTP_BODY={"api_token":"<TOKEN>","sid":"<SENDER_ID>","msisdn":"{to}","sms":"{message}","csms_id":"{ref}"}
+SMS_HTTP_SUCCESS_PATTERN="status"\s*:\s*"SUCCESS"
+
+# BulkSMSBD-style (GET with query string)
+SMS_HTTP_URL=https://bulksmsbd.net/api/smsapi?api_key=<KEY>&type=text&number={to}&senderid=<SENDER_ID>&message={message}
+
+# Twilio (form POST + Basic auth = base64("<AccountSid>:<AuthToken>"))
+SMS_HTTP_URL=https://api.twilio.com/2010-04-01/Accounts/<AccountSid>/Messages.json
+SMS_HTTP_BODY=To={to_e164}&From=<TWILIO_NUMBER>&Body={message}
+SMS_HTTP_HEADERS={"Authorization":"Basic <base64>"}
+```
+
+The URL, body and headers usually contain the API key. The client never logs them; it logs only
+the gateway's HTTP status and the first 300 characters of its response on failure.
+
+### Local dev (this machine)
+
+`apps/api/.env` uses Cloudflare Turnstile's **always-pass test keys** (site
+`1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`). The real widget renders
+and the real siteverify call is made, but it always passes. `MAIL_TRANSPORT`/`SMS_PROVIDER` are
+`console`, so **OTP codes appear in the API log** (`.logs/api.out.log`, lines
+`[console email]` / `[console sms]`). Never use the test keys in a deployed environment: they
+provide no protection. `apps/api/.env.example` documents every variable.
+
 ## Git remotes — where to push (standing rule, set 2026-11-04)
 
 **Always push new work to the GitLab `development` branch** —
@@ -283,6 +434,32 @@ and where `next/image` fetches photos from. Both are baked in at `web` build tim
 falls back to the public URL — behind Cloudflare that request loops back through the CDN and
 gets a 403 "Error 1000: DNS points to prohibited IP", so every uploaded image breaks (seen on
 dev.challenge.gov.bd, 2026-11-05).
+
+## CI/CD — GitLab → dev.challenge.gov.bd
+
+[`.gitlab-ci.yml`](../.gitlab-ci.yml) runs on every push to GitLab `development` (MRs run only the
+verify stage):
+
+1. **verify** — `build` (npm ci + build shared/api/web on `node:20-bookworm`) and
+   `compose-config` (`docker compose config` against `.env.example`).
+2. **deploy** — SSHes to the server and pipes [`deploy/deploy.sh`](../deploy/deploy.sh) into
+   `bash`: lock → refuse if tracked files were edited on the server → `git fetch` → `pg_dump`
+   backup to `<DEPLOY_PATH>/.deploy/backups/` (last 10 kept) → checkout the pipeline's commit
+   (detached) → `docker compose build --pull && up -d` → health check (API
+   `/api/v1/repository/search`, web `/`, and one real `/uploads/*` file through the web proxy).
+   A failed build or health check rolls back to the previous commit automatically. Migrations
+   are **not** reverted — restore from the backup if a migration was the problem.
+   `resource_group` serialises deploys.
+3. **smoke** — the same checks against the public `https://dev.challenge.gov.bd`.
+
+Manual `rollback` job (deploy stage): redeploys `.deploy/previous_sha`, or `ROLLBACK_SHA` if set.
+
+**One-time setup:** CI/CD variables `SSH_PRIVATE_KEY` (File), `SSH_KNOWN_HOSTS` (File, from
+`ssh-keyscan`), `DEPLOY_HOST` (origin IP, not the Cloudflare name), `DEPLOY_USER`, `DEPLOY_PATH`,
+optional `DEPLOY_PORT` — all protected, with `development` a protected branch. On the server:
+`DEPLOY_PATH` is a git clone whose `origin` fetches without a prompt (deploy token/key), `.env`
+present, the deploy user in the `docker` group, `git`/`curl`/`flock` installed. A GitLab runner
+with the Docker executor must be available to the project.
 
 ## Demo accounts
 

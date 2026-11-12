@@ -4,6 +4,8 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { CaptchaService } from './captcha.service';
+import { OtpService } from './otp.service';
 import { UsersModule } from '../users/users.module';
 import { FundingModule } from '../funding/funding.module';
 import { MentorshipModule } from '../mentorship/mentorship.module';
@@ -19,7 +21,7 @@ import { MinistriesModule } from '../ministries/ministries.module';
     MinistriesModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, CaptchaService, OtpService],
   exports: [AuthService],
 })
 export class AuthModule {}

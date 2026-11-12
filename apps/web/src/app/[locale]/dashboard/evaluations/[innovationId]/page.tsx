@@ -9,6 +9,7 @@ import { useSubmitEvaluation, useFlagIp, useEvaluationsForInnovation } from '@/h
 import { useSubmitterProfile } from '@/hooks/use-submitter-profile';
 import { useRequireAuth } from '@/hooks/use-require-auth';
 import { ReviewCommentTimeline } from '@/components/reviews/review-comment-timeline';
+import { ChallengeResponses } from '@/components/challenge-form/challenge-responses';
 
 const RUBRIC = ['Innovativeness', 'Feasibility', 'Impact', 'Scalability'];
 
@@ -138,6 +139,9 @@ export default function EvaluationFormPage({ params }: { params: { innovationId:
               <Image src={photo.url} alt={photo.caption ?? innovation.titleEn} fill className="object-cover" sizes="700px" />
             </div>
           )}
+
+          {/* Challenge form answers — null for viewers without review access (API strips them). */}
+          <ChallengeResponses challenge={innovation.challenge} responses={innovation.challengeResponses} />
 
           <section>
             <h2 className="font-display text-base font-bold text-ink-900">Problem statement</h2>

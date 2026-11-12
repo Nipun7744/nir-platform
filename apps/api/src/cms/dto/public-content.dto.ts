@@ -1,5 +1,5 @@
 import { IsBoolean, IsDateString, IsEmail, IsEnum, IsInt, IsOptional, IsString } from 'class-validator';
-import { ChallengeStatus, ResourceType } from '@prisma/client';
+import { ResourceType } from '@prisma/client';
 
 export class CreateFaqDto {
   @IsString() categoryLabel!: string;
@@ -35,23 +35,6 @@ export class UpdateNewsDto {
   @IsOptional() @IsDateString() eventDate?: string;
   @IsOptional() @IsString() category?: string;
   @IsOptional() @IsBoolean() unpublish?: boolean;
-}
-
-export class CreateChallengeDto {
-  @IsString() slug!: string;
-  @IsString() titleEn!: string;
-  @IsOptional() @IsString() titleBn?: string;
-  @IsString() organizingAgency!: string;
-  @IsOptional() @IsString() categoryId?: string;
-  @IsString() descriptionEn!: string;
-  @IsOptional() @IsString() descriptionBn?: string;
-  @IsOptional() @IsEnum(ChallengeStatus) status?: ChallengeStatus;
-  @IsOptional() @IsBoolean() isFeatured?: boolean;
-  @IsOptional() @IsDateString() startDate?: string;
-  @IsOptional() @IsDateString() deadline?: string;
-  @IsOptional() @IsString() bannerImageUrl?: string;
-  @IsOptional() @IsString() prizeInfoEn?: string;
-  @IsOptional() @IsString() applyUrl?: string;
 }
 
 export class CreateResourceDto {

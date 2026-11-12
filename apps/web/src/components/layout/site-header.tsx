@@ -8,12 +8,15 @@ import { Menu, X } from 'lucide-react';
 import { LocaleSwitcher } from './locale-switcher';
 import { useAuthStore } from '@/store/auth-store';
 import clsx from 'clsx';
+import { useGeneralSubmissionOpen } from '@/hooks/use-settings';
 
 export function SiteHeader() {
   const t = useTranslations();
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const [open, setOpen] = useState(false);
+  // Admin-controlled (GET /settings/submission) — hidden when general submission is switched off.
+  const generalSubmissionOpen = useGeneralSubmissionOpen();
 
   const navItems = [
     { href: '/repository', label: t('nav.repository') },
@@ -81,12 +84,14 @@ export function SiteHeader() {
           </nav>
 
           <div className="hidden shrink-0 lg:block">
+            {generalSubmissionOpen && (
             <Link
               href="/submit"
               className="focus-ring inline-flex items-center gap-2 rounded-full bg-nirgreen-deep px-[18px] py-[9px] text-sm font-semibold text-white transition hover:bg-nirgreen-dark"
             >
               {t('nav.submit')}
             </Link>
+            )}
           </div>
 
           <button
@@ -113,6 +118,7 @@ export function SiteHeader() {
                   {item.label}
                 </Link>
               ))}
+              {generalSubmissionOpen && (
               <Link
                 href="/submit"
                 onClick={() => setOpen(false)}
@@ -120,6 +126,7 @@ export function SiteHeader() {
               >
                 {t('nav.submit')}
               </Link>
+              )}
             </div>
           </div>
         )}

@@ -1,5 +1,5 @@
-import { IsArray, IsEmail, IsIn, IsOptional, IsPhoneNumber, IsString, MinLength } from 'class-validator';
-import { Role } from '@prisma/client';
+import { IsArray, IsEmail, IsEnum, IsIn, IsOptional, IsPhoneNumber, IsString, Matches, MinLength } from 'class-validator';
+import { OtpChannel, Role } from '@prisma/client';
 
 const SELF_SERVICE_ROLES = [Role.INVESTOR, Role.MENTOR, Role.MINISTRY_FOCAL_POINT] as const;
 
@@ -14,9 +14,18 @@ export class RegisterDto {
   @IsString()
   fullName!: string;
 
+  /** Optional, unless the account is verified by SMS (`otpChannel === SMS`). */
   @IsOptional()
   @IsPhoneNumber('BD')
   phone?: string;
+
+  /** Which identifier the OTP was sent to (via POST /auth/otp/send): the email, or the phone. */
+  @IsEnum(OtpChannel)
+  otpChannel!: OtpChannel;
+
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'Verification code must be 6 digits' })
+  otpCode!: string;
 
   /** Every registrant becomes an Innovation Submitter; this layers on one additional self-service role at signup. */
   @IsOptional()

@@ -12,7 +12,7 @@ function formatBannerDate(value: string) {
 export function ChallengeBanner() {
   const t = useTranslations('home.challenge');
   const { data } = useChallenges();
-  const openChallenges = data?.filter((c) => c.status === 'OPEN');
+  const openChallenges = data?.filter((c) => c.status === 'OPEN' && c.isActive !== false);
   const challenge = openChallenges?.find((c) => c.isFeatured) ?? openChallenges?.[0] ?? data?.[0];
 
   if (!challenge) return null;
@@ -55,9 +55,14 @@ export function ChallengeBanner() {
           </div>
 
           <div className="flex flex-wrap gap-3.5">
-            <Link href="/submit" className="focus-ring rounded-full bg-nirgreen-deep px-[26px] py-[13px] text-base font-semibold text-white transition hover:bg-nirgreen-dark">
-              {t('applyNow')}
-            </Link>
+            {challenge.acceptingSubmissions && (
+              <Link
+                href={`/challenges/${challenge.slug}/submit`}
+                className="focus-ring rounded-full bg-nirgreen-deep px-[26px] py-[13px] text-base font-semibold text-white transition hover:bg-nirgreen-dark"
+              >
+                {t('applyNow')}
+              </Link>
+            )}
             <Link
               href={`/challenges/${challenge.slug}`}
               className="focus-ring rounded-full border-[1.5px] border-white/50 px-[26px] py-[13px] text-base font-semibold text-white transition hover:bg-white hover:text-navy"

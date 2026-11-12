@@ -40,10 +40,10 @@ supersedes it as the maintained reference going forward).
 
 | # | SRS Component | Backend module (`apps/api/src/...`) | Key frontend routes (`apps/web/src/app/[locale]/...`) |
 |---|---|---|---|
-| 1 | Innovation Submission & Evaluation | `innovations`, `evaluations` | `/submit`, `/dashboard/innovations`, `/dashboard/evaluations`, `/dashboard/preliminary-review`, `/dashboard/authenticity-review`, `/dashboard/moderation` (Institutional Coordinator only), `/dashboard/admin/evaluations` (admin shortlist + IP-flag overview, grouped by month) |
+| 1 | Innovation Submission & Evaluation | `innovations`, `evaluations`, `challenges` (challenge submissions, form builder, submission monitoring — 2026-11-10), `settings` (general-submission switch) | `/submit`, `/challenges/[slug]/submit` (challenge submission, login required), `/dashboard/admin/submissions` (general switch + monitoring), `/dashboard/innovations`, `/dashboard/evaluations`, `/dashboard/preliminary-review`, `/dashboard/authenticity-review`, `/dashboard/moderation` (Institutional Coordinator only), `/dashboard/admin/evaluations` (admin shortlist + IP-flag overview, grouped by month) |
 | 2 | Funding Matchmaking | `funding` | `/dashboard/investor` |
 | 3 | Repository & Knowledge Management | `repository`, plus `innovations`' Repository Management endpoints (`/innovations/admin/*`, added 2026-08-17) | `/repository`, `/repository/[slug]`, `/statistics`, `/dashboard/admin/repository` (Platform/System Admin — publish/unpublish, photo/video management, activity log) |
-| 4 | Communication & CMS | `cms` (serves news/challenges/resources/partners/FAQ/feedback too — see [API.md](API.md)) | `/news`, `/challenges`, `/resources`, `/faq`, `/contact`, `/dashboard/admin` |
+| 4 | Communication & CMS | `cms` (serves news/resources/partners/FAQ/feedback too — see [API.md](API.md)); challenges moved to their own `challenges` module on 2026-11-10 | `/news`, `/challenges`, `/resources`, `/faq`, `/contact`, `/dashboard/admin` |
 | 5 | Performance Monitoring & Reporting | `reporting` | `/dashboard/reports` |
 | 6 | Mentorship & Expert Guidance | `mentorship` | `/dashboard/mentor` |
 | 7 | Innovation Management (internal pipeline) | `pipeline` | `/dashboard/pipeline` |
@@ -101,6 +101,14 @@ since each was an explicit scope call:
 - **New registrations require admin approval before login works.** `POST /auth/register` never
   issues tokens — it creates an inactive account and an admin must call
   `PATCH /users/:id/status` first. See [API.md](API.md#auth).
+- **Registration is OTP-verified before the account exists; every login is CAPTCHA-checked**
+  (2026-11-12). The registrant picks email or SMS, receives a 6-digit code, and the account is
+  created only when the code matches, so no unverified rows are created. The admin approval gate
+  above still applies afterwards. The CAPTCHA provider is pluggable (Turnstile / reCAPTCHA v2 /
+  hCaptcha), and so are email (SMTP) and SMS (a template-driven HTTP client, because BD
+  aggregators all differ). In production the API **refuses to start** unless each integration is
+  chosen explicitly, so security controls can't silently go missing. Prerequisites and config are
+  in [SETUP.md](SETUP.md#registration-otp--login-captcha--prerequisites-and-configuration).
 - **File uploads go to local disk** (`apps/api/uploads`, Docker volume `api_uploads`), not object
   storage. Fine for a single-instance deployment; not for horizontal scaling.
 - **Search is `ILIKE`-based**, not Postgres full-text (`tsvector`/GIN). Adequate at seed-data
@@ -109,20 +117,43 @@ since each was an explicit scope call:
   has no credentials for), each behind a stable service interface so a real integration can be
   dropped in without touching callers:
   - NID/Birth Registration & BIN verification — `apps/api/src/common/services/identity-verification.service.ts` (format-validates and accepts).
-  - SMS/Email delivery — `apps/api/src/notifications/notifications.service.ts` (logs and marks sent).
+  - SMS/Email delivery of **notifications** — `apps/api/src/notifications/notifications.service.ts` (logs and marks sent).
+    *Real* transports now exist (2026-11-12, `apps/api/src/messaging/`: `MailService` over SMTP,
+    `SmsService` over a configurable HTTP gateway) but are used only for registration OTPs so far.
+    Wiring `NotificationsService.deliver()` to them is open work (it would also need the
+    recipient's address/phone, which `deliver()` doesn't receive today) — see [ROADMAP.md](ROADMAP.md).
   - SSO (Google/Apple/Microsoft) — buttons present, disabled in the UI.
 - **Bilingual fields are parallel columns** (`titleEn`/`titleBn`, `summaryEn`/`summaryBn`, ...),
   not a separate translations table. Simpler at this schema size; would need revisiting if new
   languages are ever added.
-- **`apps/api/src/{challenges,partners,news,resources}/` are empty scaffold folders** (only an
-  empty `dto/` subfolder each, no code, not imported anywhere). The real implementation for all
-  four lives in `cms/public-content.controller.ts` under `CmsModule`. Don't add code to the
-  empty folders expecting it to be wired up — either delete them or route new work through `cms/`.
+- **`apps/api/src/{partners,news,resources}/` are empty scaffold folders** (only an empty
+  `dto/` subfolder each, no code, not imported anywhere). The real implementation for all three
+  lives in `cms/public-content.controller.ts` under `CmsModule`. Don't add code to the empty
+  folders expecting it to be wired up — either delete them or route new work through `cms/`.
+  **`challenges/` is no longer empty** (2026-11-10): challenge CRUD moved out of `cms/` into a
+  real `ChallengesModule` (`challenges.controller.ts`/`.service.ts`/`challenge-rules.ts`) when
+  challenges gained per-challenge submission forms.
+- **Challenge submissions are ordinary `Innovation` rows, not a separate entity** (2026-11-10).
+  A challenge submission is created straight into `UNDER_REVIEW` with `submissionChannel:
+  CHALLENGE`, `challengeId` and a `challengeResponses` JSON snapshot. This was chosen so the
+  entire existing review pipeline (queues, category routing, status transitions, evaluations,
+  approvals, audit log) works on challenge submissions with zero changes. The dynamic form's
+  answers are snapshotted (label/type copied per answer) rather than referencing
+  `ChallengeFormField` rows, so editing or deleting form fields can never alter past submissions.
+- **Dynamic form definitions live in a relational table (`ChallengeFormField`), answers in JSON**
+  — the definition benefits from per-field rows (ordering, unique keys per challenge, FK cascade),
+  while answers are read-mostly, per-submission, and must be immutable snapshots.
 
 ## Business Rules
 
 - 14 roles exist in the `Role` enum (see [ROLES.md](ROLES.md)); a user can hold multiple roles
   simultaneously (`Role[]` on `User`).
+- Registration (2026-11-12) is two steps: (1) form + CAPTCHA → `POST /auth/otp/send` emails or texts
+  a 6-digit code to the chosen address (phone becomes required if SMS is chosen); (2) enter the
+  code → `POST /auth/register`. Codes last 5 min, allow 5 wrong attempts, resend after 60 s, and
+  are capped at 5 per address per hour (all env-tunable). An address that already has an account
+  is refused at step 1. Phones are stored normalized as `+8801XXXXXXXXX`.
+- Sign-in requires a solved CAPTCHA on **every** attempt, checked before the password.
 - Self-registration always grants `INNOVATION_SUBMITTER`; a registrant may additionally opt into
   exactly one of `INVESTOR`, `MENTOR`, or `MINISTRY_FOCAL_POINT` at signup, or add one later from
   their dashboard overview page. The sign-up form shows role-specific optional fields once a role
@@ -254,6 +285,50 @@ since each was an explicit scope call:
   linked to `/dashboard/submitters/:id`, which is an innovator profile page. **Only the admin's own drafts can
   be published this way** — an innovator's draft still has to go through the full review pipeline.
   See [API.md](API.md#innovations-innovations).
+- **Two independent submission channels (added 2026-11-10).**
+  - **General submission** — the standard `/submit` form. Controlled by a single admin switch
+    (`PlatformSetting` key `generalSubmissionEnabled`, default **on** so existing behaviour was
+    preserved) on `/dashboard/admin/submissions`. When off, every public "Submit an Innovation"
+    entry point (header desktop + mobile, homepage hero, footer, `/challenges` callout) is hidden,
+    `/submit` shows a "closed — browse open challenges" notice, and the API refuses
+    `POST /innovations` and `POST /innovations/:id/submit` of a GENERAL **draft** with 403.
+    Exceptions, both deliberate: Platform/System Admins bypass the switch (their "Submit & publish"
+    flow is an internal tool), and re-submitting a **REJECTED** general innovation is still allowed
+    (it continues an existing review rather than opening a new submission).
+  - **Challenge submission** — each challenge gets its own entry point
+    (`/challenges/:slug/submit`, "Submit Innovation" buttons on `/challenges`, the detail page,
+    the homepage banner and the popup). A challenge **accepts submissions only when all of these
+    hold** (`challenge-rules.ts` `submissionState`, enforced server-side, reason returned as
+    `closedReason`): `isPublished`, `isActive`, `submissionsEnabled`, `status === OPEN`, today
+    is within `startDate`..end-of-`deadline`-day (UTC), it has a `categoryId`, and its form has
+    at least one field. The category is required because it is what routes submissions to
+    Preliminary/Authenticity reviewers — enabling submissions without one is refused (400).
+    **Login is mandatory**: the submit page redirects anonymous visitors to
+    `/sign-in?next=/challenges/:slug/submit`; sign-in returns there afterwards and carries `next`
+    through to `/register` and back (registration still needs admin approval first, unchanged).
+    The API refuses anonymous submissions (401) and requires an `Innovator` profile (403
+    otherwise). Answers are validated server-side against the challenge's current form; files
+    must be real `/uploads/<uuid>.<ext>` uploads on disk, of an accepted type and within the
+    field's size limit (size read from disk, not the client). Uploaded files also become
+    `InnovationAttachment` rows so existing reviewer views show them.
+  - **New challenges start unpublished** (the admin UI sends `isPublished: false` on create) so
+    the admin can build and preview the form first; the API default is still `true` for
+    backwards compatibility. Inactive challenges stay listed publicly but are never chosen for the
+    homepage banner/popup. A challenge that has submissions cannot be deleted (409) — unpublish
+    or deactivate it instead.
+  - **Field mapping:** text fields can be mapped to `TITLE`/`SUMMARY`/`PROBLEM_STATEMENT`/
+    `PROPOSED_SOLUTION` so the innovation reads sensibly in every existing queue. Fallbacks when
+    unmapped: title "<challenge> — submission by <name>", summary = first long-text answer,
+    problem/solution = "See the challenge submission responses (<challenge>)."
+    `innovationType` is always `PRODUCT` (required column, not collected by challenge forms).
+  - **Challenge details page (2026-11-11):** the popup is a short teaser; the full challenge
+    information (problem, eligibility, timeline, criteria, prizes, resources, FAQ, contact) lives
+    on `/challenges/:slug`, every section optional and hidden when empty. See
+    [DATABASE.md](DATABASE.md#component-4--communication--cms) and
+    [UI_GUIDELINES.md](UI_GUIDELINES.md#reusable-patterns).
+  - **Who sees the answers:** `challengeResponses` is returned only to the submitter and to
+    review/admin roles (Platform/System Admin, Coordinator, Innovation Manager, Preliminary/
+    Authenticity Reviewer, Expert Evaluator); everyone else gets `null`, even once published.
 - Full history of Preliminary/Authenticity reviewer comments is kept in `ReviewComment`
   (separate from `Innovation.reviewRemarks`, which only holds the latest note), so context isn't
   lost across reject/resubmit loops.

@@ -7,9 +7,11 @@ import { Link } from '@/i18n/navigation';
 import { Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ConfluenceGraphic } from './confluence-graphic';
+import { useGeneralSubmissionOpen } from '@/hooks/use-settings';
 
 export function Hero() {
   const t = useTranslations('home');
+  const generalSubmissionOpen = useGeneralSubmissionOpen();
   const router = useRouter();
   const [query, setQuery] = useState('');
 
@@ -70,12 +72,14 @@ export function Hero() {
             >
               {t('exploreInnovations')}
             </Link>
-            <Link
-              href="/submit"
-              className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-full border-[1.5px] border-navy px-[26px] py-[13px] text-base font-semibold text-navy transition hover:bg-navy hover:text-white sm:w-auto"
-            >
-              {t('submitInnovation')}
-            </Link>
+            {generalSubmissionOpen && (
+              <Link
+                href="/submit"
+                className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-full border-[1.5px] border-navy px-[26px] py-[13px] text-base font-semibold text-navy transition hover:bg-navy hover:text-white sm:w-auto"
+              >
+                {t('submitInnovation')}
+              </Link>
+            )}
           </div>
         </motion.div>
 

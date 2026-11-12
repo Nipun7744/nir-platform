@@ -61,6 +61,9 @@ export default function MyInnovationsPage() {
               <Link href={`/dashboard/innovations/${innovation.id}`} className="focus-ring min-w-0 flex-1">
                 <p className="font-mono text-[11px] uppercase tracking-wide text-ink-400">{innovation.innovationCode}</p>
                 <h2 className="mt-1 truncate font-display text-base font-bold text-ink-900">{innovation.titleEn}</h2>
+                {innovation.challenge && (
+                  <p className="mt-0.5 truncate text-xs font-medium text-brand-700">Challenge: {innovation.challenge.titleEn}</p>
+                )}
               </Link>
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[innovation.reviewStatus]}`}>

@@ -13,6 +13,7 @@ import { CategoryIcon } from '@/components/ui/category-icon';
 import { InnovationCard } from '@/components/ui/innovation-card';
 import { useAuthStore } from '@/store/auth-store';
 import { Role } from '@nir/shared';
+import { ChallengeResponses } from '@/components/challenge-form/challenge-responses';
 
 const SUBMITTER_PROFILE_ROLES = [Role.PRELIMINARY_REVIEWER, Role.AUTHENTICITY_REVIEWER, Role.EXPERT_EVALUATOR, Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN];
 
@@ -170,6 +171,9 @@ export function InnovationDetail({ slug }: { slug: string }) {
               <Image src={photo.url} alt={photo.caption ?? innovation.titleEn} fill className="object-cover" sizes="800px" />
             </div>
           )}
+
+          {/* Challenge form answers — null for viewers without review access (API strips them). */}
+          <ChallengeResponses challenge={innovation.challenge} responses={innovation.challengeResponses} />
 
           <section>
             <h2 className="font-display text-xl font-bold text-ink-900">Problem statement</h2>

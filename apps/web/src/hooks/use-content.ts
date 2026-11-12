@@ -46,12 +46,55 @@ export interface ChallengeDto {
   organizingAgency: string;
   descriptionEn: string;
   status: string;
+  categoryId?: string | null;
   isFeatured?: boolean;
+  isPublished?: boolean;
+  isActive?: boolean;
+  submissionsEnabled?: boolean;
+  /** Computed server-side (see challenge-rules.ts submissionState). */
+  acceptingSubmissions?: boolean;
+  closedReason?: string | null;
+  formFieldCount?: number;
+  submissionCount?: number;
   startDate?: string;
   deadline?: string;
   bannerImageUrl?: string;
   prizeInfoEn?: string;
   applyUrl?: string;
+  titleBn?: string | null;
+  descriptionBn?: string | null;
+  // Details-page sections (2026-11-11) — all optional; Bn falls back to En.
+  problemStatementEn?: string | null;
+  problemStatementBn?: string | null;
+  eligibilityEn?: string | null;
+  eligibilityBn?: string | null;
+  evaluationCriteriaEn?: string | null;
+  evaluationCriteriaBn?: string | null;
+  prizeDetailsEn?: string | null;
+  prizeDetailsBn?: string | null;
+  additionalInfoEn?: string | null;
+  additionalInfoBn?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  timelinePhases?: ChallengeTimelinePhase[] | null;
+  faqs?: ChallengeFaq[] | null;
+  resources?: ChallengeResource[] | null;
+}
+
+export interface ChallengeTimelinePhase {
+  label: string;
+  /** YYYY-MM-DD */
+  date?: string;
+  description?: string;
+}
+export interface ChallengeFaq {
+  question: string;
+  answer: string;
+}
+export interface ChallengeResource {
+  label: string;
+  url: string;
 }
 
 export interface NewsPostDto {
@@ -108,6 +151,16 @@ export function useChallenges() {
 
 export function useChallenge(slug: string) {
   return useQuery({ queryKey: ['challenge', slug], queryFn: () => api.get<ChallengeDto>(`/challenges/${slug}`) });
+}
+
+export function useChallengeForm(slug: string) {
+  return useQuery({
+    queryKey: ['challenge-form', slug],
+    queryFn: () =>
+      api.get<{ challenge: ChallengeDto; fields: import('@/components/challenge-form/types').ChallengeFormFieldDto[] }>(
+        `/challenges/${slug}/form`,
+      ),
+  });
 }
 
 export function useNews(page = 1, pageSize = 9) {

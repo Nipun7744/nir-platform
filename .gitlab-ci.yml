@@ -1,0 +1,131 @@
+# NIR Platform — GitLab CI/CD
+#
+# development push → verify (build + compose config) → deploy to dev.challenge.gov.bd over SSH
+#                  → public smoke test.  Merge requests run verify only.
+#
+# The server builds and runs the stack with docker compose (deploy/deploy.sh does the work,
+# including a DB backup before every deploy and automatic rollback if health checks fail).
+#
+# Required CI/CD variables (Settings → CI/CD → Variables, protected):
+#   SSH_PRIVATE_KEY  File   private key of the deploy user (no passphrase)
+#   SSH_KNOWN_HOSTS  File   output of `ssh-keyscan -p <port> <host>`, verified by hand
+#   DEPLOY_HOST      Var    server hostname/IP (the origin, not the Cloudflare name)
+#   DEPLOY_USER      Var    SSH user, member of the `docker` group
+#   DEPLOY_PATH      Var    absolute path of the repo clone on the server
+# Optional:
+#   DEPLOY_PORT      Var    SSH port (default 22)
+#   ROLLBACK_SHA     Var    commit for the manual `rollback` job (default: previous deploy)
+
+stages:
+  - verify
+  - deploy
+  - smoke
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "development"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+variables:
+  DEPLOY_URL: https://dev.challenge.gov.bd
+  DEPLOY_PORT: "22"
+  npm_config_cache: $CI_PROJECT_DIR/.npm
+
+default:
+  interruptible: true
+  retry:
+    max: 1
+    when: [runner_system_failure, stuck_or_timeout_failure, api_failure]
+
+# ---------------------------------------------------------------- verify
+
+build:
+  stage: verify
+  image: node:20-bookworm
+  cache:
+    key:
+      files: [package-lock.json]
+    paths: [.npm/]
+  script:
+    - npm ci --no-audit --no-fund
+    - npm run build:shared
+    - npm run prisma:generate
+    - npm run build:api
+    - npm run build:web
+  timeout: 30m
+
+compose-config:
+  stage: verify
+  image: docker:27-cli
+  script:
+    - cp .env.example .env
+    - docker compose config --quiet
+
+# ---------------------------------------------------------------- deploy
+
+.ssh:
+  image: alpine:3.20
+  before_script:
+    - apk add --no-cache openssh-client
+    - install -m 700 -d ~/.ssh
+    - install -m 600 "$SSH_PRIVATE_KEY" ~/.ssh/id_deploy
+    - install -m 644 "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts
+    - |
+      remote() {
+        ssh -i ~/.ssh/id_deploy -p "$DEPLOY_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+          -o ServerAliveInterval=30 "$DEPLOY_USER@$DEPLOY_HOST" "$@"
+      }
+
+deploy:
+  extends: .ssh
+  stage: deploy
+  needs: [build, compose-config]
+  resource_group: dev-challenge
+  interruptible: false
+  environment:
+    name: development
+    url: $DEPLOY_URL
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "merge_request_event" && $CI_COMMIT_BRANCH == "development"
+  script:
+    - remote "bash -s -- '$DEPLOY_PATH' '$CI_COMMIT_SHA'" < deploy/deploy.sh
+  timeout: 45m
+
+rollback:
+  extends: .ssh
+  stage: deploy
+  needs: []
+  resource_group: dev-challenge
+  interruptible: false
+  environment:
+    name: development
+    url: $DEPLOY_URL
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "merge_request_event" && $CI_COMMIT_BRANCH == "development"
+      when: manual
+      allow_failure: true
+  script:
+    - remote "bash -s -- '$DEPLOY_PATH' '${ROLLBACK_SHA:-previous}'" < deploy/deploy.sh
+  timeout: 45m
+
+# ---------------------------------------------------------------- smoke
+
+smoke:
+  stage: smoke
+  image: alpine:3.20
+  needs: [deploy]
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "merge_request_event" && $CI_COMMIT_BRANCH == "development"
+  script:
+    - apk add --no-cache curl
+    - curl -fsS -o /dev/null --retry 5 --retry-delay 5 --retry-all-errors "$DEPLOY_URL/"
+    - curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "$DEPLOY_URL/api/v1/repository/search" -o search.json
+    - |
+      img=$(grep -o '"/uploads/[^"]*"' search.json | head -n 1 | tr -d '"' || true)
+      if [ -n "$img" ]; then
+        curl -fsS -o /dev/null "$DEPLOY_URL$img" || { echo "FAIL: $img not served"; exit 1; }
+        echo "OK $img"
+      else
+        echo "no uploaded media in search results — skipping image check"
+      fi

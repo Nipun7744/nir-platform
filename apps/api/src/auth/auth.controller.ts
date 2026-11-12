@@ -1,8 +1,10 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Ip, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { SendOtpDto } from './dto/send-otp.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from './strategies/jwt.strategy';
@@ -15,17 +17,36 @@ export class AuthController {
     private readonly usersService: UsersService,
   ) {}
 
+  /** CAPTCHA provider + site key and OTP settings for the sign-in/register pages. */
   @Public()
+  @Get('security-config')
+  securityConfig() {
+    return this.authService.securityConfig();
+  }
+
+  /** Registration step 1 — email/SMS a one-time code. CAPTCHA-protected; also per-target limits in OtpService. */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('otp/send')
+  sendOtp(@Body() dto: SendOtpDto, @Ip() ip: string) {
+    return this.authService.sendRegistrationOtp(dto, ip);
+  }
+
+  /** Registration step 2 — create the account; requires the code from step 1. */
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Body() dto: LoginDto, @Ip() ip: string) {
+    return this.authService.login(dto, ip);
   }
 
   @Public()

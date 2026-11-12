@@ -109,7 +109,7 @@ export class InnovationsController {
 
   @Post(':id/submit')
   submit(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.innovationsService.submit(id, user.id);
+    return this.innovationsService.submit(id, user.id, user.roles);
   }
 
   /** Admin "Submit & publish" — own DRAFT straight to PUBLISHED; see InnovationsService.publishDirect. */

@@ -73,7 +73,8 @@
       "applyNow": "Apply now",
       "viewDetails": "View details",
       "dismiss": "Maybe later",
-      "close": "Close"
+      "close": "Close",
+      "daysLeft": "{count, plural, =0 {Last day to apply} one {# day left} other {# days left}}"
     },
     "news": {
       "eyebrow": "Latest from the ecosystem",
@@ -173,7 +174,25 @@
     "createOne": "Create an account",
     "signInInstead": "Sign in instead",
     "ssoNote": "Google / Apple / Microsoft sign-in — coming soon",
-    "demoNoteHeader": "Demo accounts — password Password123! for all"
+    "demoNoteHeader": "Demo accounts — password Password123! for all",
+    "phoneRequired": "Phone number",
+    "verifyBy": "Verify your account by",
+    "verifyByEmail": "Email",
+    "verifyByEmailHint": "We'll email a 6-digit code to the address above",
+    "verifyBySms": "SMS",
+    "verifyBySmsHint": "We'll text a 6-digit code to the phone number above",
+    "sendCode": "Send verification code",
+    "sendCodeFailed": "Could not send the verification code. Please try again.",
+    "verifyTitle": "Enter your verification code",
+    "codeSentTo": "We sent a 6-digit code to {target}. It expires in {minutes} minutes.",
+    "codeLabel": "Verification code",
+    "verifyAndCreate": "Verify & create account",
+    "noCode": "Didn't get the code?",
+    "resendCode": "Resend code",
+    "resendIn": "Resend code in {seconds}s",
+    "changeDetails": "Change details",
+    "captchaHint": "Complete the security check to continue.",
+    "captchaLoadError": "The security check couldn't load. Check your connection and refresh the page."
   },
   "common": {
     "loading": "Loading…",
@@ -186,5 +205,37 @@
     "submit": "Submit",
     "back": "Back",
     "language": "বাংলা"
+  },
+  "challengeDetail": {
+    "back": "Back to challenges",
+    "featured": "Featured",
+    "status": {
+      "UPCOMING": "Upcoming",
+      "OPEN": "Open",
+      "CLOSED": "Closed",
+      "EVALUATING": "Evaluating",
+      "COMPLETED": "Completed"
+    },
+    "notFound": "Challenge not found.",
+    "onThisPage": "On this page",
+    "overview": "Overview",
+    "problemStatement": "The problem",
+    "eligibility": "Who can apply",
+    "timeline": "Timeline",
+    "evaluationCriteria": "How submissions are evaluated",
+    "prizes": "Prizes & support",
+    "resources": "Resources",
+    "faq": "Frequently asked questions",
+    "additionalInfo": "Additional information",
+    "contact": "Contact",
+    "organizer": "Organizer",
+    "dates": "Dates",
+    "starts": "Starts",
+    "deadline": "Deadline",
+    "prize": "Prize",
+    "daysLeft": "{count, plural, =0 {Last day to apply} one {# day left} other {# days left}}",
+    "submit": "Submit your innovation",
+    "signInNote": "You'll need to sign in (or register) to submit.",
+    "notAccepting": "This challenge is not accepting submissions."
   }
 }

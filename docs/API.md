@@ -10,7 +10,10 @@
   global `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true,
   transformOptions: { enableImplicitConversion: true } })`.
 - Global guards, in order (`APP_GUARD` in `app.module.ts`): `JwtAuthGuard` → `RolesGuard` →
-  `ThrottlerGuard` (120 req/min, `ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }])`).
+  `ThrottlerGuard` (120 req/min, `ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }])`; tighter
+  per-route `@Throttle` on `auth/login`, `auth/register` (20/min) and `auth/otp/send` (10/min)).
+  Limits are per client IP, which is only correct behind a proxy if `TRUST_PROXY` is set
+  (`main.ts` → Express `trust proxy`; see [SETUP.md](SETUP.md#infrastructure-prerequisites)).
 - Static file serving: `/uploads/*` via `ServeStaticModule`, rooted at `UPLOAD_DIR` (default
   `./uploads`).
 - **No global exception filter and no response-envelope interceptor exist.** Errors come back in
@@ -50,13 +53,45 @@ to the client once and never persisted in plaintext.
 
 | Method | Path | Purpose | Auth |
 |---|---|---|---|
-| POST | `/auth/register` | Self-register | `@Public()` |
-| POST | `/auth/login` | Email/password login → token pair | `@Public()` |
+| GET | `/auth/security-config` | CAPTCHA provider + public site key and OTP settings for the sign-in/register pages (2026-11-12) | `@Public()` |
+| POST | `/auth/otp/send` | Registration step 1: email/SMS a one-time code (2026-11-12). CAPTCHA required. Throttle 10/min/IP | `@Public()` |
+| POST | `/auth/register` | Self-register (step 2; requires the OTP). Throttle 20/min/IP | `@Public()` |
+| POST | `/auth/login` | Email/password login → token pair. **CAPTCHA required on every attempt** (2026-11-12). Throttle 20/min/IP | `@Public()` |
 | POST | `/auth/refresh` | Rotate refresh token → new pair | `@Public()` |
 | POST | `/auth/logout` | Revoke a refresh token (idempotent) | `@Public()` |
 | GET | `/auth/me` | Current user's profile | JWT required |
 
-- **`RegisterDto`:** `email`, `password` (min 8), `fullName`, `phone?` (`BD` phone format),
+- **CAPTCHA (2026-11-12)** — `CaptchaService` (`apps/api/src/auth/captcha.service.ts`). One server
+  check for Cloudflare Turnstile, reCAPTCHA v2 and hCaptcha, which share the same siteverify
+  contract. The provider is chosen by `CAPTCHA_PROVIDER`, or `none` to disable. Callers send the
+  widget's token as `captchaToken`. Responses: missing token → **400** "Please complete the CAPTCHA
+  check."; rejected token → **400** "CAPTCHA verification failed…"; provider unreachable → **503**
+  (fails closed). Tokens are single-use, so the frontend resets the widget after every attempt.
+  It is checked **before** any DB lookup on both `login` and `otp/send`.
+- **`GET /auth/security-config`** →
+  `{ captcha: { provider, siteKey }, otp: { channels: ('EMAIL'|'SMS')[], codeLength: 6, ttlSeconds, resendSeconds } }`.
+  It never returns secrets. The web app reads CAPTCHA settings from here rather than from
+  `NEXT_PUBLIC_*` env vars.
+- **`SendOtpDto` (`POST /auth/otp/send`)**: `channel` (`EMAIL`|`SMS`), `email` (required for EMAIL),
+  `phone` (required for SMS; a BD mobile in any common spelling, normalized to `+8801XXXXXXXXX`),
+  `locale?` (`en`|`bn`, the language of the message), `captchaToken?`. The order of checks is:
+  channel enabled (`OTP_CHANNELS`, else 400) → CAPTCHA → address not already registered (**409**;
+  phones are matched against `+880…`/`880…`/`01…` spellings because older rows are
+  unnormalized) → `OtpService.send`. Per-target limits: **429** within `OTP_RESEND_SECONDS` of the
+  previous send (body includes `retryAfterSeconds`), **429** after `OTP_MAX_SENDS_PER_HOUR`. A new
+  code supersedes earlier unconsumed ones. Delivery failure → **503**, and the code row is deleted
+  so a retry isn't blocked by the cooldown. Response:
+  `{ channel, sentTo (masked), expiresInSeconds, resendInSeconds }`.
+- **`RegisterDto`:** `email`, `password` (min 8), `fullName`, `phone?` (`BD` phone format; required
+  if `otpChannel === SMS`; **now stored normalized** as `+8801XXXXXXXXX` and checked for
+  uniqueness → 409), **`otpChannel`** (`EMAIL`|`SMS`) + **`otpCode`** (6 digits), both required
+  since 2026-11-12. The code is verified against the email (lower-cased) or the normalized phone
+  **before anything is created**: an expired/missing code → 400; a wrong code → 400 "Incorrect
+  verification code. N attempts left."; after `OTP_MAX_ATTEMPTS` → 400 "Too many incorrect
+  attempts", and the code is dead. Attempts are counted atomically *before* comparing, so parallel
+  guesses can't exceed the cap. On success, `emailVerifiedAt` or `phoneVerifiedAt` is set and the
+  `USER_REGISTERED` audit entry gets `metadata.verifiedBy`. Then the rest of the existing fields
+  apply:
   `role?` (one of `INVESTOR | MENTOR | MINISTRY_FOCAL_POINT`), plus role-specific optional
   fields that `AuthService.register` forwards to the matching profile service — all were already
   supported by `FundingService.registerInvestor` / `MentorshipService.registerMentor` /
@@ -75,7 +110,8 @@ to the client once and never persisted in plaintext.
   `{ pending: true, message: "..." }`. An admin must call `PATCH /users/:id/status` to activate
   the account before `login` will succeed (403 otherwise, with a message that differs for
   "rejected" vs. "pending" — see `User.rejectedAt`).
-- **`LoginDto`:** `email`, `password` → on success, updates `lastLoginAt`, writes a `USER_LOGIN`
+- **`LoginDto`:** `email`, `password`, `captchaToken?` (enforced in `AuthService.login` whenever a
+  provider is configured) → on success, updates `lastLoginAt`, writes a `USER_LOGIN`
   audit entry, returns `{ user: <publicUser>, accessToken, refreshToken }` where `publicUser` is
   `{ id, email, fullName, roles, locale }` (no password hash, no phone).
 - **`refresh`/`logout`** both operate on the raw refresh token by its SHA-256 hash; `refresh`
@@ -240,8 +276,7 @@ sub-resources: FAQs, news, challenges, resources, partners, feedback)
 | GET | `/news` | Public news/events list (`page`, `pageSize`) | `@Public()` |
 | GET | `/news/:slug` | Public news item | `@Public()` |
 | GET / POST / PATCH / DELETE | `/news/admin`, `/news`, `/news/:id`, `/news/:id` | Admin news CRUD — `PATCH` is a full edit (any `CreateNewsDto` field) plus the `unpublish: boolean` toggle used separately by the admin panel's Unpublish/Republish button; omitting `unpublish` leaves `publishedAt` untouched, so a plain field edit never changes publish status | `PLATFORM_ADMIN` |
-| GET | `/challenges`, `/challenges/:slug` | Public challenge list/detail | `@Public()` |
-| POST / PATCH / DELETE | `/challenges`, `/challenges/:id`, `/challenges/:id` | Admin challenge CRUD (full edit — every `CreateChallengeDto` field, including previously-set ones, via `PATCH`) | `PLATFORM_ADMIN` |
+| — | `/challenges/*` | **Moved to the `challenges` module on 2026-11-10** — see [Challenges](#challenges-challenges) below. Paths for the public list/detail and admin CRUD are unchanged. | — |
 | GET | `/resources` | Public resources list (`type` filter) | `@Public()` |
 | POST / PATCH / DELETE | `/resources`, `/resources/:id`, `/resources/:id` | Admin resource CRUD | `PLATFORM_ADMIN` |
 | GET | `/partners` | Public partners list | `@Public()` |
@@ -249,7 +284,8 @@ sub-resources: FAQs, news, challenges, resources, partners, feedback)
 | POST | `/feedback` | Submit feedback/grievance | `@Public()` + `OptionalJwtAuthGuard` |
 | GET / PATCH | `/feedback`, `/feedback/:id/status` | Admin feedback triage | `PLATFORM_ADMIN` |
 
-> **Note:** `apps/api/src/{challenges,partners,news,resources}/` are empty scaffold folders — the
+> **Note:** `apps/api/src/{partners,news,resources}/` are empty scaffold folders (`challenges/` is
+> a real module since 2026-11-10) — the
 > actual code above lives in `cms/public-content.controller.ts` / `cms/public-content.service.ts`
 > / `cms/dto/public-content.dto.ts`. See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#important-decisions).
 
@@ -260,6 +296,50 @@ sub-resources: FAQs, news, challenges, resources, partners, feedback)
 > `PATCH` endpoints still type their body as `Partial<CreateXDto> & {...}`, a bare TS type that the
 > pipe silently skips at runtime — see [ROADMAP.md](ROADMAP.md#technical-debt) before relying on
 > them for anything validation-sensitive.
+
+### Challenges (`/challenges`)
+
+`ChallengesModule` (`apps/api/src/challenges/`, 2026-11-10). Literal `admin` routes are declared
+before `:slug`. Every challenge object returned carries computed `acceptingSubmissions`,
+`closedReason` (null when accepting) and `formFieldCount`; admin listings also carry
+`submissionCount`. Rules for when a challenge accepts submissions: see
+[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules).
+
+| Method | Path | Purpose | Guard |
+|---|---|---|---|
+| GET | `/challenges` | Public list — **published only** (was: all), ordered by deadline | `@Public()` |
+| GET | `/challenges/:slug` | Public detail. 404 if unpublished, unless the caller is a Platform/System Admin (preview) | `@Public()` + `OptionalJwtAuthGuard` |
+| GET | `/challenges/:slug/form` | `{ challenge, fields }` — the dynamic submission form, ordered. Same visibility rule as detail | `@Public()` + `OptionalJwtAuthGuard` |
+| POST | `/challenges/:slug/submissions` | Submit to a challenge. Body `{ responses: { [fieldKey]: value } }`. 401 anonymous; 404 unknown/unpublished; 403 not accepting (`message` = `closedReason`) or caller has no `Innovator` profile; 400 `{ message, fieldErrors: { [key]: string } }` on validation failure. Value shapes: text/email/phone/date(`YYYY-MM-DD`)/select/radio → string; number → number or numeric string; checkbox with options → string[]; consent checkbox (no options) → boolean; FILE → `{url, name, mimeType}` from `POST /uploads`; MULTI_FILE → array of those. Unknown keys are dropped. Creates an `Innovation` (`CHALLENGE` channel, `UNDER_REVIEW`, `submittedAt` now, Lead Innovator team row, files as attachments) and writes `INNOVATION_CHALLENGE_SUBMITTED`. Returns `{ id, innovationCode, slug, titleEn, reviewStatus, submittedAt, challenge }` | authenticated |
+| GET | `/challenges/admin` | All challenges incl. unpublished, newest first | `PLATFORM_ADMIN` |
+| GET | `/challenges/admin/:id` | One challenge + `formFields` (form builder) | `PLATFORM_ADMIN` |
+| POST | `/challenges` | Create (`CreateChallengeDto`, now also `isPublished`/`isActive`/`submissionsEnabled`, and — 2026-11-11 — the optional details-page fields listed below the table). 400 if `submissionsEnabled` without `categoryId`, or unknown category; 409 duplicate slug. Writes `CHALLENGE_CREATED` | `PLATFORM_ADMIN` |
+| PATCH | `/challenges/:id` | Partial update — now a real `UpdateChallengeDto` class (was an unvalidated `Partial<>`); `''` clears `startDate`/`deadline`/`categoryId`. Same 400/409 rules. Writes `CHALLENGE_UPDATED` with `{field: {from, to}}` for `isPublished`/`isActive`/`submissionsEnabled`/`status` changes | `PLATFORM_ADMIN` |
+| DELETE | `/challenges/:id` | 204. **409 if the challenge has any submissions** (unpublish/deactivate instead). Writes `CHALLENGE_DELETED` | `PLATFORM_ADMIN` |
+| PUT | `/challenges/:id/form` | Form builder save — replaces the whole form. Body `{ fields: FormFieldDto[] }` in display order (`id?`, `key?`, `label`, `description?`, `type`, `required?`, `placeholder?`, `helpText?`, `options?`, `acceptedFileTypes?`, `maxFileSizeMb?`, `maxFiles?`, `mapsTo?`). Keys are kept when sent, generated from the label otherwise. 400 with `message: string[]` of human-readable problems (missing label/options, bad key, duplicate key/mapping, unsupported file type, size > 50 MB, mapping on a non-text field, > 60 fields). Ids are kept only if they already belonged to this challenge. Returns the same shape as `GET /challenges/admin/:id`. Writes `CHALLENGE_FORM_UPDATED` | `PLATFORM_ADMIN` |
+
+**Details-page fields (2026-11-11)** — accepted by both `POST /challenges` and
+`PATCH /challenges/:id` (shared `ChallengeDetailsDto` base class), all optional, returned as-is on
+every challenge read: `problemStatementEn/Bn`, `eligibilityEn/Bn`, `evaluationCriteriaEn/Bn`,
+`prizeDetailsEn/Bn`, `additionalInfoEn/Bn` (≤ 10 000 chars each), `contactName` (≤ 120),
+`contactEmail` (must be an email, `''` clears), `contactPhone` (≤ 40), `timelinePhases` (≤ 20 ×
+`{label ≤ 120, date?: ISO date or '', description? ≤ 500}`), `faqs` (≤ 30 × `{question ≤ 300,
+answer ≤ 3000}`), `resources` (≤ 20 × `{label ≤ 200, url}` — **`url` must start with `http://`,
+`https://` or `/uploads/`**, 400 otherwise, because it is rendered as a link). Blank text is stored
+as `null`; list items are trimmed; sending a list replaces it (`[]` empties it).
+
+### Submissions (`/submissions`)
+
+| Method | Path | Purpose | Guard |
+|---|---|---|---|
+| GET | `/submissions` | Submission monitoring across both channels. `SubmissionFilterDto`: `channel` (`GENERAL`\|`CHALLENGE`), `challengeId`, `reviewStatus`, `q` (submitter name/email, title, NIR code — case-insensitive), `fromDate`/`toDate` (on `submittedAt`, `toDate` inclusive), `includeDrafts` (`'true'`; drafts excluded by default), `page`, `pageSize` (≤ 100). Returns `{ items, total, page, pageSize, totalPages }`; each item has `submissionChannel`, `challenge`, `category` and a hand-joined `submittedBy: {id, fullName, email}` | `PLATFORM_ADMIN, SYSTEM_ADMIN` |
+
+### Settings (`/settings`)
+
+| Method | Path | Purpose | Guard |
+|---|---|---|---|
+| GET | `/settings/submission` | `{ generalSubmissionEnabled }` — the portal reads this to show/hide general "Submit an Innovation" entry points | `@Public()` |
+| PATCH | `/settings/submission` | Body `{ generalSubmissionEnabled?: boolean }`. Writes `GENERAL_SUBMISSION_TOGGLED` with `{from, to}` (only when it actually changes) | `PLATFORM_ADMIN, SYSTEM_ADMIN` |
 
 ### Reporting (`/reporting`)
 
@@ -328,6 +408,34 @@ email/SMS (currently mocked — see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#impo
 ## API changes
 
 Track breaking or notable API changes here as they land (newest first):
+
+- **2026-11-12** — Registration OTP + login CAPTCHA. **Breaking:** `POST /auth/register` now
+  requires `otpChannel` + `otpCode` from a prior `POST /auth/otp/send` (new). `POST /auth/login`
+  requires `captchaToken` whenever `CAPTCHA_PROVIDER` isn't `none`, and any script or client that
+  logs in through the API must now send one (the e2e suites send Turnstile's dummy test token). New
+  `GET /auth/security-config`. New env vars, required in production: see
+  [SETUP.md](SETUP.md#registration-otp--login-captcha--prerequisites-and-configuration).
+  Migration `20261112044745_registration_otp`.
+
+- **2026-11-11** — `POST /challenges` / `PATCH /challenges/:id` accept the optional details-page
+  fields (see the Challenges section); every challenge response now includes them. Additive,
+  non-breaking. Migration `20261111104946_challenge_detail_sections`.
+
+- **2026-11-10** — Admin-controlled general submission + challenge-based submission:
+  - New `ChallengesModule` owns `/challenges/*` (moved from `cms`). **Behaviour change:**
+    `GET /challenges` now returns published challenges only (admins use the new
+    `GET /challenges/admin`); `DELETE /challenges/:id` returns 204 (was the deleted row) and
+    409s when submissions exist; `PATCH /challenges/:id` is now validated.
+  - New: `GET /challenges/:slug/form`, `POST /challenges/:slug/submissions`,
+    `GET /challenges/admin[/:id]`, `PUT /challenges/:id/form`, `GET /submissions`,
+    `GET/PATCH /settings/submission`.
+  - `POST /innovations` and `POST /innovations/:id/submit` (GENERAL draft) now 403 when general
+    submission is switched off (admins exempt); `POST /innovations/:id/submit` on a CHALLENGE
+    innovation 403s unless its challenge is accepting.
+  - Innovation detail/queue responses (`DETAIL_INCLUDE`) now include `challenge: {id, slug,
+    titleEn}` plus the scalar `submissionChannel`/`challengeId`/`challengeResponses`.
+    `GET /innovations/:idOrSlug` returns `challengeResponses: null` unless the viewer is the
+    submitter or holds a review/admin role.
 
 - **2026-11-04** — `GET /innovations/:idOrSlug` adds `submittedByAdmin` (see table above), backed
   by the new `Innovation.createdByAdmin` column.

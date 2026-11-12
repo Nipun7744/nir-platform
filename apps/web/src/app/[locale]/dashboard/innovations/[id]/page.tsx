@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Link, useRouter } from '@/i18n/navigation';
-import { ArrowLeft, ImagePlus, FileText, UserPlus, Send, Trash2, Pencil, CheckCircle2, XCircle, Globe, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ImagePlus, FileText, UserPlus, Send, Trash2, Pencil, CheckCircle2, XCircle, Globe, AlertCircle, Trophy } from 'lucide-react';
 import { Role } from '@nir/shared';
 import { useInnovation } from '@/hooks/use-repository-search';
 import {
@@ -19,6 +19,7 @@ import { ApiError } from '@/lib/api-client';
 import { FileUploadButton } from '@/components/ui/file-upload-button';
 import { StagePill } from '@/components/ui/stage-pill';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { ChallengeResponses } from '@/components/challenge-form/challenge-responses';
 
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: 'bg-ink-50 text-ink-500',
@@ -86,7 +87,10 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
   if (isLoading) return <p className="text-ink-400">Loading…</p>;
   if (!innovation) return <p className="text-ink-400">Innovation not found.</p>;
 
-  const canEdit = innovation.reviewStatus === 'DRAFT' || innovation.reviewStatus === 'REJECTED';
+  // Challenge submissions are answered through the challenge's own dynamic form, so the generic
+  // innovation edit form doesn't apply to them (their answers are a fixed snapshot).
+  const isChallengeSubmission = innovation.submissionChannel === 'CHALLENGE';
+  const canEdit = !isChallengeSubmission && (innovation.reviewStatus === 'DRAFT' || innovation.reviewStatus === 'REJECTED');
   // Delete is stricter than edit — a draft nobody has looked at yet is safe to remove outright, but
   // a rejected submission already carries review history worth keeping (R-002).
   const canDelete = innovation.reviewStatus === 'DRAFT';
@@ -129,12 +133,20 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
         </span>
         <StagePill stage={innovation.developmentStage} />
         <span className="font-mono text-xs text-ink-400">{innovation.innovationCode}</span>
+        {innovation.challenge && (
+          <Link href={`/challenges/${innovation.challenge.slug}`} className="focus-ring inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100">
+            <Trophy className="h-3 w-3" /> {innovation.challenge.titleEn}
+          </Link>
+        )}
       </div>
       <h1 className="mt-2 font-display text-2xl font-extrabold text-ink-900">{innovation.titleEn}</h1>
       <p className="mt-2 max-w-2xl text-ink-600">{innovation.summaryEn}</p>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_320px]">
         <div className="min-w-0 space-y-8">
+          {/* Challenge form answers — null for viewers without review access (API strips them). */}
+          <ChallengeResponses challenge={innovation.challenge} responses={innovation.challengeResponses} />
+
           <section>
             <h2 className="font-display text-base font-bold text-ink-900">Problem statement</h2>
             <p className="mt-2 text-sm leading-relaxed text-ink-700">{innovation.problemStatement}</p>

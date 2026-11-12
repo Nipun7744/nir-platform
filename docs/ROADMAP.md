@@ -5,6 +5,21 @@
 
 ## Completed
 
+- **Richer challenge details page (2026-11-11)** — optional problem statement, eligibility,
+  timeline phases, evaluation criteria, prize breakdown, resources, FAQ, additional info and
+  contact per challenge (EN + optional BN), edited from Platform admin → Challenges; redesigned
+  `/challenges/[slug]` with section nav, sticky apply sidebar and mobile apply bar; popup kept as a
+  teaser with a days-left badge. **Not yet checked in a browser** (Chrome extension not connected)
+  — see [SESSION_LOG.md](SESSION_LOG.md).
+
+- **Admin-controlled general submission + challenge-based submission with a dynamic form
+  builder (2026-11-10)** — general-submission on/off switch (`/dashboard/admin/submissions`,
+  enforced in the API), per-challenge publish/active/submission switches, per-challenge dynamic
+  submission forms (11 field types, required/options/help/placeholder, file type + size limits,
+  drag-and-drop ordering, preview) built in Platform admin → Challenges, login-required challenge
+  submission page with return-to-challenge after sign-in/registration, submissions entering the
+  existing Primary Review pipeline unchanged, and admin submission monitoring with filters. See
+  [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules) and [API.md](API.md#challenges-challenges).
 - **Admin "Submit & publish" (2026-11-04)** — Platform/System Admins can create an innovation
   (no Innovator profile needed) and publish their own draft directly via
   `POST /innovations/:id/publish`; the public "Submitted by" credits the admin for these (`Innovation.createdByAdmin`). See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules).
@@ -16,7 +31,7 @@
   Stakeholder/Partner need none).
 - Bilingual (EN/BN) UI via `next-intl`, font-swap approach (Bricolage Grotesque/Instrument Sans
   for EN, Hind Siliguri for BN).
-- Prisma schema covering all SRS domains (48 models, 24 enums), 20 migrations applied.
+- Prisma schema covering all SRS domains (51 models, 29 enums), 23 migrations applied.
 - Seed script with demo accounts for every role.
 - Preliminary Reviewer / Authenticity Reviewer review stages added and review-comment history
   (`ReviewComment`) added, separate from the SRS's originally simpler single-review flow.
@@ -268,6 +283,12 @@
   [UI_GUIDELINES.md § Reusable patterns](UI_GUIDELINES.md#reusable-patterns) for why the original
   check missed these and what to do differently in any future automated mobile-overflow sweep.
 
+- **(2026-11-12, session 44) Registration OTP (email or SMS) + CAPTCHA on every login.** Pluggable
+  CAPTCHA (Turnstile/reCAPTCHA v2/hCaptcha), real SMTP email and a generic HTTP SMS client
+  (`apps/api/src/messaging/`), `OtpCode` table, a two-step register page, and a CAPTCHA widget on
+  sign-in and OTP send. Production refuses to boot without an explicit choice for each integration.
+  Prerequisites: [SETUP.md](SETUP.md#registration-otp--login-captcha--prerequisites-and-configuration).
+
 ## Current work
 
 *(nothing in progress as of this update — the mobile-responsiveness sweep above is the most recent
@@ -282,6 +303,38 @@ completed work)*
 
 ## Known issues
 
+- **Challenge-submission placeholders on public pages (2026-11-10)** — a challenge submission
+  whose form has no field mapped to Problem statement / Proposed solution stores the placeholder
+  "See the challenge submission responses (…)" in those columns. Reviewers see the real answers
+  in the Challenge submission panel, but if such an innovation is later **published**, the public
+  page (which never receives `challengeResponses`) shows that placeholder text. Mitigation today:
+  map those fields in the form builder (the recommended starter fields do), or edit the text
+  before publishing. A cleaner fix would hide those sections on the public page for challenge
+  submissions.
+- **Uploaded files are not bound to their uploader (pre-existing, more visible since 2026-11-10)**
+  — `POST /uploads` doesn't record who uploaded a file, so a challenge submission can reference
+  any existing `/uploads/<uuid>` file it knows the URL of. URLs are random UUIDs, so this needs a
+  leaked URL to exploit; challenge validation does confirm the file exists, its type and its size.
+  Files attached to a challenge submission become `InnovationAttachment`s, which are public once
+  the innovation is published (same as general submissions).
+- **Challenge submissions can't be edited/resubmitted by the submitter** — the generic edit form
+  is hidden for them (it doesn't match the dynamic form), so a REJECTED challenge submission is
+  final unless re-submitted fresh. `/dashboard/innovations/:id/edit` is still reachable by URL for
+  a REJECTED one (PATCH works on the core columns); not harmful, but not designed for.
+- **`text-sun-700` doesn't exist** — used for the `UNPUBLISHED` pill on the submitter's
+  innovation pages; the `sun` ramp in `tailwind.config.ts` stops at 600, so the text color is
+  dropped. One-word fix (`text-sun-600`), left out of the 2026-11-10 change to keep scope tight.
+  Same class of bug, wider: the `ink` ramp only defines 50/100/400/600/700/800/900/950, so
+  `ink-200`/`ink-300`/`ink-500` render **no color** — `text-ink-500` appears in ~37 files (text falls
+  back to the inherited color, so it is still readable), but a `bg-`/`border-` with those shades is
+  invisible. That is why the admin general-submission toggle vanished when switched off
+  (`bg-ink-200`, fixed 2026-11-10 by making the off state red). Fix properly by adding the missing
+  shades to `tailwind.config.ts` rather than chasing call sites.
+- **The 2026-11-10 UI was not click-tested in a browser** — the Chrome automation extension wasn't
+  connected that session. Verified instead by: API e2e suite (12 tests), unit suite (20 tests),
+  `tsc --noEmit` on the web app, and every new/changed route returning 200 from the dev server.
+  Worth a manual pass of: form builder drag-and-drop, preview, challenge submit with file upload,
+  the sign-in → return-to-challenge redirect, and the Submissions page filters.
 - **`NIR-2025-000006` diverges between local and production** (2026-09-01) — "Smart Traffic
   Signal Optimization System" is `PUBLISHED` + `isFeatured` in the local dev DB but `ARCHIVED`
   + not featured in the Railway production DB (someone archived it there deliberately). The
@@ -381,6 +434,18 @@ completed work)*
 
 ## Technical debt
 
+- **Registration OTP / CAPTCHA follow-ups (2026-11-12):** (a) procure real CAPTCHA keys and an SMS gateway
+  (SMTP is done: a2i Google Workspace account, see SETUP.md) and set all of them, SMTP included,
+  on every deployed environment. **Until the server `.env`
+  has `CAPTCHA_PROVIDER`/`MAIL_TRANSPORT`/`SMS_PROVIDER`, GitLab deploys of this code fail their
+  health check and roll back.** (b) `OtpCode` rows are never purged; add a scheduled cleanup
+  (`@nestjs/schedule` is already a dependency). (c) `NotificationsService.deliver()` is still a
+  mock; route it through `MailService`/`SmsService`. (d) The sign-in/register UI was browser-checked
+  locally with Turnstile *test* keys only; check it again with the real site key on staging (the
+  domain must be allow-listed in the CAPTCHA dashboard). (e) Login is still case-sensitive on email
+  (pre-existing), while OTP targets are lower-cased; harmless today, but worth unifying. (f) The
+  per-IP throttles depend on `TRUST_PROXY` being set correctly behind a proxy.
+
 - **JWT stored in localStorage, not httpOnly cookies** — accepted tradeoff for this phase, but
   flagged (README, [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#important-decisions)) as needing a
   hardening pass before any production rollout, given XSS exposure.
@@ -393,7 +458,8 @@ completed work)*
 - **No shared UI component primitives** (`Button`/`Input`/`Card`) — every page hand-rolls its own,
   increasing drift risk as more pages are added. See
   [UI_GUIDELINES.md](UI_GUIDELINES.md#known-gaps).
-- **Mocked integrations** (NID/BIN verification, SMS/Email, SSO) are stable-interface stand-ins,
+- **Mocked integrations** (NID/BIN verification, SMS/Email *notifications*, SSO) are stable-interface stand-ins
+  (registration OTP email/SMS is real as of 2026-11-12),
   not implementations — swapping in real providers is deferred, tracked work, not a bug.
 - **Resolved (2026-08-17):** the sign-in page's `DEMO_ACCOUNTS` list (previously duplicating the
   demo-accounts table in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#demo-accounts) and

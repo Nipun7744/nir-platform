@@ -8,6 +8,7 @@ import { join } from 'path';
 import { PrismaModule } from './prisma/prisma.module';
 import { CommonModule } from './common/common.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MessagingModule } from './messaging/messaging.module';
 
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -22,6 +23,8 @@ import { PipelineModule } from './pipeline/pipeline.module';
 import { MinistriesModule } from './ministries/ministries.module';
 import { CmsModule } from './cms/cms.module';
 import { ReportingModule } from './reporting/reporting.module';
+import { ChallengesModule } from './challenges/challenges.module';
+import { SettingsModule } from './settings/settings.module';
 
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -37,6 +40,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     PrismaModule,
     CommonModule,
     NotificationsModule,
+    MessagingModule,
     AuthModule,
     UsersModule,
     InnovationsModule,
@@ -49,6 +53,8 @@ import { RolesGuard } from './common/guards/roles.guard';
     MinistriesModule,
     CmsModule,
     ReportingModule,
+    ChallengesModule,
+    SettingsModule,
   ],
   controllers: [UploadsController],
   providers: [

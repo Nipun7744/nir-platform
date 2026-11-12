@@ -5,7 +5,6 @@ import {
   CreateFaqDto,
   CreateNewsDto,
   UpdateNewsDto,
-  CreateChallengeDto,
   CreateResourceDto,
   CreatePartnerDto,
   CreateFeedbackDto,
@@ -58,22 +57,7 @@ export class PublicContentController {
     return this.service.deleteNews(id);
   }
 
-  // Innovation Challenges / Calls
-  @Public() @Get('challenges') challenges() {
-    return this.service.challenges();
-  }
-  @Public() @Get('challenges/:slug') challengeBySlug(@Param('slug') slug: string) {
-    return this.service.challengeBySlug(slug);
-  }
-  @Post('challenges') @UseGuards(RolesGuard) @Roles(Role.PLATFORM_ADMIN) createChallenge(@Body() dto: CreateChallengeDto) {
-    return this.service.createChallenge(dto);
-  }
-  @Patch('challenges/:id') @UseGuards(RolesGuard) @Roles(Role.PLATFORM_ADMIN) updateChallenge(@Param('id') id: string, @Body() dto: Partial<CreateChallengeDto>) {
-    return this.service.updateChallenge(id, dto);
-  }
-  @Delete('challenges/:id') @UseGuards(RolesGuard) @Roles(Role.PLATFORM_ADMIN) deleteChallenge(@Param('id') id: string) {
-    return this.service.deleteChallenge(id);
-  }
+  // Innovation Challenges / Calls — moved to challenges/challenges.controller.ts (2026-11-10).
 
   // Resources
   @Public() @Get('resources') resources(@Query('type') type?: string) {

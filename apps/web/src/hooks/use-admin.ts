@@ -136,7 +136,8 @@ export const useUpdateNews = () => useAdminUpdate('admin-news', '/news');
 export const useDeleteNews = () => useAdminDelete('admin-news', '/news');
 
 // Innovation Challenges
-export const useAdminChallenges = () => useAdminList('admin-challenges', '/challenges');
+// Admin list includes unpublished challenges plus formFieldCount/submissionCount/acceptingSubmissions.
+export const useAdminChallenges = () => useAdminList('admin-challenges', '/challenges/admin');
 export const useCreateChallenge = () => useAdminCreate('admin-challenges', '/challenges');
 export const useUpdateChallenge = () => useAdminUpdate('admin-challenges', '/challenges');
 export const useDeleteChallenge = () => useAdminDelete('admin-challenges', '/challenges');
@@ -158,3 +159,48 @@ export const useAdminFaqs = () => useAdminList('admin-faqs', '/faqs/admin');
 export const useCreateFaq = () => useAdminCreate('admin-faqs', '/faqs');
 export const useUpdateFaq = () => useAdminUpdate('admin-faqs', '/faqs');
 export const useDeleteFaq = () => useAdminDelete('admin-faqs', '/faqs');
+
+// Challenge submission form builder
+export function useAdminChallenge(id: string | null) {
+  return useQuery({
+    queryKey: ['admin-challenge', id],
+    queryFn: () => api.get<any>(`/challenges/admin/${id}`),
+    enabled: Boolean(id),
+  });
+}
+
+export function useSaveChallengeForm() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: unknown[] }) => api.put<any>(`/challenges/${id}/form`, { fields }),
+    onSuccess: (data, { id }) => {
+      queryClient.setQueryData(['admin-challenge', id], data);
+      queryClient.invalidateQueries({ queryKey: ['admin-challenges'] });
+      queryClient.invalidateQueries({ queryKey: ['challenge-form'] });
+    },
+  });
+}
+
+// Submission monitoring (both channels)
+export interface SubmissionFilters {
+  channel?: string;
+  challengeId?: string;
+  reviewStatus?: string;
+  q?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export function useSubmissions(filters: SubmissionFilters) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([k, v]) => {
+    if (v !== undefined && v !== '') params.set(k, String(v));
+  });
+  return useQuery({
+    queryKey: ['admin-submissions', filters],
+    queryFn: () => api.get<any>(`/submissions?${params.toString()}`),
+    placeholderData: (prev) => prev,
+  });
+}

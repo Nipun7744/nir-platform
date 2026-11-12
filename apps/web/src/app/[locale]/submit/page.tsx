@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from '@/i18n/navigation';
-import { AlertCircle } from 'lucide-react';
+import { Link, useRouter } from '@/i18n/navigation';
+import { AlertCircle, Lock } from 'lucide-react';
+import { useSubmissionSettings } from '@/hooks/use-settings';
 import { useRequireAuth } from '@/hooks/use-require-auth';
 import { useCategories, useRegions } from '@/hooks/use-content';
 import { useCreateInnovation } from '@/hooks/use-innovations';
@@ -22,11 +23,35 @@ export default function SubmitInnovationPage() {
   const isAdmin = Boolean(user?.roles.some((r) => r === Role.PLATFORM_ADMIN || r === Role.SYSTEM_ADMIN));
   const { data: cycles } = useMinistryCycles() as { data: any[] };
   const createInnovation = useCreateInnovation();
+  const { data: settings, isLoading: settingsLoading } = useSubmissionSettings();
 
   const [form, setForm] = useState(EMPTY_INNOVATION_FORM);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
-  if (!user) return <div className="container-page py-24 text-center text-ink-400">Checking your session…</div>;
+  if (!user || settingsLoading) return <div className="container-page py-24 text-center text-ink-400">Checking your session…</div>;
+
+  // General submission is admin-controlled (Platform admin → Submissions). Admins keep access for
+  // their own "Submit & publish" flow; the API enforces the same rule (POST /innovations → 403).
+  if (settings?.generalSubmissionEnabled === false && !isAdmin) {
+    return (
+      <div className="container-page max-w-3xl py-14">
+        <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-brand-700">Innovation Registration & Submission</p>
+        <h1 className="mt-2 font-display text-3xl font-extrabold text-ink-900">Submit an innovation</h1>
+        <div className="mt-8 flex items-start gap-3 rounded-2xl border border-ink-100 bg-white p-6 shadow-card">
+          <Lock className="mt-0.5 h-5 w-5 shrink-0 text-ink-400" />
+          <div>
+            <p className="font-semibold text-ink-900">General submission is currently closed</p>
+            <p className="mt-1 text-sm text-ink-600">
+              You can still submit your innovation or idea to one of the open innovation challenges.
+            </p>
+            <Link href="/challenges" className="focus-ring mt-4 inline-flex rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+              Browse open challenges
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

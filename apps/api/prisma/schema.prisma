@@ -124,6 +124,16 @@ enum NotificationChannel {
   IN_APP
 }
 
+// One-time-passcode delivery channel / purpose (registration verification).
+enum OtpChannel {
+  EMAIL
+  SMS
+}
+
+enum OtpPurpose {
+  REGISTRATION
+}
+
 enum NotificationStatus {
   QUEUED
   SENT
@@ -144,6 +154,37 @@ enum ChallengeStatus {
   CLOSED
   EVALUATING
   COMPLETED
+}
+
+// How an innovation entered the platform — the standard /submit form (GENERAL) or a challenge's
+// dynamic, admin-configured form (CHALLENGE, always with challengeId set).
+enum SubmissionChannel {
+  GENERAL
+  CHALLENGE
+}
+
+// Field types available in the challenge submission form builder (ChallengeFormField.type).
+enum FormFieldType {
+  SHORT_TEXT
+  LONG_TEXT
+  NUMBER
+  EMAIL
+  PHONE
+  SELECT
+  RADIO
+  CHECKBOX
+  DATE
+  FILE
+  MULTI_FILE
+}
+
+// Optional binding from a challenge form field to a core Innovation column, so a challenge
+// submission gets a meaningful title/summary in every existing review queue and listing.
+enum InnovationFieldMapping {
+  TITLE
+  SUMMARY
+  PROBLEM_STATEMENT
+  PROPOSED_SOLUTION
 }
 
 enum SessionMode {
@@ -215,6 +256,7 @@ model User {
   mfaEnabled      Boolean   @default(false)
   mfaSecret       String?
   emailVerifiedAt DateTime?
+  phoneVerifiedAt DateTime?
   lastLoginAt     DateTime?
   designation     String?
   institution     String?
@@ -265,6 +307,25 @@ model RefreshToken {
   createdAt DateTime  @default(now())
 
   @@index([userId])
+}
+
+// A one-time passcode sent to an email address or phone number *before* an account exists
+// (so no userId). Only an HMAC of the code is stored. A newer code for the same
+// target/purpose supersedes older unconsumed ones (they're marked consumed on send).
+model OtpCode {
+  id         String     @id @default(cuid())
+  purpose    OtpPurpose
+  channel    OtpChannel
+  // Normalized destination: lower-cased email, or E.164 phone (+8801XXXXXXXXX).
+  target     String
+  codeHash   String
+  attempts   Int        @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  requestIp  String?
+  createdAt  DateTime   @default(now())
+
+  @@index([target, purpose, createdAt])
 }
 
 model AuditLog {
@@ -437,7 +498,7 @@ model Innovation {
   // instead of the team's lead innovator. Deliberately a flag rather than "submitter has an admin
   // role": bulk-imported innovations also have the admin as submittedById but must keep crediting
   // their real innovator.
-  createdByAdmin Boolean @default(false)
+  createdByAdmin Boolean       @default(false)
   latitude       Float?
   longitude      Float?
 
@@ -465,6 +526,14 @@ model Innovation {
   isFeatured               Boolean       @default(false)
   viewCount                Int           @default(0)
   languageOriginal         Locale        @default(en)
+
+  // Submission channel (see SubmissionChannel). CHALLENGE submissions always carry challengeId and
+  // challengeResponses: a snapshot array of {fieldId, key, label, type, value, files?} taken at
+  // submission time, so later edits to the challenge's form never alter what was submitted.
+  submissionChannel  SubmissionChannel @default(GENERAL)
+  challengeId        String?
+  challenge          Challenge?        @relation(fields: [challengeId], references: [id], onDelete: Restrict)
+  challengeResponses Json?
 
   submittedAt DateTime?
   publishedAt DateTime?
@@ -494,6 +563,8 @@ model Innovation {
   @@index([regionId])
   @@index([ministryId])
   @@index([slug])
+  @@index([challengeId])
+  @@index([submissionChannel])
 }
 
 model InnovationTeamMember {
@@ -845,22 +916,92 @@ model ResourceDocument {
 }
 
 model Challenge {
-  id               String          @id @default(cuid())
-  slug             String          @unique
-  titleEn          String
-  titleBn          String?
-  organizingAgency String
-  categoryId       String?
-  descriptionEn    String
-  descriptionBn    String?
-  status           ChallengeStatus @default(UPCOMING)
-  isFeatured       Boolean         @default(false)
-  startDate        DateTime?
-  deadline         DateTime?
-  bannerImageUrl   String?
-  prizeInfoEn      String?
-  applyUrl         String?
-  createdAt        DateTime        @default(now())
+  id                 String          @id @default(cuid())
+  slug               String          @unique
+  titleEn            String
+  titleBn            String?
+  organizingAgency   String
+  categoryId         String?
+  descriptionEn      String
+  descriptionBn      String?
+  status             ChallengeStatus @default(UPCOMING)
+  isFeatured         Boolean         @default(false)
+  startDate          DateTime?
+  deadline           DateTime?
+  bannerImageUrl     String?
+  prizeInfoEn        String?
+  applyUrl           String?
+  // Public details page sections (2026-11-11) — all optional; a section is hidden when empty.
+  // Bn columns fall back to En on the Bangla site when unset.
+  problemStatementEn   String?
+  problemStatementBn   String?
+  eligibilityEn        String?
+  eligibilityBn        String?
+  evaluationCriteriaEn String?
+  evaluationCriteriaBn String?
+  prizeDetailsEn       String?
+  prizeDetailsBn       String?
+  additionalInfoEn     String?
+  additionalInfoBn     String?
+  contactName          String?
+  contactEmail         String?
+  contactPhone         String?
+  // JSON lists, validated by the DTOs (see challenges/dto/challenge.dto.ts):
+  // timelinePhases [{label, date?: 'YYYY-MM-DD', description?}],
+  // faqs [{question, answer}], resources [{label, url}] (url: http(s) or /uploads/...).
+  timelinePhases       Json?
+  faqs                 Json?
+  resources            Json?
+  // Visibility/submission controls (see PROJECT_CONTEXT.md#business-rules):
+  // isPublished — shown on the public portal at all; isActive — the challenge is running (an
+  // inactive challenge stays visible but is never featured and never accepts submissions);
+  // submissionsEnabled — the admin's per-challenge submission switch. A challenge accepts
+  // submissions only when all three are true, status is OPEN, it has a categoryId and at least one
+  // form field, and today is inside its startDate/deadline window (see challenge-rules.ts).
+  isPublished        Boolean         @default(true)
+  isActive           Boolean         @default(true)
+  submissionsEnabled Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @default(now()) @updatedAt
+
+  formFields  ChallengeFormField[]
+  innovations Innovation[]
+}
+
+// One field of a challenge's dynamic submission form (the admin form builder), ordered by
+// sortOrder. Editing/deleting fields never affects past submissions — see
+// Innovation.challengeResponses.
+model ChallengeFormField {
+  id                String                  @id @default(cuid())
+  challengeId       String
+  challenge         Challenge               @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  key               String // stable machine key, unique per challenge, used as the response key
+  label             String
+  description       String?
+  type              FormFieldType
+  required          Boolean                 @default(false)
+  placeholder       String?
+  helpText          String?
+  options           String[]                @default([]) // SELECT / RADIO / CHECKBOX choices
+  acceptedFileTypes String[]                @default([]) // FILE / MULTI_FILE, e.g. [".pdf", ".docx"]
+  maxFileSizeMb     Int? // FILE / MULTI_FILE, capped at the upload endpoint's 50 MB
+  maxFiles          Int? // MULTI_FILE only
+  mapsTo            InnovationFieldMapping?
+  sortOrder         Int                     @default(0)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@unique([challengeId, key])
+  @@index([challengeId, sortOrder])
+}
+
+// Admin-controlled platform switches, one row per key (e.g. "generalSubmissionEnabled").
+// Read through SettingsService, which supplies defaults for keys that have no row yet.
+model PlatformSetting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
 }
 
 model Partner {
