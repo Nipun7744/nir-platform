@@ -95,11 +95,13 @@ function FileField({
     }
     setUploading(true);
     try {
-      const uploaded: UploadedFileValue[] = [];
-      for (const file of picked) {
-        const r = await uploadFile(file);
-        uploaded.push({ url: r.url, name: r.originalName, mimeType: r.mimeType, sizeBytes: r.sizeBytes });
-      }
+      // In parallel; Promise.all keeps the picked order, and any failure attaches none of them.
+      const uploaded: UploadedFileValue[] = (await Promise.all(picked.map(uploadFile))).map((r) => ({
+        url: r.url,
+        name: r.originalName,
+        mimeType: r.mimeType,
+        sizeBytes: r.sizeBytes,
+      }));
       onChange(multiple ? [...files, ...uploaded] : uploaded[0]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
@@ -280,7 +282,9 @@ export function DynamicForm({
       {fields.map((field) => {
         const id = `cf-${field.key}`;
         const error = errors[field.key];
-        const isGroup = field.type === 'RADIO' || (field.type === 'CHECKBOX' && field.options.length > 0) || field.type === 'FILE' || field.type === 'MULTI_FILE';
+        // Radio/checkbox lists and file pickers have no single input for a <label htmlFor>.
+        const isGroup =
+          field.type === 'RADIO' || field.type === 'FILE' || field.type === 'MULTI_FILE' || (field.type === 'CHECKBOX' && !isConsentBox(field));
         const LabelTag = isGroup ? 'p' : 'label';
         return (
           <div key={field.key}>

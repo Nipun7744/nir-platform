@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link } from '@/i18n/navigation';
 import { useAuthenticityReviewQueue } from '@/hooks/use-authenticity-review';
 import { useUpdateInnovationStatus } from '@/hooks/use-innovations';
+import { MutationError } from '@/components/ui/mutation-error';
 import { ReviewCommentTimeline } from '@/components/reviews/review-comment-timeline';
 
 const TABS = [
@@ -82,11 +83,7 @@ function AuthenticityReviewRow({ innovation, readOnly }: { innovation: any; read
               Reject
             </button>
           </div>
-          {updateStatus.isError && (
-            <p role="alert" className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-              {(updateStatus.error as Error)?.message || 'Could not update this submission. Please try again.'}
-            </p>
-          )}
+          <MutationError mutation={updateStatus} fallback="Could not update this submission. Please try again." />
         </div>
       )}
     </div>

@@ -245,7 +245,7 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
   const [previewErrors, setPreviewErrors] = useState<Record<string, string>>({});
   const [dragUid, setDragUid] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<BuilderField | null>(null);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
 
   // Load (and reload after a save) from the server copy.
   useEffect(() => {
@@ -257,7 +257,7 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
   const update = (next: BuilderField[]) => {
     setFields(next);
     setDirty(true);
-    setSavedAt(null);
+    setJustSaved(false);
   };
   const move = (from: number, to: number) => {
     if (to < 0 || to >= fields.length || from === to) return;
@@ -442,7 +442,7 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
           onClick={() =>
             save.mutate(
               { id: challengeId, fields: toPayload(fields) },
-              { onSuccess: () => { setSavedAt(Date.now()); setEditingUid(null); } },
+              { onSuccess: () => { setJustSaved(true); setEditingUid(null); } },
             )
           }
           className="focus-ring rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
@@ -450,7 +450,7 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
           {save.isPending ? 'Saving…' : 'Save form'}
         </button>
         {dirty && <span className="text-xs font-medium text-amber-deep">Unsaved changes</span>}
-        {savedAt && !dirty && (
+        {justSaved && !dirty && (
           <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-700">
             <CheckCircle2 className="h-4 w-4" /> Form saved
           </span>

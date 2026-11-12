@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, apiFetch } from '@/lib/api-client';
+import { api, apiFetch, toQueryString } from '@/lib/api-client';
 
 export function useUploadFile() {
   return useMutation({
@@ -194,13 +194,9 @@ export interface SubmissionFilters {
 }
 
 export function useSubmissions(filters: SubmissionFilters) {
-  const params = new URLSearchParams();
-  Object.entries(filters).forEach(([k, v]) => {
-    if (v !== undefined && v !== '') params.set(k, String(v));
-  });
   return useQuery({
     queryKey: ['admin-submissions', filters],
-    queryFn: () => api.get<any>(`/submissions?${params.toString()}`),
+    queryFn: () => api.get<any>(`/submissions${toQueryString(filters)}`),
     placeholderData: (prev) => prev,
   });
 }

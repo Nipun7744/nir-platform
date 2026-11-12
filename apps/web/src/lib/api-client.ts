@@ -97,3 +97,13 @@ export const api = {
     apiFetch<T>(path, { ...options, method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   delete: <T = unknown>(path: string, options?: RequestOptions) => apiFetch<T>(path, { ...options, method: 'DELETE' }),
 };
+
+/** `?a=1&b=2` from a filter object, skipping undefined and empty-string values ('' when nothing is set). */
+export function toQueryString(filters: object) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== '') params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}

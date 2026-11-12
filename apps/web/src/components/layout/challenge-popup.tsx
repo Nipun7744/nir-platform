@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { Link, usePathname } from '@/i18n/navigation';
 import { useChallenges } from '@/hooks/use-content';
-import { challengeDaysLeft } from '@/lib/challenge-dates';
+import { challengeDaysLeft, pickPromotedChallenge } from '@/lib/challenge-dates';
 
 const DISMISSED_KEY_PREFIX = 'nir-challenge-popup-dismissed:';
 
@@ -21,8 +21,7 @@ export function ChallengePopup() {
   const t = useTranslations('home.challengePopup');
   const pathname = usePathname();
   const { data } = useChallenges();
-  const openChallenges = data?.filter((c) => c.status === 'OPEN' && c.isActive !== false);
-  const challenge = openChallenges?.find((c) => c.isFeatured) ?? openChallenges?.[0];
+  const challenge = pickPromotedChallenge(data);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {

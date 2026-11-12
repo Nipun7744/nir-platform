@@ -17,7 +17,7 @@ async function bootstrap() {
   // or any value Express's "trust proxy" setting accepts. Unset = trust nothing (direct exposure).
   const trustProxy = config.get<string>('TRUST_PROXY')?.trim();
   if (trustProxy) {
-    app.set('trust proxy', /^d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy === 'true' ? true : trustProxy);
+    app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy === 'true' ? true : trustProxy);
   }
 
   app.use(helmet());

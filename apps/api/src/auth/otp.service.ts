@@ -79,11 +79,17 @@ export class OtpService {
     const { purpose, channel, target } = params;
     const now = Date.now();
 
-    const latest = await this.prisma.otpCode.findFirst({
-      where: { target, purpose },
-      orderBy: { createdAt: 'desc' },
-      select: { createdAt: true },
-    });
+    // Both limits are checked from one round-trip; the cooldown is still reported first.
+    const [latest, sentLastHour] = await Promise.all([
+      this.prisma.otpCode.findFirst({
+        where: { target, purpose },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      }),
+      this.prisma.otpCode.count({
+        where: { target, purpose, createdAt: { gte: new Date(now - 60 * 60 * 1000) } },
+      }),
+    ]);
     if (latest) {
       const wait = Math.ceil((latest.createdAt.getTime() + this.resendSeconds * 1000 - now) / 1000);
       if (wait > 0) {
@@ -93,9 +99,6 @@ export class OtpService {
         );
       }
     }
-    const sentLastHour = await this.prisma.otpCode.count({
-      where: { target, purpose, createdAt: { gte: new Date(now - 60 * 60 * 1000) } },
-    });
     if (sentLastHour >= this.maxSendsPerHour) {
       throw new HttpException(
         'Too many verification codes were requested for this address. Please try again in an hour.',

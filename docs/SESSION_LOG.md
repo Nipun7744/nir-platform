@@ -61,6 +61,36 @@
   work) was prepared first and then dropped when the user asked for the full code. **Before the
   server deploy:** the server `.env` needs `CAPTCHA_PROVIDER`, `MAIL_TRANSPORT`/`SMTP_*` and
   `SMS_PROVIDER`/`SMS_TELETALK_*`, or the API refuses to start. 3 new migrations run on deploy.
+- **Code cleanup (/simplify, 4 parallel reviews over sessions 41–45).** Behaviour-preserving:
+  - API: shared `common/utils/roles.ts` (`ADMIN_ROLES`, `REVIEW_PIPELINE_ROLES`, `isAdmin`,
+    `hasAnyRole`) replaces 5 inline admin-role arrays; `uploads/upload-limits.ts` is the one
+    source for the 50 MB limit (multer and challenge rules); `optionalEnv()` in `env-choice.ts`
+    (mail/SMS); OTP send runs its cooldown and hourly-cap queries in parallel, and so does challenge
+    submit for its challenge/innovator lookups; the settings toggle no longer re-reads after save.
+  - Web: `components/ui/mutation-error.tsx` (both review pages); `pickPromotedChallenge()` in
+    `lib/challenge-dates.ts` (banner and popup); `toQueryString` moved to `lib/api-client.ts`
+    (repository admin and submissions hooks); the Submissions page uses `ReviewStatus` /
+    `SubmissionChannel` from `@nir/shared` and an `EMPTY_FILTERS` constant; the register page
+    derives the active OTP channel instead of correcting it in an effect, with a
+    `startCooldown()` helper; multi-file challenge uploads run in parallel; the form builder's
+    `savedAt` timestamp became a `justSaved` boolean.
+  - **Bug found and fixed:** `main.ts` tested `TRUST_PROXY` with `/^d+$/` (missing backslash),
+    so `TRUST_PROXY=1` reached Express as the string "1", which it treats as an IP address. The
+    effect was that no proxy was trusted, so per-IP limits behind a proxy would have been
+    site-wide. Now `/^d+$/`. This bug is in the code already pushed to GitLab, but
+    `TRUST_PROXY` isn't set on any server yet.
+  - Skipped on purpose:
+    - Status colour maps: merging needs a colour decision (two shades differ).
+    - Shared `useCaptcha` hook: restructures both auth pages.
+    - Async `statSync` in challenge validation: makes the pure validator async.
+    - Prisma enums in `challenge-rules.ts`: the module is deliberately Prisma-free for unit tests.
+    - Innovation slug helper: the two recipes differ on purpose.
+    - Parallel register lookups: would change which error wins.
+    - Header/hero → `GeneralSubmitGate`: client components use the hook directly; the gate is for
+      the server-rendered footer.
+    - Confirm-on-reject on the authenticity page: behaviour change.
+  - Verified: API build, web `tsc`, unit 32/32, e2e 25 pass / 3 skipped / 0 fail, changed
+    pages return 200.
 - **Next steps:** if the reporter's account has only `PRELIMINARY_REVIEWER`, the page now shows
   the exact server reason (most likely "outside your assigned review categories", fixed by
   assigning categories in Platform admin). Not committed or pushed.

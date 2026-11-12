@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link } from '@/i18n/navigation';
 import { usePreliminaryReviewQueue } from '@/hooks/use-preliminary-review';
 import { useUpdateInnovationStatus } from '@/hooks/use-innovations';
+import { MutationError } from '@/components/ui/mutation-error';
 
 const TABS = [
   { value: 'UNDER_REVIEW', label: 'Pending review' },
@@ -71,12 +72,7 @@ function PreliminaryReviewRow({ innovation, readOnly }: { innovation: any; readO
               {updateStatus.isPending && updateStatus.variables?.reviewStatus === 'REJECTED' ? 'Rejecting…' : 'Reject'}
             </button>
           </div>
-          {/* Previously a failed action (e.g. a 403) did nothing visible, which read as "the buttons don't work". */}
-          {updateStatus.isError && (
-            <p role="alert" className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-              {(updateStatus.error as Error)?.message || 'Could not update this submission. Please try again.'}
-            </p>
-          )}
+          <MutationError mutation={updateStatus} fallback="Could not update this submission. Please try again." />
         </div>
       )}
     </div>

@@ -20,6 +20,7 @@ import { UpdateApprovalDto } from './dto/update-approval.dto';
 import { RepositoryFilterDto } from './dto/repository-filter.dto';
 import { ActivityLogFilterDto } from './dto/activity-log-filter.dto';
 import { SettingsService } from '../settings/settings.service';
+import { hasAnyRole, isAdmin, REVIEW_PIPELINE_ROLES } from '../common/utils/roles';
 import { submissionState } from '../challenges/challenge-rules';
 
 // ToR Module 1 workflow: Under Review -> Authenticity Review -> Shortlisted/Rejected -> Selected ->
@@ -94,8 +95,7 @@ export class InnovationsService {
       if (!state.acceptingSubmissions) throw new ForbiddenException(state.closedReason);
       return;
     }
-    const adminRoles: Role[] = [Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN];
-    if (roles.some((r) => adminRoles.includes(r))) return;
+    if (isAdmin(roles)) return;
     if (!(await this.settings.isGeneralSubmissionEnabled())) {
       throw new ForbiddenException('General innovation submission is currently closed. Please check the open innovation challenges.');
     }
@@ -128,9 +128,8 @@ export class InnovationsService {
       where: { userId },
       include: { user: { select: { fullName: true } } },
     });
-    const adminRoles: Role[] = [Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN];
-    const isAdmin = roles.some((r) => adminRoles.includes(r));
-    if (!innovator && !isAdmin) {
+    const actorIsAdmin = isAdmin(roles);
+    if (!innovator && !actorIsAdmin) {
       throw new BadRequestException('Only registered innovators can submit an innovation');
     }
     // CreateInnovationDto has no challengeId (whitelisted out), so this is always a GENERAL draft.
@@ -148,7 +147,7 @@ export class InnovationsService {
         innovationCode,
         slug,
         submittedById: userId,
-        createdByAdmin: !innovator && isAdmin,
+        createdByAdmin: !innovator && actorIsAdmin,
         reviewStatus: 'DRAFT',
         team: innovator
           ? {
@@ -190,11 +189,10 @@ export class InnovationsService {
    * "everything this reviewer already forwarded past UNDER_REVIEW" — backs the "Reviewed" tab.
    */
   async findPreliminaryReviewQueue(viewer: { id: string; roles: Role[] }, reviewStatus?: ReviewStatus | 'REVIEWED') {
-    const adminRoles: Role[] = [Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN];
-    const isAdmin = viewer.roles.some((r) => adminRoles.includes(r));
+    const viewerIsAdmin = isAdmin(viewer.roles);
 
     let categoryIds: string[] = [];
-    if (!isAdmin) {
+    if (!viewerIsAdmin) {
       const user = await this.prisma.user.findUnique({
         where: { id: viewer.id },
         select: { preliminaryReviewerCategoryIds: true },
@@ -216,7 +214,7 @@ export class InnovationsService {
     // Preliminary Reviewer's queue just because it shares a category. Admins bypass this (same as
     // the category bypass above) since they oversee every stage.
     const stageFilter =
-      reviewStatus === 'REJECTED' && !isAdmin
+      reviewStatus === 'REJECTED' && !viewerIsAdmin
         ? { rejectedAtStage: 'PRELIMINARY_REVIEW' as ReviewStage }
         : {};
 
@@ -224,7 +222,7 @@ export class InnovationsService {
       where: {
         reviewStatus: statusFilter,
         ...stageFilter,
-        ...(isAdmin ? {} : { categoryId: { in: categoryIds } }),
+        ...(viewerIsAdmin ? {} : { categoryId: { in: categoryIds } }),
       },
       include: DETAIL_INCLUDE,
       orderBy: { submittedAt: 'desc' },
@@ -240,11 +238,10 @@ export class InnovationsService {
    * tab, mirroring `findPreliminaryReviewQueue`'s same convention.
    */
   async findAuthenticityReviewQueue(viewer: { id: string; roles: Role[] }, reviewStatus?: ReviewStatus | 'REVIEWED') {
-    const adminRoles: Role[] = [Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN];
-    const isAdmin = viewer.roles.some((r) => adminRoles.includes(r));
+    const viewerIsAdmin = isAdmin(viewer.roles);
 
     let categoryIds: string[] = [];
-    if (!isAdmin) {
+    if (!viewerIsAdmin) {
       const user = await this.prisma.user.findUnique({
         where: { id: viewer.id },
         select: { authenticityReviewerCategoryIds: true },
@@ -258,21 +255,21 @@ export class InnovationsService {
     // Scope the Rejected tab to rejections made at this stage — see the identical comment in
     // findPreliminaryReviewQueue above.
     const stageFilter =
-      reviewStatus === 'REJECTED' && !isAdmin
+      reviewStatus === 'REJECTED' && !viewerIsAdmin
         ? { rejectedAtStage: 'AUTHENTICITY_REVIEW' as ReviewStage }
         : {};
     // Scope the Reviewed tab to shortlists this specific reviewer made — a category can have
     // multiple Authenticity Reviewers, and category alone would show one reviewer another's work.
     // Admins bypass, same as everywhere else in this method.
     const personFilter =
-      reviewStatus === 'REVIEWED' && !isAdmin ? { authenticityReviewedById: viewer.id } : {};
+      reviewStatus === 'REVIEWED' && !viewerIsAdmin ? { authenticityReviewedById: viewer.id } : {};
 
     return this.prisma.innovation.findMany({
       where: {
         reviewStatus: statusFilter,
         ...stageFilter,
         ...personFilter,
-        ...(isAdmin ? {} : { categoryId: { in: categoryIds } }),
+        ...(viewerIsAdmin ? {} : { categoryId: { in: categoryIds } }),
       },
       include: DETAIL_INCLUDE,
       orderBy: { submittedAt: 'desc' },
@@ -295,30 +292,12 @@ export class InnovationsService {
     if (!innovation) throw new NotFoundException('Innovation not found');
 
     const isPublic = innovation.reviewStatus === 'PUBLISHED';
-    const reviewAccessRoles: Role[] = [
-      Role.PLATFORM_ADMIN,
-      Role.SYSTEM_ADMIN,
-      Role.INSTITUTIONAL_COORDINATOR,
-      Role.INNOVATION_MANAGER,
-      Role.PRELIMINARY_REVIEWER,
-      Role.AUTHENTICITY_REVIEWER,
-      Role.EXPERT_EVALUATOR,
-    ];
+    const isOwner = viewer?.id === innovation.submittedById;
     // Challenge form answers can hold personal data (email, phone, uploaded documents) — only the
-    // submitter and review/admin roles see them, even once the innovation is publicly PUBLISHED.
-    const canSeeResponses =
-      viewer?.id === innovation.submittedById || Boolean(viewer?.roles.some((r) => reviewAccessRoles.includes(r)));
+    // submitter, the review pipeline and evaluators see them, even once the innovation is PUBLISHED.
+    const canSeeResponses = isOwner || hasAnyRole(viewer?.roles, [...REVIEW_PIPELINE_ROLES, Role.EXPERT_EVALUATOR]);
     if (!isPublic) {
-      const isOwner = viewer?.id === innovation.submittedById;
-      const fullAccessRoles: Role[] = [
-        Role.PLATFORM_ADMIN,
-        Role.SYSTEM_ADMIN,
-        Role.INSTITUTIONAL_COORDINATOR,
-        Role.INNOVATION_MANAGER,
-        Role.PRELIMINARY_REVIEWER,
-        Role.AUTHENTICITY_REVIEWER,
-      ];
-      const hasFullAccess = viewer?.roles.some((r) => fullAccessRoles.includes(r));
+      const hasFullAccess = hasAnyRole(viewer?.roles, REVIEW_PIPELINE_ROLES);
       // Evaluators must never see submissions that haven't passed preliminary review yet. REJECTED
       // is included so an evaluator who just rejected an innovation (submitEvaluation now moves
       // SHORTLISTED -> REJECTED immediately) can still load their own read-only evaluation summary

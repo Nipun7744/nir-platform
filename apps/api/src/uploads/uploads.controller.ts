@@ -9,6 +9,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { randomUUID } from 'crypto';
+import { UPLOAD_MAX_SIZE_BYTES } from './upload-limits';
 
 // ToR §7.1 — secure, tamper-proof uploads: restrict by type/size; filenames are
 // server-generated (never trust the client-supplied name). Virus scanning is a
@@ -26,7 +27,6 @@ const ALLOWED_MIME = new Set([
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'application/vnd.ms-powerpoint',
 ]);
-const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
 
 @Controller('uploads')
 export class UploadsController {
@@ -39,7 +39,7 @@ export class UploadsController {
           cb(null, `${randomUUID()}${extname(file.originalname)}`);
         },
       }),
-      limits: { fileSize: MAX_SIZE_BYTES },
+      limits: { fileSize: UPLOAD_MAX_SIZE_BYTES },
       fileFilter: (_req, file, cb) => {
         if (!ALLOWED_MIME.has(file.mimetype)) {
           return cb(new BadRequestException(`File type ${file.mimetype} is not allowed`), false);

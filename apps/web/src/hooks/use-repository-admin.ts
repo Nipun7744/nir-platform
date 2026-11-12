@@ -1,7 +1,7 @@
 'use client';
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api-client';
+import { api, toQueryString } from '@/lib/api-client';
 
 export interface RepositoryFilters {
   status?: 'APPROVED' | 'PUBLISHED' | 'UNPUBLISHED' | 'ARCHIVED';
@@ -20,15 +20,6 @@ export interface RepositoryListResult {
   page: number;
   pageSize: number;
   totalPages: number;
-}
-
-function toQueryString(filters: Record<string, unknown>) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(filters)) {
-    if (value !== undefined && value !== '') params.set(key, String(value));
-  }
-  const qs = params.toString();
-  return qs ? `?${qs}` : '';
 }
 
 export function useRepositoryInnovations(filters: RepositoryFilters) {

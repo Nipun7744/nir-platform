@@ -27,9 +27,8 @@ import {
   submissionState,
   validateResponses,
 } from './challenge-rules';
+import { isAdmin } from '../common/utils/roles';
 
-const ADMIN_ROLES: Role[] = [Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN];
-const isAdmin = (roles?: Role[]) => Boolean(roles?.some((r) => ADMIN_ROLES.includes(r)));
 
 /** Optional details-page text columns — blank input is stored as NULL (see toData). */
 const DETAIL_TEXT_FIELDS = [
@@ -280,19 +279,22 @@ export class ChallengesService {
    * category.
    */
   async submit(slug: string, dto: SubmitChallengeDto, user: { id: string; roles: Role[] }) {
-    const challenge = await this.prisma.challenge.findUnique({
-      where: { slug },
-      include: { formFields: { orderBy: { sortOrder: 'asc' } } },
-    });
+    // Independent lookups; the checks below still run in the same order.
+    const [challenge, innovator] = await Promise.all([
+      this.prisma.challenge.findUnique({
+        where: { slug },
+        include: { formFields: { orderBy: { sortOrder: 'asc' } } },
+      }),
+      this.prisma.innovator.findUnique({
+        where: { userId: user.id },
+        include: { user: { select: { fullName: true } } },
+      }),
+    ]);
     if (!challenge || !challenge.isPublished) throw new NotFoundException('Challenge not found');
 
     const state = submissionState({ ...challenge, formFieldCount: challenge.formFields.length });
     if (!state.acceptingSubmissions) throw new ForbiddenException(state.closedReason);
 
-    const innovator = await this.prisma.innovator.findUnique({
-      where: { userId: user.id },
-      include: { user: { select: { fullName: true } } },
-    });
     if (!innovator) {
       throw new ForbiddenException('Only registered innovators can submit to a challenge. Please register as an innovator.');
     }

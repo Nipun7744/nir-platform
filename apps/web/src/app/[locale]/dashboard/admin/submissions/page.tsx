@@ -5,12 +5,24 @@ import { useSearchParams } from 'next/navigation';
 import clsx from 'clsx';
 import { AlertCircle, Inbox, Search, Trophy } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
+import { ReviewStatus, SubmissionChannel } from '@nir/shared';
 import { useAdminChallenges, useSubmissions, type SubmissionFilters } from '@/hooks/use-admin';
 import { useSubmissionSettings, useUpdateSubmissionSettings } from '@/hooks/use-settings';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Pagination } from '@/components/ui/pagination';
 
-const REVIEW_STATUSES = ['DRAFT', 'UNDER_REVIEW', 'AUTHENTICITY_REVIEW', 'SHORTLISTED', 'SELECTED', 'APPROVED', 'REJECTED', 'PUBLISHED', 'UNPUBLISHED', 'ARCHIVED'];
+const REVIEW_STATUSES = Object.values(ReviewStatus);
+
+const EMPTY_FILTERS: SubmissionFilters = {
+  channel: '',
+  challengeId: '',
+  reviewStatus: '',
+  q: '',
+  fromDate: '',
+  toDate: '',
+  page: 1,
+  pageSize: 20,
+};
 
 // Reviewer/admin-facing page — shows the real internal ReviewStatus names (see UI_GUIDELINES.md).
 const STATUS_STYLES: Record<string, string> = {
@@ -90,15 +102,9 @@ function GeneralSubmissionCard() {
 function SubmissionsMonitor() {
   const searchParams = useSearchParams();
   const { data: challenges } = useAdminChallenges() as { data: any[] | undefined };
-  const [filters, setFilters] = useState<SubmissionFilters>({
-    channel: searchParams.get('challengeId') ? 'CHALLENGE' : '',
-    challengeId: searchParams.get('challengeId') ?? '',
-    reviewStatus: '',
-    q: '',
-    fromDate: '',
-    toDate: '',
-    page: 1,
-    pageSize: 20,
+  const [filters, setFilters] = useState<SubmissionFilters>(() => {
+    const challengeId = searchParams.get('challengeId') ?? '';
+    return { ...EMPTY_FILTERS, challengeId, channel: challengeId ? SubmissionChannel.CHALLENGE : '' };
   });
   const [search, setSearch] = useState('');
   const { data, isLoading, isFetching } = useSubmissions(filters);
@@ -132,15 +138,15 @@ function SubmissionsMonitor() {
           <span className="mb-1 block text-xs font-medium text-ink-500">Channel</span>
           <select value={filters.channel} onChange={(e) => set({ channel: e.target.value, ...(e.target.value === 'GENERAL' ? { challengeId: '' } : {}) })} className={inputCls}>
             <option value="">All channels</option>
-            <option value="GENERAL">General submission</option>
-            <option value="CHALLENGE">Challenge submission</option>
+            <option value={SubmissionChannel.GENERAL}>General submission</option>
+            <option value={SubmissionChannel.CHALLENGE}>Challenge submission</option>
           </select>
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-ink-500">Challenge</span>
           <select
             value={filters.challengeId}
-            onChange={(e) => set({ challengeId: e.target.value, ...(e.target.value ? { channel: 'CHALLENGE' } : {}) })}
+            onChange={(e) => set({ challengeId: e.target.value, ...(e.target.value ? { channel: SubmissionChannel.CHALLENGE } : {}) })}
             className={inputCls}
           >
             <option value="">All challenges</option>
@@ -171,7 +177,7 @@ function SubmissionsMonitor() {
             type="button"
             onClick={() => {
               setSearch('');
-              setFilters({ channel: '', challengeId: '', reviewStatus: '', q: '', fromDate: '', toDate: '', page: 1, pageSize: filters.pageSize });
+              setFilters({ ...EMPTY_FILTERS, pageSize: filters.pageSize });
             }}
             className="focus-ring w-full rounded-lg border border-ink-100 px-3 py-2 text-sm font-semibold text-ink-600 hover:border-ink-300"
           >
@@ -202,7 +208,7 @@ function SubmissionsMonitor() {
                   <p className="font-mono text-xs text-ink-400">{i.innovationCode} · {i.category?.nameEn}</p>
                 </td>
                 <td className="py-3 pr-3">
-                  {i.submissionChannel === 'CHALLENGE' ? (
+                  {i.submissionChannel === SubmissionChannel.CHALLENGE ? (
                     <span className="inline-flex items-start gap-1 text-xs font-medium text-brand-700">
                       <Trophy className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {i.challenge?.titleEn ?? 'Challenge'}
                     </span>

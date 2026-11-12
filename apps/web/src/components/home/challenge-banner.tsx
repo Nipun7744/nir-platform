@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useChallenges } from '@/hooks/use-content';
+import { pickPromotedChallenge } from '@/lib/challenge-dates';
 
 function formatBannerDate(value: string) {
   return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
@@ -12,8 +13,8 @@ function formatBannerDate(value: string) {
 export function ChallengeBanner() {
   const t = useTranslations('home.challenge');
   const { data } = useChallenges();
-  const openChallenges = data?.filter((c) => c.status === 'OPEN' && c.isActive !== false);
-  const challenge = openChallenges?.find((c) => c.isFeatured) ?? openChallenges?.[0] ?? data?.[0];
+  // Unlike the popup, the banner still shows a (closed) challenge when none is open.
+  const challenge = pickPromotedChallenge(data) ?? data?.[0];
 
   if (!challenge) return null;
 

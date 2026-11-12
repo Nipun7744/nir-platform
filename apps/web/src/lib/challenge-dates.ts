@@ -1,3 +1,5 @@
+import type { ChallengeDto } from '@/hooks/use-content';
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -13,4 +15,13 @@ export function challengeDaysLeft(deadline?: string | null, now: Date = new Date
   const remaining = endOfDay - now.getTime();
   if (remaining <= 0) return null;
   return Math.floor(remaining / DAY_MS);
+}
+
+/**
+ * The challenge to promote on the homepage banner and the site-wide popup: the featured open,
+ * active challenge, else the first open, active one. Undefined when none is open.
+ */
+export function pickPromotedChallenge(challenges?: ChallengeDto[]): ChallengeDto | undefined {
+  const open = challenges?.filter((c) => c.status === 'OPEN' && c.isActive !== false);
+  return open?.find((c) => c.isFeatured) ?? open?.[0];
 }

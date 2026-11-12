@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
-import { readEnvChoice, readIntEnv, requireEnv } from '../common/utils/env-choice';
+import { optionalEnv, readEnvChoice, readIntEnv, requireEnv } from '../common/utils/env-choice';
 
 export const MAIL_TRANSPORTS = ['smtp', 'console'] as const;
 export type MailTransportKind = (typeof MAIL_TRANSPORTS)[number];
@@ -28,8 +28,8 @@ export class MailService {
 
   constructor(config: ConfigService) {
     this.kind = readEnvChoice(config, 'MAIL_TRANSPORT', MAIL_TRANSPORTS, 'console');
-    this.from = config.get<string>('MAIL_FROM')?.trim() || 'NIR Platform <no-reply@localhost>';
-    this.replyTo = config.get<string>('MAIL_REPLY_TO')?.trim() || undefined;
+    this.from = optionalEnv(config, 'MAIL_FROM', 'NIR Platform <no-reply@localhost>');
+    this.replyTo = optionalEnv(config, 'MAIL_REPLY_TO');
 
     if (this.kind === 'smtp') {
       const host = requireEnv(config, 'SMTP_HOST', 'when MAIL_TRANSPORT=smtp');

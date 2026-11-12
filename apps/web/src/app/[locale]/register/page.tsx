@@ -74,7 +74,7 @@ function RegisterPageInner() {
   const sendOtp = useSendOtp();
   const channels = security?.otp.channels ?? [];
   const [step, setStep] = useState<'details' | 'verify'>('details');
-  const [otpChannel, setOtpChannel] = useState<OtpChannel>('EMAIL');
+  const [chosenChannel, setOtpChannel] = useState<OtpChannel>('EMAIL');
   const [sent, setSent] = useState<OtpSent | null>(null);
   const [code, setCode] = useState('');
   const [resendAt, setResendAt] = useState(0);
@@ -84,10 +84,14 @@ function RegisterPageInner() {
   const captchaRequired = security ? security.captcha.provider !== 'none' : true;
   const codeLength = security?.otp.codeLength ?? 6;
 
-  // Default to a channel the server actually offers.
-  useEffect(() => {
-    if (channels.length && !channels.includes(otpChannel)) setOtpChannel(channels[0]);
-  }, [channels, otpChannel]);
+  // The chosen channel, unless the server doesn't offer it (then its first channel).
+  const otpChannel = channels.length && !channels.includes(chosenChannel) ? channels[0] : chosenChannel;
+
+  const startCooldown = (seconds: number) => {
+    const start = Date.now();
+    setNow(start);
+    setResendAt(start + seconds * 1000);
+  };
 
   // Switching steps swaps a tall form for a short card (or back); without this the browser keeps
   // the old scroll offset and the code input ends up above the viewport.
@@ -115,16 +119,12 @@ function RegisterPageInner() {
       setSent(result);
       setCode('');
       register.reset();
-      setNow(Date.now());
-      setResendAt(Date.now() + result.resendInSeconds * 1000);
+      startCooldown(result.resendInSeconds);
       setStep('verify');
     } catch (error) {
       const retry =
         error instanceof ApiError ? Number((error.details as { retryAfterSeconds?: number } | undefined)?.retryAfterSeconds ?? 0) : 0;
-      if (retry > 0) {
-        setNow(Date.now());
-        setResendAt(Date.now() + retry * 1000);
-      }
+      if (retry > 0) startCooldown(retry);
     } finally {
       // CAPTCHA tokens are single-use.
       captchaRef.current?.reset();

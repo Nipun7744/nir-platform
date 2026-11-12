@@ -8,6 +8,8 @@
  *                                 challenge's current form configuration.
  */
 
+import { UPLOAD_MAX_SIZE_MB } from '../uploads/upload-limits';
+
 export const FORM_FIELD_TYPES = [
   'SHORT_TEXT',
   'LONG_TEXT',
@@ -43,7 +45,7 @@ export const ALLOWED_FILE_EXTENSIONS = [
 ] as const;
 
 /** Hard ceiling — POST /uploads rejects anything larger regardless of field config. */
-export const UPLOAD_MAX_SIZE_MB = 50;
+export { UPLOAD_MAX_SIZE_MB } from '../uploads/upload-limits';
 export const DEFAULT_MAX_FILES = 5;
 export const MAX_FILES_CEILING = 20;
 export const SHORT_TEXT_MAX = 500;

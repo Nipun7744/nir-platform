@@ -36,6 +36,13 @@ export function requireEnv(config: ConfigService, key: string, because: string):
   return value;
 }
 
+/** A trimmed env value, or `fallback` when it's unset or blank. */
+export function optionalEnv(config: ConfigService, key: string): string | undefined;
+export function optionalEnv(config: ConfigService, key: string, fallback: string): string;
+export function optionalEnv(config: ConfigService, key: string, fallback?: string): string | undefined {
+  return config.get<string>(key)?.trim() || fallback;
+}
+
 export function readIntEnv(config: ConfigService, key: string, fallback: number, min = 1): number {
   const raw = config.get<string>(key);
   if (raw === undefined || raw === '') return fallback;

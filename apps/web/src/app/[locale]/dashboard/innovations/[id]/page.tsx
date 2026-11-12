@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Link, useRouter } from '@/i18n/navigation';
 import { ArrowLeft, ImagePlus, FileText, UserPlus, Send, Trash2, Pencil, CheckCircle2, XCircle, Globe, AlertCircle, Trophy } from 'lucide-react';
-import { Role } from '@nir/shared';
+import { Role, SubmissionChannel } from '@nir/shared';
 import { useInnovation } from '@/hooks/use-repository-search';
 import {
   useAddAttachment,
@@ -89,7 +89,7 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
 
   // Challenge submissions are answered through the challenge's own dynamic form, so the generic
   // innovation edit form doesn't apply to them (their answers are a fixed snapshot).
-  const isChallengeSubmission = innovation.submissionChannel === 'CHALLENGE';
+  const isChallengeSubmission = innovation.submissionChannel === SubmissionChannel.CHALLENGE;
   const canEdit = !isChallengeSubmission && (innovation.reviewStatus === 'DRAFT' || innovation.reviewStatus === 'REJECTED');
   // Delete is stricter than edit — a draft nobody has looked at yet is safe to remove outright, but
   // a rejected submission already carries review history worth keeping (R-002).

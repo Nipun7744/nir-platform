@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomInt, randomUUID } from 'crypto';
-import { readEnvChoice, requireEnv } from '../common/utils/env-choice';
+import { optionalEnv, readEnvChoice, requireEnv } from '../common/utils/env-choice';
 import { bdMobileForms, maskPhone } from '../common/utils/phone';
 
 export const SMS_PROVIDERS = ['teletalk', 'http', 'console'] as const;
@@ -83,7 +83,7 @@ export class SmsService {
 
   constructor(config: ConfigService) {
     this.kind = readEnvChoice(config, 'SMS_PROVIDER', SMS_PROVIDERS, 'console');
-    const opt = (key: string, fallback: string) => config.get<string>(key)?.trim() || fallback;
+    const opt = (key: string, fallback: string) => optionalEnv(config, key, fallback);
 
     if (this.kind === 'teletalk') {
       const why = 'when SMS_PROVIDER=teletalk';
@@ -102,7 +102,7 @@ export class SmsService {
       };
     } else if (this.kind === 'http') {
       const url = requireEnv(config, 'SMS_HTTP_URL', 'when SMS_PROVIDER=http');
-      const body = config.get<string>('SMS_HTTP_BODY')?.trim() || undefined;
+      const body = optionalEnv(config, 'SMS_HTTP_BODY');
       const contentType =
         config.get<string>('SMS_HTTP_CONTENT_TYPE')?.trim() ||
         (body ? (body.startsWith('{') ? 'application/json' : 'application/x-www-form-urlencoded') : undefined);

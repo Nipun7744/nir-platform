@@ -44,7 +44,8 @@ export class SettingsService {
         entityId: 'generalSubmissionEnabled',
         metadata: { from: before.generalSubmissionEnabled, to: input.generalSubmissionEnabled },
       });
+      return { ...before, generalSubmissionEnabled: input.generalSubmissionEnabled };
     }
-    return this.getSubmissionSettings();
+    return before;
   }
 }
