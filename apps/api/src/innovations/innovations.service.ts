@@ -495,33 +495,43 @@ export class InnovationsService {
       Role.INNOVATION_MANAGER,
     ];
     const isSenior = actorRoles.some((r) => seniorRoles.includes(r));
-    const isPreliminaryReviewerOnly = !isSenior && actorRoles.includes(Role.PRELIMINARY_REVIEWER);
-    if (isPreliminaryReviewerOnly) {
-      const allowedTargets: ReviewStatus[] = ['AUTHENTICITY_REVIEW', 'REJECTED'];
-      if (innovation.reviewStatus !== 'UNDER_REVIEW' || !allowedTargets.includes(dto.reviewStatus)) {
-        throw new ForbiddenException('Preliminary reviewers may only forward to authenticity review or reject submissions under review');
-      }
-      const reviewer = await this.prisma.user.findUnique({
-        where: { id: actorId },
-        select: { preliminaryReviewerCategoryIds: true },
-      });
-      if (!reviewer?.preliminaryReviewerCategoryIds.includes(innovation.categoryId)) {
-        throw new ForbiddenException('This submission is outside your assigned review categories');
-      }
-    }
 
-    const isAuthenticityReviewerOnly = !isSenior && actorRoles.includes(Role.AUTHENTICITY_REVIEWER);
-    if (isAuthenticityReviewerOnly) {
-      const allowedTargets: ReviewStatus[] = ['SHORTLISTED', 'REJECTED'];
-      if (innovation.reviewStatus !== 'AUTHENTICITY_REVIEW' || !allowedTargets.includes(dto.reviewStatus)) {
-        throw new ForbiddenException('Authenticity reviewers may only shortlist or reject submissions in authenticity review');
+    // Non-senior reviewers act as whichever review stage the submission is currently in. This is
+    // decided by the submission's status, not by "has role X", because one person may hold
+    // both reviewer roles. Checking each role independently made every action fail for such a
+    // user: the Authenticity check rejected every UNDER_REVIEW submission the Preliminary check
+    // had just allowed.
+    let reviewerStage: ReviewStage | null = null;
+    if (!isSenior) {
+      const canPreliminary = actorRoles.includes(Role.PRELIMINARY_REVIEWER);
+      const canAuthenticity = actorRoles.includes(Role.AUTHENTICITY_REVIEWER);
+      if (innovation.reviewStatus === 'UNDER_REVIEW' && canPreliminary) {
+        reviewerStage = 'PRELIMINARY_REVIEW';
+        if (!['AUTHENTICITY_REVIEW', 'REJECTED'].includes(dto.reviewStatus)) {
+          throw new ForbiddenException('At preliminary review you can only longlist (forward to authenticity review) or reject.');
+        }
+      } else if (innovation.reviewStatus === 'AUTHENTICITY_REVIEW' && canAuthenticity) {
+        reviewerStage = 'AUTHENTICITY_REVIEW';
+        if (!['SHORTLISTED', 'REJECTED'].includes(dto.reviewStatus)) {
+          throw new ForbiddenException('At authenticity review you can only shortlist or reject.');
+        }
+      } else {
+        // Only the two reviewer roles reach here (the controller admits seniors + reviewers).
+        throw new ForbiddenException(
+          `This submission is ${innovation.reviewStatus.replace(/_/g, ' ').toLowerCase()}, so it is not at a review stage you can act on.`,
+        );
       }
+
       const reviewer = await this.prisma.user.findUnique({
         where: { id: actorId },
-        select: { authenticityReviewerCategoryIds: true },
+        select: { preliminaryReviewerCategoryIds: true, authenticityReviewerCategoryIds: true },
       });
-      if (!reviewer?.authenticityReviewerCategoryIds.includes(innovation.categoryId)) {
-        throw new ForbiddenException('This submission is outside your assigned review categories');
+      const categoryIds =
+        reviewerStage === 'PRELIMINARY_REVIEW'
+          ? reviewer?.preliminaryReviewerCategoryIds
+          : reviewer?.authenticityReviewerCategoryIds;
+      if (!categoryIds?.includes(innovation.categoryId)) {
+        throw new ForbiddenException('This submission is outside your assigned review categories.');
       }
     }
 
@@ -573,12 +583,12 @@ export class InnovationsService {
     // holds the single latest note and gets overwritten by the next stage, but Authenticity
     // Reviewers must still see what the Preliminary Reviewer wrote, and Evaluators must still
     // see what both of them wrote, even across later reject/resubmit cycles.
-    if (dto.note && (isPreliminaryReviewerOnly || isAuthenticityReviewerOnly)) {
+    if (dto.note && reviewerStage) {
       await this.prisma.reviewComment.create({
         data: {
           innovationId: id,
           authorId: actorId,
-          stage: isPreliminaryReviewerOnly ? 'PRELIMINARY_REVIEW' : 'AUTHENTICITY_REVIEW',
+          stage: reviewerStage,
           note: dto.note,
         },
       });

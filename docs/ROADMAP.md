@@ -56,6 +56,12 @@
 - Sign-in page's demo-accounts note replaced with a full scrollable list of all 17 seeded
   accounts (role + email), sourced from a `DEMO_ACCOUNTS` constant in the page component.
 
+- **Fixed (2026-11-12, session 45): Preliminary Reviewer couldn't longlist (forward to Authenticity
+  review) or reject** when the account also held `AUTHENTICITY_REVIEWER`. Both role checks ran
+  and the authenticity one returned 403 for every `UNDER_REVIEW` item. Now the reviewer acts as the
+  submission's current stage (see [ROLES.md](ROLES.md)). The review pages also now show server
+  errors instead of failing silently. Regression test: `test/review-workflow.e2e.test.js`.
+
 - **Fixed (2026-08-09): Preliminary Reviewer's "Shortlist" button was completely broken.** It sent
   `reviewStatus: 'SHORTLISTED'` directly, but the backend only ever allowed Preliminary Reviewers
   to move `UNDER_REVIEW → AUTHENTICITY_REVIEW` or `REJECTED` (`SHORTLISTED` is reserved for the

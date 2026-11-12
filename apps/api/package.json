@@ -13,7 +13,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "ts-node prisma/seed.ts",
     "test": "node --test test/challenge-rules.test.js test/sms-gateway.test.js",
-    "test:e2e": "node --test test/challenge-submissions.e2e.test.js test/auth-security.e2e.test.js"
+    "test:e2e": "node --test test/challenge-submissions.e2e.test.js test/auth-security.e2e.test.js test/review-workflow.e2e.test.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.6",

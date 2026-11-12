@@ -52,19 +52,31 @@ function PreliminaryReviewRow({ innovation, readOnly }: { innovation: any; readO
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               disabled={updateStatus.isPending}
-              onClick={() => updateStatus.mutate({ reviewStatus: 'AUTHENTICITY_REVIEW', note: remarks || undefined })}
+              onClick={() => updateStatus.mutate({ reviewStatus: 'AUTHENTICITY_REVIEW', note: remarks.trim() || undefined })}
               className="focus-ring rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
             >
-              Longlist
+              {updateStatus.isPending && updateStatus.variables?.reviewStatus === 'AUTHENTICITY_REVIEW'
+                ? 'Forwarding…'
+                : 'Longlist → Authenticity review'}
             </button>
             <button
               disabled={updateStatus.isPending}
-              onClick={() => updateStatus.mutate({ reviewStatus: 'REJECTED', note: remarks || undefined })}
+              onClick={() => {
+                // Rejection ends this submission's review (only the submitter can resubmit it), so confirm first.
+                if (!window.confirm(`Reject "${innovation.titleEn}"? The submitter will have to edit and resubmit it.`)) return;
+                updateStatus.mutate({ reviewStatus: 'REJECTED', note: remarks.trim() || undefined });
+              }}
               className="focus-ring rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40"
             >
-              Reject
+              {updateStatus.isPending && updateStatus.variables?.reviewStatus === 'REJECTED' ? 'Rejecting…' : 'Reject'}
             </button>
           </div>
+          {/* Previously a failed action (e.g. a 403) did nothing visible, which read as "the buttons don't work". */}
+          {updateStatus.isError && (
+            <p role="alert" className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              {(updateStatus.error as Error)?.message || 'Could not update this submission. Please try again.'}
+            </p>
+          )}
         </div>
       )}
     </div>

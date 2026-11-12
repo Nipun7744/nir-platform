@@ -45,6 +45,21 @@ the real enforcement is always server-side via `RolesGuard`). A user can hold **
 simultaneously (`Role[]` on `User`), which is how the self-service Investor/Mentor/Ministry roles
 stack on top of the base `INNOVATION_SUBMITTER` role.
 
+**Reviewer actions (`PATCH /innovations/:id/status`), fixed 2026-11-12.** A non-senior reviewer
+acts as whichever review stage the submission is **currently in**:
+
+| Submission status | Who can act (non-senior) | Allowed targets | Category check |
+|---|---|---|---|
+| `UNDER_REVIEW` | `PRELIMINARY_REVIEWER` | `AUTHENTICITY_REVIEW` (Longlist), `REJECTED` | `preliminaryReviewerCategoryIds` |
+| `AUTHENTICITY_REVIEW` | `AUTHENTICITY_REVIEWER` | `SHORTLISTED` (Midlist), `REJECTED` | `authenticityReviewerCategoryIds` |
+| anything else | nobody below senior | 403 "not at a review stage you can act on" | — |
+
+So one person **can hold both reviewer roles** and handle both stages. Before the fix, each role
+was checked independently, and such a user got 403 on every action. Senior roles
+(`PLATFORM_ADMIN`, `SYSTEM_ADMIN`, `INSTITUTIONAL_COORDINATOR`, `INNOVATION_MANAGER`) skip these
+stage and category checks and are limited only by `ALLOWED_TRANSITIONS`. A reviewer's note is
+saved as a `ReviewComment` under the stage they acted at.
+
 When adding a new role or changing what one can do:
 1. Update the `Role` enum in `schema.prisma` (+ migration) and `packages/shared/src/enums.ts`.
 2. Update the relevant `@Roles(...)` decorators in `apps/api/src/**/*.controller.ts`.

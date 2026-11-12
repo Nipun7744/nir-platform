@@ -6,6 +6,67 @@
 
 ---
 
+## 2026-11-12 (session 45) — Preliminary Reviewer couldn't longlist/forward or reject
+
+- **Reported:** (1) a Preliminary Reviewer can't longlist submitted innovations (forward them to the
+  Authenticity Reviewer); (2) a Preliminary Reviewer can't reject a submitted innovation.
+- **Investigation:** with the seeded single-role `preliminary@nir.gov.bd` both actions worked
+  locally, through the API and the UI. The failure is role-dependent:
+  - **Root cause:** `InnovationsService.updateStatus` checked each reviewer role
+    independently (`isPreliminaryReviewerOnly`, `isAuthenticityReviewerOnly`). For a user holding
+    **both** reviewer roles (allowed: roles are a list and the admin page assigns several), the
+    authenticity check also ran on every `UNDER_REVIEW` item and threw 403 "Authenticity
+    reviewers may only shortlist or reject…". So Longlist and Reject always failed. Reproduced
+    with a new e2e test against the old build (3 failures), and it passes after the fix.
+  - **Aggravating:** the review pages ignored mutation errors, so any 403/400 looked like a dead
+    button.
+- **Fix:**
+  - API: the reviewer stage is now chosen from the submission's current status (`UNDER_REVIEW` →
+    preliminary rules and categories, `AUTHENTICITY_REVIEW` → authenticity rules and categories,
+    anything else → 403 with a readable reason). The review comment is filed under that stage.
+    Senior roles are unchanged.
+  - Web (`dashboard/preliminary-review`): shows the server error under the buttons. "Longlist →
+    Authenticity review" names where it goes, both buttons show progress, and Reject asks for
+    confirmation. `dashboard/authenticity-review` also shows errors now.
+- **Tests:** new `test/review-workflow.e2e.test.js` (5 cases: longlist, reject, guards with
+  messages, dual-role longlist→shortlist, dual-role reject; self-cleaning, verified 0 leftovers),
+  added to `test:e2e`. e2e 25 pass / 3 skipped (real-delivery guard) / 0 fail; unit 32/32; web
+  `tsc` clean; checked in the browser as the preliminary reviewer.
+- **Diagnostic side effects:** while reproducing, I rejected and restored "TeleHealth Union
+  Connect" (`cmsbgi8a9001j12go8q40dkje`) twice. It's back to `UNDER_REVIEW` with no remarks and
+  the test comment deleted. Its audit log keeps the 4 status-change entries (left in place on
+  purpose).
+- **Files:** `apps/api/src/innovations/innovations.service.ts`, `apps/api/test/review-workflow.e2e.test.js`
+  (new), `apps/api/package.json`, `apps/web/src/app/[locale]/dashboard/preliminary-review/page.tsx`,
+  `apps/web/src/app/[locale]/dashboard/authenticity-review/page.tsx`; docs ROLES, API, SETUP,
+  SESSION_LOG.
+- **Full-cycle test (Submit → Publish), passed.** I ran it with the real demo account for each
+  role: innovator1 creates and submits → preliminary@ longlists → authenticity@ midlists →
+  evaluator@ scores 8/7/9/7 and recommends SHORTLIST (auto → SELECTED) → admin approves with
+  finalize (→ APPROVED) → admin publishes → visible to anonymous visitors and found by search.
+  Each role's queue was checked to contain the item before it acted, and the authenticity reviewer
+  could read the preliminary note. 20/20 checks passed; general submission was switched on for the
+  test and restored to OFF. Test item **NIR-2026-000078 "[TEST] Full-cycle check 2026-11-12 10:09"
+  is left PUBLISHED** in the local DB (by intent, for review); archive or delete it when done.
+  - Observation (not fixed): the audit log records every step, but three transitions are logged
+    under other events without from/to metadata (`INNOVATION_SUBMITTED_FOR_REVIEW`,
+    `EVALUATION_SUBMITTED` for SHORTLISTED→SELECTED, `INNOVATION_APPROVAL_UPDATED` for
+    SELECTED→APPROVED). An audit view filtering only `INNOVATION_STATUS_CHANGED` would miss them.
+  - Button naming: the authenticity forward button is now "Midlist → Expert evaluation", matching
+    "Longlist → Authenticity review".
+- **Pushed the full code to GitLab `development`** (sessions 41–45), cherry-picked onto
+  `gitlab/development` (unrelated histories). It includes challenge submissions, the details
+  page, CI/CD (`.gitlab-ci.yml`, `deploy/deploy.sh`), OTP/CAPTCHA, Gmail/Teletalk and this
+  reviewer fix. GitLab's `v0.1.2` footer bump is kept. A partial push (without the challenge
+  work) was prepared first and then dropped when the user asked for the full code. **Before the
+  server deploy:** the server `.env` needs `CAPTCHA_PROVIDER`, `MAIL_TRANSPORT`/`SMTP_*` and
+  `SMS_PROVIDER`/`SMS_TELETALK_*`, or the API refuses to start. 3 new migrations run on deploy.
+- **Next steps:** if the reporter's account has only `PRELIMINARY_REVIEWER`, the page now shows
+  the exact server reason (most likely "outside your assigned review categories", fixed by
+  assigning categories in Platform admin). Not committed or pushed.
+
+---
+
 ## 2026-11-12 (session 44) — Registration OTP (email/SMS) + CAPTCHA on every login
 
 - **Ran the project** (SETUP.md path: PG on 5433 already current, shared + API built with `tsc`,

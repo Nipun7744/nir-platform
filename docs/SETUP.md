@@ -118,7 +118,9 @@ npm run test:e2e       # end-to-end against a RUNNING API (default http://localh
 
 The challenge e2e suite creates a throwaway challenge, submissions and an upload, toggles the
 general submission switch, and **cleans all of it up afterwards** (DB rows via Prisma; the switch
-is restored to its original value). The auth e2e suite (`auth-security.e2e.test.js`) covers login
+is restored to its original value). The review e2e suite (`review-workflow.e2e.test.js`) checks that a Preliminary
+Reviewer can longlist and reject, the stage and category guards, and a user holding both reviewer
+roles. It creates throwaway reviewers and innovations directly in the DB and deletes them. The auth e2e suite (`auth-security.e2e.test.js`) covers login
 CAPTCHA and registration OTP; it registers two throwaway users and deletes them afterwards. Both
 skip themselves if the API isn't reachable. The uploaded test PDF stays in `apps/api/uploads/`
 (git-ignored).
