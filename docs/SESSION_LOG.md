@@ -42,6 +42,22 @@
   (DB: `emailVerifiedAt` / `phoneVerifiedAt` set, phone stored `+8801799000112`, account inactive
   pending approval); `/sign-in` CAPTCHA renders, the login reaches the API (pending-approval
   error) and the widget resets afterwards. The test accounts and OTP rows were deleted.
+- **Real SMS via Teletalk Bulk SMS:** new `SMS_PROVIDER=teletalk` in `SmsService`. Teletalk needs
+  per-message md5 password, random 16-digit `p_key` and `a_key = md5((p_key+user_id)."****")`,
+  which the generic template client can't express. Success = JSON `status: SUCCESS`. Credentials
+  (user `challenge`, id 102) are in the gitignored `apps/api/.env`; the new vars are in both
+  `.env.example` files and `docker-compose.yml`.
+  - Found by testing the live gateway: the OTP class is limited to **70 UTF-8 bytes** (scode 51),
+    so a 59-character Bangla text was rejected. Shortened both SMS texts in `otp.service.ts`
+    (Bangla 66 bytes, English 60). The code is now in ASCII digits in Bangla too, because the
+    input only accepts 0-9.
+  - Verified: a real Bangla OTP was delivered to 01710774482 through `POST /auth/otp/send` (plus
+    3 probe SMS while measuring the limit; about 4 credits used). Unit tests 32/32 (4 new Teletalk
+    cases with a fake server).
+  - e2e: tests that really deliver now **skip** when mail/SMS aren't `console` (they would
+    email `@example.com` and text random `019…` numbers). Run: 20 pass, 3 skipped. Override
+    with `NIR_E2E_REAL_DELIVERY=1`.
+  - Fixed docs/SETUP.md: the env table had been split by the SMTP note.
 - **Real SMTP configured locally:** Google Workspace `smtp.gmail.com:587` (STARTTLS) as
   `support-challenge@a2i.gov.bd`, Reply-To `noreply-challenge@a2i.gov.bd`, in the gitignored
   `apps/api/.env` (`MAIL_TRANSPORT=smtp`). `MailService` gained `MAIL_REPLY_TO` and

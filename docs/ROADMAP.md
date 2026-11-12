@@ -434,9 +434,10 @@ completed work)*
 
 ## Technical debt
 
-- **Registration OTP / CAPTCHA follow-ups (2026-11-12):** (a) procure real CAPTCHA keys and an SMS gateway
-  (SMTP is done: a2i Google Workspace account, see SETUP.md) and set all of them, SMTP included,
-  on every deployed environment. **Until the server `.env`
+- **Registration OTP / CAPTCHA follow-ups (2026-11-12):** (a) procure real CAPTCHA keys (SMTP and SMS are done:
+  a2i Google Workspace and Teletalk Bulk SMS, see SETUP.md) and set all of them on every deployed
+  environment. Confirm the server can reach `bulksms1.teletalk.com.bd:8091` (outbound HTTP; the
+  gateway may whitelist IPs). **Until the server `.env`
   has `CAPTCHA_PROVIDER`/`MAIL_TRANSPORT`/`SMS_PROVIDER`, GitLab deploys of this code fail their
   health check and roll back.** (b) `OtpCode` rows are never purged; add a scheduled cleanup
   (`@nestjs/schedule` is already a dependency). (c) `NotificationsService.deliver()` is still a

@@ -128,6 +128,12 @@ skip themselves if the API isn't reachable. The uploaded test PDF stays in `apps
   `CAPTCHA_PROVIDER=none` for the test run or pass a token via `NIR_CAPTCHA_TOKEN`.
 - The OTP send endpoint is throttled to 10/min per IP and one run uses about 8, so **wait a minute
   between back-to-back runs** or the second run fails with 429s.
+- **Real delivery guard:** the e2e tests that make the API send a code **skip themselves** when
+  `apps/api/.env` has a real `MAIL_TRANSPORT` / `SMS_PROVIDER` (anything but `console`).
+  Otherwise they'd email `@example.com` addresses (bounces land in the support mailbox) and text
+  made-up `019…` numbers through Teletalk (credits, and possibly a stranger's phone). For full
+  coverage, switch both to `console` and restart the API, or set `NIR_E2E_REAL_DELIVERY=1` if you
+  really mean it.
 
 ## Registration OTP & login CAPTCHA — prerequisites and configuration
 
@@ -187,20 +193,43 @@ SMS option on the register page; then set `SMS_PROVIDER=console`).
 | `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_SECURE` (`true` iff port 465), `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | — | `SMTP_HOST` + `MAIL_FROM` required for `smtp`. |
 | `SMTP_REQUIRE_TLS` | `true` | With `SMTP_SECURE=false`, refuse to send unless STARTTLS succeeds. Set `false` only for an internal relay without TLS. |
 | `MAIL_REPLY_TO` | unset | Optional `Reply-To` header on every email. |
+| `SMS_PROVIDER` | `console` (dev) / **required** (prod) | `teletalk` \| `http` \| `console` |
+| `SMS_TELETALK_USER`, `SMS_TELETALK_USER_ID` (numeric), `SMS_TELETALK_PASSWORD` | — | Required for `teletalk`. The password is only ever sent as its md5, as Teletalk's API expects. |
+| `SMS_TELETALK_URL`, `_SERVERNAME`, `_SMS_CLASS` (`OTP`), `_SMS_ID` (`44`), `_CHARSET` (`ASCII\|ASCII\|UTF-8\|ASCII`), `_VALIDITY` (`1440`) | Teletalk's sample values | Optional overrides. URL default `http://bulksms1.teletalk.com.bd:8091/jlinktbls.php`. |
+| `SMS_HTTP_URL`, `SMS_HTTP_METHOD`, `SMS_HTTP_BODY`, `SMS_HTTP_CONTENT_TYPE`, `SMS_HTTP_HEADERS` (JSON), `SMS_HTTP_SUCCESS_PATTERN` (regex) | — | Generic gateway client (`http`); see below. |
+| `TRUST_PROXY` | unset | See above. |
 
-**The a2i account in use (2026-11-12):** Google Workspace SMTP: `smtp.gmail.com:587`, STARTTLS
+**The a2i email account in use (2026-11-12):** Google Workspace SMTP: `smtp.gmail.com:587`, STARTTLS
 (`SMTP_SECURE=false`, `SMTP_REQUIRE_TLS=true`), user and from `support-challenge@a2i.gov.bd`,
 Reply-To `noreply-challenge@a2i.gov.bd`. `SMTP_PASS` is a Google **app password** for that account
 (it needs 2-Step Verification on). It's kept only in the gitignored `apps/api/.env` and the server
 `.env`, never in git or docs. Gmail caps sending at about 2,000 messages/day per Workspace user,
 which is fine for OTPs. A dedicated provider (SES/SendGrid) is the upgrade if volume grows.
-| `SMS_PROVIDER` | `console` (dev) / **required** (prod) | `http` \| `console` |
-| `SMS_HTTP_URL`, `SMS_HTTP_METHOD`, `SMS_HTTP_BODY`, `SMS_HTTP_CONTENT_TYPE`, `SMS_HTTP_HEADERS` (JSON), `SMS_HTTP_SUCCESS_PATTERN` (regex) | — | Generic gateway client; see below. |
-| `TRUST_PROXY` | unset | See above. |
+
+**The a2i SMS account in use (2026-11-12): Teletalk Bulk SMS** (`SMS_PROVIDER=teletalk`), user
+`challenge`, user id `102`, class `OTP`. The password lives only in `apps/api/.env` and the server
+`.env`. Facts found while testing against the live gateway:
+
+- **Request:** JSON POST to `http://bulksms1.teletalk.com.bd:8091/jlinktbls.php`. Plain HTTP,
+  which is Teletalk's endpoint; the password is md5-hashed, but the message text (the OTP) is not
+  encrypted in transit. Each request carries a fresh random 16-digit `p_key` and
+  `a_key = md5((p_key + user_id) . "****")`, where `+` is numeric addition and `****` is a literal
+  suffix. The number is sent in local form (`01XXXXXXXXX`).
+- **Reply:** HTTP 200 either way. Success is
+  `{"status":"SUCCESS","scode":"1","details":"TOTAL VALID RECORD=1|M=880…,ID=AV…",…,"current_credit":"…"}`.
+  Anything else is treated as a failure, and the user gets a 503 "verify by email" message.
+- **OTP length limit: 70 UTF-8 bytes** (`scode 51`, "OTP SMS LENGTH INVALID"). Measured: 66 bytes
+  OK, 72 rejected. A Bangla letter is 3 bytes, so the Bangla OTP text is deliberately tiny
+  (`NIR কোড: 123456। মেয়াদ ৫ মিনিট।`, 66 bytes) and the code stays in ASCII digits. **Re-measure
+  with `Buffer.byteLength()` after any change to the SMS texts in `otp.service.ts`.**
+- Each SMS costs 1 credit; the balance is in every success reply. The API logs only the masked
+  number, our `cid` and Teletalk's message `ID`.
 
 ### SMS gateway templates
 
-`SMS_PROVIDER=http` is a template-driven client, because every BD aggregator has its own API.
+For any gateway other than Teletalk, `SMS_PROVIDER=http` is a template-driven client, because
+every BD aggregator has its own API. (Teletalk needs per-message hashes, which a static template
+can't express, so it has its own provider; see above.)
 Placeholders: `{to}` (8801XXXXXXXXX), `{to_e164}` (+8801XXXXXXXXX), `{to_local}` (01XXXXXXXXX),
 `{message}`, `{ref}` (unique per message). Each is escaped for where it appears: URL-encoded in the
 URL, JSON-escaped in a JSON body, form-encoded in a form body. The method defaults to GET, or POST
@@ -234,9 +263,11 @@ the gateway's HTTP status and the first 300 characters of its response on failur
 
 `apps/api/.env` uses Cloudflare Turnstile's **always-pass test keys** (site
 `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`). The real widget renders
-and the real siteverify call is made, but it always passes. `MAIL_TRANSPORT`/`SMS_PROVIDER` are
-`console`, so **OTP codes appear in the API log** (`.logs/api.out.log`, lines
-`[console email]` / `[console sms]`). Never use the test keys in a deployed environment: they
+and the real siteverify call is made, but it always passes. Since 2026-11-12 email and SMS are
+**real** here too (`MAIL_TRANSPORT=smtp` via the a2i Gmail account, `SMS_PROVIDER=teletalk`), so
+local sign-ups send real emails and texts, and each SMS costs a Teletalk credit. To get codes in
+the API log instead (`.logs/api.out.log`, lines `[console email]` / `[console sms]`), set either or
+both back to `console` and restart the API. Never use the test keys in a deployed environment: they
 provide no protection. `apps/api/.env.example` documents every variable.
 
 ## Git remotes — where to push (standing rule, set 2026-11-04)

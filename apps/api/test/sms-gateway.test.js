@@ -105,3 +105,67 @@ describe('SmsService (http)', () => {
     assert.throws(() => new SmsService(fakeConfig({ NODE_ENV: 'production' })), /must be set in production/);
   });
 });
+
+describe('SmsService (teletalk)', () => {
+  const crypto = require('node:crypto');
+  const md5 = (s) => crypto.createHash('md5').update(s).digest('hex');
+  const { teletalkAKey } = require('../dist/messaging/sms.service');
+  const cfg = () =>
+    fakeConfig({
+      SMS_PROVIDER: 'teletalk',
+      SMS_TELETALK_URL: `${base}/jlinktbls.php`,
+      SMS_TELETALK_USER: 'challenge',
+      SMS_TELETALK_USER_ID: '102',
+      SMS_TELETALK_PASSWORD: 'test-password',
+    });
+
+  test('a_key matches the PHP formula md5((p_key + user_id) . "****") with exact 16-digit sums', () => {
+    // PHP: "1794474183660500" + "102" === 1794474183660602 (fits int64, so no float rounding).
+    assert.equal(teletalkAKey('1794474183660500', '102'), md5('1794474183660602****'));
+    // Beyond 2^53 a JS Number would round; BigInt must not.
+    assert.equal(teletalkAKey('9999999999999999', '102'), md5('10000000000000101****'));
+  });
+
+  test('posts the Teletalk JSON payload (local mobile, md5 password, fresh keys)', async () => {
+    reply = { status: 200, body: '{"status":"SUCCESS","scode":"1","details":"TOTAL VALID RECORD=1|M=8801712345678,ID=AV1"}' };
+    const sms = new SmsService(cfg());
+    const msg = 'Code: 123456 — বাংলা "quoted"';
+    await sms.send('+8801712345678', msg);
+    assert.equal(last.method, 'POST');
+    assert.match(last.headers['content-type'], /application\/json/);
+    const p = JSON.parse(last.body);
+    assert.equal(p.op, 'SMS');
+    assert.equal(p.user, 'challenge');
+    assert.equal(p.user_id, '102');
+    assert.equal(p.pass, md5('test-password'));
+    assert.ok(!last.body.includes('test-password'), 'plain password must never be sent');
+    assert.equal(p.mobile, '01712345678');
+    assert.equal(p.sms, msg);
+    assert.equal(p.smsclass, 'OTP');
+    assert.match(p.p_key, /^[1-9]\d{15}$/);
+    assert.equal(p.a_key, teletalkAKey(p.p_key, '102'));
+    assert.match(p.cid, /^\d{10}$/);
+    const firstKey = p.p_key;
+    await sms.send('+8801712345678', msg);
+    assert.notEqual(JSON.parse(last.body).p_key, firstKey, 'p_key must be fresh per message');
+  });
+
+  test('a non-SUCCESS status (even with HTTP 200) throws', async () => {
+    const sms = new SmsService(cfg());
+    reply = { status: 200, body: '{"status":"FAILED","scode":"0","details":"INVALID AUTH"}' };
+    await assert.rejects(sms.send('+8801712345678', 'x'), /Teletalk SMS rejected.*INVALID AUTH/);
+    reply = { status: 200, body: 'not json' };
+    await assert.rejects(sms.send('+8801712345678', 'x'), /Teletalk SMS rejected/);
+    reply = { status: 500, body: '{"status":"SUCCESS"}' };
+    await assert.rejects(sms.send('+8801712345678', 'x'), /HTTP 500/);
+    reply = { status: 200, body: '{"status":"SUCCESS"}' };
+  });
+
+  test('misconfiguration fails fast', () => {
+    assert.throws(() => new SmsService(fakeConfig({ SMS_PROVIDER: 'teletalk' })), /SMS_TELETALK_USER_ID/);
+    assert.throws(
+      () => new SmsService(fakeConfig({ SMS_PROVIDER: 'teletalk', SMS_TELETALK_USER_ID: 'abc', SMS_TELETALK_USER: 'u', SMS_TELETALK_PASSWORD: 'p' })),
+      /must be numeric/,
+    );
+  });
+});

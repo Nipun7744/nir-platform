@@ -185,10 +185,15 @@ export class OtpService {
   private async deliver(channel: OtpChannel, target: string, code: string, locale: Locale) {
     const minutes = Math.round(this.ttlSeconds / 60);
     if (channel === 'SMS') {
+      // Teletalk's OTP class rejects messages over 70 *UTF-8 bytes* (measured 2026-11-12: 66 bytes
+      // OK, 72 rejected with scode 51). A Bangla letter is 3 bytes, so the Bangla text must stay
+      // tiny: this one is 66 bytes (69 with a two-digit minute count); the English one is 60. The
+      // code stays in ASCII digits even in Bangla, because the code box only accepts 0-9 and
+      // phones only autofill ASCII-digit codes.
       const text =
         locale === 'bn'
-          ? `NIR যাচাইকরণ কোড: ${toBnDigits(code)}। ${toBnDigits(String(minutes))} মিনিটের মধ্যে মেয়াদ শেষ হবে। কাউকে এই কোড জানাবেন না।`
-          : `Your NIR verification code is ${code}. It expires in ${minutes} minutes. Do not share it with anyone.`;
+          ? `NIR কোড: ${code}। মেয়াদ ${toBnDigits(String(minutes))} মিনিট।`
+          : `NIR verification code: ${code}. Valid ${minutes} min. Do not share it.`;
       await this.sms.send(target, text);
       return;
     }

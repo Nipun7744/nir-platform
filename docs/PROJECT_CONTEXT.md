@@ -119,7 +119,7 @@ since each was an explicit scope call:
   - NID/Birth Registration & BIN verification — `apps/api/src/common/services/identity-verification.service.ts` (format-validates and accepts).
   - SMS/Email delivery of **notifications** — `apps/api/src/notifications/notifications.service.ts` (logs and marks sent).
     *Real* transports now exist (2026-11-12, `apps/api/src/messaging/`: `MailService` over SMTP,
-    `SmsService` over a configurable HTTP gateway) but are used only for registration OTPs so far.
+    `SmsService` over Teletalk Bulk SMS (the a2i account) or a configurable HTTP gateway) but are used only for registration OTPs so far.
     Wiring `NotificationsService.deliver()` to them is open work (it would also need the
     recipient's address/phone, which `deliver()` doesn't receive today) — see [ROADMAP.md](ROADMAP.md).
   - SSO (Google/Apple/Microsoft) — buttons present, disabled in the UI.

@@ -59,6 +59,14 @@ const local = `019${String(stamp).slice(-8)}`;
 const e164 = `+88${local}`;
 const PASSWORD = 'Password123!';
 
+// Tests that make the API actually deliver a code only run while that channel is in console
+// mode; otherwise they would email/text made-up addresses for real (bounces, SMS credits,
+// possibly a stranger's phone). NIR_E2E_REAL_DELIVERY=1 overrides this on purpose.
+const unquote = (v) => String(v ?? '').trim().replace(/^["']|["']$/g, '');
+const realDeliveryOk = process.env.NIR_E2E_REAL_DELIVERY === '1';
+const mailIsReal = !realDeliveryOk && !['', 'console'].includes(unquote(env.MAIL_TRANSPORT));
+const smsIsReal = !realDeliveryOk && !['', 'console'].includes(unquote(env.SMS_PROVIDER));
+
 let reachable = true;
 let config;
 
@@ -138,6 +146,7 @@ describe('registration OTP — email', () => {
 
   test('sends a code, enforces the resend cooldown, rejects a wrong code, accepts the right one once', async (t) => {
     if (!reachable) return t.skip();
+    if (mailIsReal) return t.skip('MAIL_TRANSPORT is real; set it to console (or NIR_E2E_REAL_DELIVERY=1)');
     const sent = await call('POST', '/auth/otp/send', { channel: 'EMAIL', email: newEmail, captchaToken: DUMMY_CAPTCHA });
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
     assert.equal(sent.body.channel, 'EMAIL');
@@ -178,6 +187,7 @@ describe('registration OTP — SMS', () => {
 
   test('locks the code after 5 wrong attempts', async (t) => {
     if (skip()) return t.skip();
+    if (smsIsReal) return t.skip('SMS_PROVIDER is real; set it to console (or NIR_E2E_REAL_DELIVERY=1)');
     const sent = await call('POST', '/auth/otp/send', { channel: 'SMS', phone: local, locale: 'bn', captchaToken: DUMMY_CAPTCHA });
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
     await setKnownCode(e164, '135791');
@@ -193,6 +203,7 @@ describe('registration OTP — SMS', () => {
 
   test('a fresh code verifies the phone, which is stored normalized', async (t) => {
     if (skip()) return t.skip();
+    if (smsIsReal) return t.skip('SMS_PROVIDER is real; set it to console (or NIR_E2E_REAL_DELIVERY=1)');
     // Skip the 60s resend cooldown by back-dating the previous code.
     await prisma.otpCode.updateMany({ where: { target: e164 }, data: { createdAt: new Date(Date.now() - 120_000) } });
     const sent = await call('POST', '/auth/otp/send', { channel: 'SMS', phone: `+88 ${local}`, captchaToken: DUMMY_CAPTCHA });
