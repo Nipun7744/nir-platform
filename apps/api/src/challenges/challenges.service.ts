@@ -35,6 +35,8 @@ const DETAIL_TEXT_FIELDS = [
   'problemStatementEn', 'problemStatementBn', 'eligibilityEn', 'eligibilityBn',
   'evaluationCriteriaEn', 'evaluationCriteriaBn', 'prizeDetailsEn', 'prizeDetailsBn',
   'additionalInfoEn', 'additionalInfoBn', 'contactName', 'contactEmail', 'contactPhone',
+  // Bangla organizer / prize summary (2026-11-15); blank → NULL → the Bangla site shows English.
+  'organizingAgencyBn', 'prizeInfoBn',
 ] as const;
 
 type Viewer = { id: string; roles: Role[] } | undefined;
@@ -153,11 +155,32 @@ export class ChallengesService {
       ...rest,
       ...optionalText,
       ...(categoryId !== undefined ? { categoryId: categoryId || null } : {}),
+      // Rows are rebuilt key by key (never spread), so only known keys are stored. Blank optional
+      // keys (incl. the *Bn ones) become undefined and are omitted from the JSON.
       ...(timelinePhases !== undefined
-        ? { timelinePhases: timelinePhases.map((p) => ({ label: p.label.trim(), date: trim(p.date), description: trim(p.description) })) }
+        ? {
+            timelinePhases: timelinePhases.map((p) => ({
+              label: p.label.trim(),
+              labelBn: trim(p.labelBn),
+              date: trim(p.date),
+              description: trim(p.description),
+              descriptionBn: trim(p.descriptionBn),
+            })),
+          }
         : {}),
-      ...(faqs !== undefined ? { faqs: faqs.map((f) => ({ question: f.question.trim(), answer: f.answer.trim() })) } : {}),
-      ...(resources !== undefined ? { resources: resources.map((r) => ({ label: r.label.trim(), url: r.url.trim() })) } : {}),
+      ...(faqs !== undefined
+        ? {
+            faqs: faqs.map((f) => ({
+              question: f.question.trim(),
+              questionBn: trim(f.questionBn),
+              answer: f.answer.trim(),
+              answerBn: trim(f.answerBn),
+            })),
+          }
+        : {}),
+      ...(resources !== undefined
+        ? { resources: resources.map((r) => ({ label: r.label.trim(), labelBn: trim(r.labelBn), url: r.url.trim() })) }
+        : {}),
       startDate: date(startDate),
       deadline: date(deadline),
     };

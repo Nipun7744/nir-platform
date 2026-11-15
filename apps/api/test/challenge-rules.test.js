@@ -22,22 +22,23 @@ const OPEN = {
 
 describe('submissionState', () => {
   test('accepts when published, active, enabled, OPEN, configured', () => {
-    assert.deepEqual(submissionState(OPEN), { acceptingSubmissions: true, closedReason: null });
+    assert.deepEqual(submissionState(OPEN), { acceptingSubmissions: true, closedReason: null, closedCode: null });
   });
 
-  for (const [patch, reason] of [
-    [{ isPublished: false }, /not published/],
-    [{ isActive: false }, /inactive/],
-    [{ submissionsEnabled: false }, /not enabled/],
-    [{ status: 'UPCOMING' }, /not opened yet/],
-    [{ status: 'CLOSED' }, /no longer accepting/],
-    [{ categoryId: null }, /not yet configured/],
-    [{ formFieldCount: 0 }, /not yet configured/],
+  for (const [patch, reason, code] of [
+    [{ isPublished: false }, /not published/, 'NOT_PUBLISHED'],
+    [{ isActive: false }, /inactive/, 'INACTIVE'],
+    [{ submissionsEnabled: false }, /not enabled/, 'SUBMISSIONS_DISABLED'],
+    [{ status: 'UPCOMING' }, /not opened yet/, 'NOT_OPEN_YET'],
+    [{ status: 'CLOSED' }, /no longer accepting/, 'NO_LONGER_ACCEPTING'],
+    [{ categoryId: null }, /not yet configured/, 'NOT_CONFIGURED'],
+    [{ formFieldCount: 0 }, /not yet configured/, 'NOT_CONFIGURED'],
   ]) {
     test(`rejects when ${JSON.stringify(patch)}`, () => {
       const s = submissionState({ ...OPEN, ...patch });
       assert.equal(s.acceptingSubmissions, false);
       assert.match(s.closedReason, reason);
+      assert.equal(s.closedCode, code, 'stable code for the localized message');
     });
   }
 
@@ -50,6 +51,42 @@ describe('submissionState', () => {
   test('not open before startDate', () => {
     const c = { ...OPEN, startDate: '2026-12-01T00:00:00.000Z' };
     assert.match(submissionState(c, new Date('2026-11-10T00:00:00Z')).closedReason, /not opened yet/);
+  });
+});
+
+describe('normalizeFormDefinition — Bangla text (2026-11-15)', () => {
+  test('keeps Bn label/description/help, blank Bn becomes null', () => {
+    const { fields, errors } = normalizeFormDefinition([
+      { label: 'Team', labelBn: ' দল ', type: 'SHORT_TEXT', descriptionBn: '', helpTextBn: 'সাহায্য', placeholderBn: 'নাম' },
+    ]);
+    assert.deepEqual(errors, []);
+    assert.equal(fields[0].labelBn, 'দল');
+    assert.equal(fields[0].descriptionBn, null);
+    assert.equal(fields[0].helpTextBn, 'সাহায্য');
+    assert.equal(fields[0].placeholderBn, 'নাম');
+  });
+
+  test('optionsBn stays aligned with options when blank options are dropped', () => {
+    const { fields } = normalizeFormDefinition([
+      { label: 'Size', type: 'SELECT', options: ['Small', '', ' Large '], optionsBn: ['ছোট', 'x', ''] },
+    ]);
+    assert.deepEqual(fields[0].options, ['Small', 'Large']);
+    assert.deepEqual(fields[0].optionsBn, ['ছোট', '']);
+  });
+
+  test('no Bangla options at all → empty optionsBn', () => {
+    const { fields } = normalizeFormDefinition([{ label: 'Size', type: 'RADIO', options: ['A', 'B'] }]);
+    assert.deepEqual(fields[0].optionsBn, []);
+  });
+
+  test('consent checkbox keeps its text (placeholder); choice lists still drop it', () => {
+    const { fields } = normalizeFormDefinition([
+      { label: 'Consent', type: 'CHECKBOX', placeholder: 'I agree', placeholderBn: 'আমি সম্মত' },
+      { label: 'Pick', type: 'CHECKBOX', options: ['A'], placeholder: 'ignored' },
+    ]);
+    assert.equal(fields[0].placeholder, 'I agree');
+    assert.equal(fields[0].placeholderBn, 'আমি সম্মত');
+    assert.equal(fields[1].placeholder, null);
   });
 });
 

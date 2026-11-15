@@ -44,6 +44,7 @@ export interface ChallengeDto {
   slug: string;
   titleEn: string;
   organizingAgency: string;
+  organizingAgencyBn?: string | null;
   descriptionEn: string;
   status: string;
   categoryId?: string | null;
@@ -54,12 +55,15 @@ export interface ChallengeDto {
   /** Computed server-side (see challenge-rules.ts submissionState). */
   acceptingSubmissions?: boolean;
   closedReason?: string | null;
+  /** Stable code for closedReason, so it can be shown in Bangla (2026-11-15). */
+  closedCode?: string | null;
   formFieldCount?: number;
   submissionCount?: number;
   startDate?: string;
   deadline?: string;
   bannerImageUrl?: string;
   prizeInfoEn?: string;
+  prizeInfoBn?: string | null;
   applyUrl?: string;
   titleBn?: string | null;
   descriptionBn?: string | null;
@@ -82,18 +86,24 @@ export interface ChallengeDto {
   resources?: ChallengeResource[] | null;
 }
 
+// *Bn keys (2026-11-15): Bangla text, falling back to English when blank (see lib/challenge-i18n).
 export interface ChallengeTimelinePhase {
   label: string;
+  labelBn?: string;
   /** YYYY-MM-DD */
   date?: string;
   description?: string;
+  descriptionBn?: string;
 }
 export interface ChallengeFaq {
   question: string;
+  questionBn?: string;
   answer: string;
+  answerBn?: string;
 }
 export interface ChallengeResource {
   label: string;
+  labelBn?: string;
   url: string;
 }
 

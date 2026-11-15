@@ -3,14 +3,16 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { Link, useRouter } from '@/i18n/navigation';
-import { ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Mail, Phone, Building2, User as UserIcon, FileText, Upload, Lock } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Mail, Phone, Building2, User as UserIcon, FileText, Upload, Lock, Globe, ExternalLink } from 'lucide-react';
+import { PublishInnovationButton } from '@/components/admin/publish-innovation-button';
 import { useInnovation } from '@/hooks/use-repository-search';
 import { useEvaluationsForInnovation, useIpFlags } from '@/hooks/use-evaluations';
 import { useUpdateInnovationApproval } from '@/hooks/use-innovations';
 import { useUploadFile } from '@/hooks/use-admin';
 import { useSubmitterProfile } from '@/hooks/use-submitter-profile';
 import { ReviewCommentTimeline } from '@/components/reviews/review-comment-timeline';
-import { ChallengeResponses } from '@/components/challenge-form/challenge-responses';
+import { ChallengeResponses, challengeExtraAttachments } from '@/components/challenge-form/challenge-responses';
+import { AttachmentList, toAttachmentItems } from '@/components/ui/attachment-list';
 
 function readableLabel(value?: string) {
   if (!value) return '—';
@@ -212,7 +214,7 @@ function ApprovalSection({ innovation }: { innovation: any }) {
         ...(innovation.mentorshipNeeded ? { mentorApproved, mentorApprovalComment: mentorComment } : {}),
         ...(innovation.fundingNeeded ? { fundApproved, fundApprovalComment: fundComment } : {}),
         // This explicit save is the Admin's final decision — moves the innovation from Pending to
-        // Reviewed server-side (SELECTED -> PUBLISHED). The approval-letter-upload save below
+        // Reviewed server-side (SELECTED -> APPROVED). The approval-letter-upload save below
         // deliberately omits this flag, since uploading a letter isn't itself a final decision.
         finalize: true,
       },
@@ -332,7 +334,10 @@ function ApprovalSection({ innovation }: { innovation: any }) {
         </p>
       )}
 
-      {!isReadOnly && hasAnyRequest && (
+      {/* Shown even when nothing was requested: this save is also the Admin's approval
+          (SELECTED -> APPROVED), and without it such an innovation could never be approved or
+          published. */}
+      {!isReadOnly && (
         <div className="mt-6">
           <button
             type="button"
@@ -340,10 +345,51 @@ function ApprovalSection({ innovation }: { innovation: any }) {
             disabled={updateApproval.isPending}
             className="focus-ring rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
           >
-            {updateApproval.isPending ? 'Saving…' : 'Save approval decisions'}
+            {updateApproval.isPending ? 'Saving…' : hasAnyRequest ? 'Save approval decisions' : 'Approve innovation'}
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function formatDate(value?: string | null) {
+  return value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+}
+
+// Publication is a separate, later step from approval (see PROJECT_CONTEXT.md#business-rules), so
+// it gets its own panel. Only rendered once the innovation is APPROVED or beyond.
+function PublicationSection({ innovation }: { innovation: any }) {
+  const status = innovation.reviewStatus;
+  if (!['APPROVED', 'PUBLISHED', 'UNPUBLISHED'].includes(status)) return null;
+
+  const message =
+    status === 'PUBLISHED'
+      ? `Live on the public repository${innovation.publishedAt ? ` since ${formatDate(innovation.publishedAt)}` : ''}.`
+      : status === 'UNPUBLISHED'
+        ? 'Unpublished. Not visible on the public repository.'
+        : 'Approved but not yet published. Publish to make it visible on the public repository.';
+
+  return (
+    <div className="mt-8 rounded-2xl border border-ink-100 bg-white p-6 shadow-card">
+      <h2 className="flex items-center gap-2 font-display text-lg font-bold text-ink-900">
+        <Globe className="h-5 w-5 text-brand-600" /> Publication
+      </h2>
+      <p className="mt-1 text-sm text-ink-600">{message}</p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <PublishInnovationButton innovation={innovation} />
+        {status === 'PUBLISHED' && (
+          <Link
+            href={`/repository/${innovation.slug}`}
+            className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-ink-200 px-4 py-2 text-sm font-medium text-ink-700 hover:border-brand-300 hover:text-brand-700"
+          >
+            <ExternalLink className="h-4 w-4" /> View public page
+          </Link>
+        )}
+        <Link href="/dashboard/admin/repository" className="text-sm font-medium text-ink-500 hover:text-ink-800">
+          Manage in Repository →
+        </Link>
+      </div>
     </div>
   );
 }
@@ -355,8 +401,13 @@ export default function AdminInnovationEvaluationPage({ params }: { params: { in
   if (isLoading) return <p className="text-ink-400">Loading…</p>;
   if (!innovation) return <p className="text-ink-400">Innovation not found.</p>;
 
-  const photo = innovation.attachments?.find((a: any) => a.kind === 'PHOTO');
-  const documents = innovation.attachments?.filter((a: any) => a.kind !== 'PHOTO') ?? [];
+  // Challenge submissions: no inline hero image. Images are listed as attachments (lightbox on
+  // click), and files already shown under their form question aren't repeated.
+  const isChallengeSubmission = Boolean(innovation.challengeId);
+  const photo = isChallengeSubmission ? undefined : innovation.attachments?.find((a: any) => a.kind === 'PHOTO');
+  const documents = isChallengeSubmission
+    ? challengeExtraAttachments(innovation)
+    : innovation.attachments?.filter((a: any) => a.kind !== 'PHOTO') ?? [];
 
   return (
     <div className="max-w-5xl">
@@ -420,18 +471,8 @@ export default function AdminInnovationEvaluationPage({ params }: { params: { in
           {documents.length > 0 && (
             <section>
               <h2 className="font-display text-base font-bold text-ink-900">Supporting documents</h2>
-              <div className="mt-2 space-y-2">
-                {documents.map((a: any) => (
-                  <a
-                    key={a.id}
-                    href={a.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="focus-ring flex items-center gap-2 rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700 hover:border-brand-300 hover:text-brand-700"
-                  >
-                    <FileText className="h-4 w-4 shrink-0" /> <span className="min-w-0 truncate">{a.caption ?? a.kind}</span>
-                  </a>
-                ))}
+              <div className="mt-2">
+                <AttachmentList items={toAttachmentItems(documents)} />
               </div>
             </section>
           )}
@@ -534,6 +575,7 @@ export default function AdminInnovationEvaluationPage({ params }: { params: { in
       </div>
 
       <ApprovalSection innovation={innovation} />
+      <PublicationSection innovation={innovation} />
     </div>
   );
 }

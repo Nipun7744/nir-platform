@@ -22,19 +22,25 @@ import { FIELD_MAPPINGS, FORM_FIELD_TYPES, MAX_FIELDS } from '../challenge-rules
 
 // ---------------------------------------------------------------- details-page sections (2026-11-11)
 
+// The optional *Bn keys (2026-11-15) are the Bangla text; the site falls back to English if blank.
 export class TimelinePhaseDto {
   @IsString() @IsNotEmpty() @MaxLength(120) label!: string;
+  @IsOptional() @IsString() @MaxLength(120) labelBn?: string;
   @IsOptional() @ValidateIf((_, v) => v !== '') @IsDateString() date?: string;
   @IsOptional() @IsString() @MaxLength(500) description?: string;
+  @IsOptional() @IsString() @MaxLength(500) descriptionBn?: string;
 }
 
 export class ChallengeFaqDto {
   @IsString() @IsNotEmpty() @MaxLength(300) question!: string;
+  @IsOptional() @IsString() @MaxLength(300) questionBn?: string;
   @IsString() @IsNotEmpty() @MaxLength(3000) answer!: string;
+  @IsOptional() @IsString() @MaxLength(3000) answerBn?: string;
 }
 
 export class ChallengeResourceDto {
   @IsString() @IsNotEmpty() @MaxLength(200) label!: string;
+  @IsOptional() @IsString() @MaxLength(200) labelBn?: string;
   // Web links or our own uploads only — never javascript:/data: URLs, since this lands in an href.
   @IsString()
   @MaxLength(500)
@@ -57,6 +63,8 @@ class ChallengeDetailsDto {
   @IsOptional() @IsString() @MaxLength(LONG_TEXT) additionalInfoEn?: string;
   @IsOptional() @IsString() @MaxLength(LONG_TEXT) additionalInfoBn?: string;
   @IsOptional() @IsString() @MaxLength(120) contactName?: string;
+  @IsOptional() @IsString() @MaxLength(300) organizingAgencyBn?: string;
+  @IsOptional() @IsString() @MaxLength(300) prizeInfoBn?: string;
   @IsOptional() @ValidateIf((_, v) => v !== '') @IsEmail() contactEmail?: string;
   @IsOptional() @IsString() @MaxLength(40) contactPhone?: string;
   @IsOptional() @IsArray() @ArrayMaxSize(20) @ValidateNested({ each: true }) @Type(() => TimelinePhaseDto)
@@ -116,12 +124,17 @@ export class FormFieldDto {
   @IsOptional() @IsString() id?: string;
   @IsOptional() @IsString() @MaxLength(60) key?: string;
   @IsString() @MaxLength(200) label!: string;
+  @IsOptional() @IsString() @MaxLength(200) labelBn?: string | null;
   @IsOptional() @IsString() @MaxLength(1000) description?: string | null;
+  @IsOptional() @IsString() @MaxLength(1000) descriptionBn?: string | null;
   @IsIn(FORM_FIELD_TYPES as unknown as string[]) type!: string;
   @IsOptional() @IsBoolean() required?: boolean;
   @IsOptional() @IsString() @MaxLength(200) placeholder?: string | null;
+  @IsOptional() @IsString() @MaxLength(200) placeholderBn?: string | null;
   @IsOptional() @IsString() @MaxLength(500) helpText?: string | null;
+  @IsOptional() @IsString() @MaxLength(500) helpTextBn?: string | null;
   @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) @MaxLength(200, { each: true }) options?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) @MaxLength(200, { each: true }) optionsBn?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) acceptedFileTypes?: string[];
   @IsOptional() @IsInt() maxFileSizeMb?: number | null;
   @IsOptional() @IsInt() maxFiles?: number | null;

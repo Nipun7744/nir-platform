@@ -282,6 +282,12 @@ Applied so far (`apps/api/prisma/migrations/`, oldest first):
     `Challenge` (see Component 4 below). Purely additive (all nullable).
 23. `20261112044745_registration_otp` — enums `OtpChannel`/`OtpPurpose`, table `OtpCode`,
     `User.phoneVerifiedAt`. Purely additive.
+24. `20261115092802_challenge_bangla_fields` — Bangla text for challenges: `Challenge.organizingAgencyBn`,
+    `prizeInfoBn`; `ChallengeFormField.labelBn`, `descriptionBn`, `placeholderBn`, `helpTextBn`,
+    `optionsBn TEXT[] DEFAULT []` (index-aligned with `options`; answers always store the English
+    option). The JSON lists `timelinePhases`/`faqs`/`resources` gained optional `labelBn`,
+    `descriptionBn`, `questionBn`, `answerBn` keys (no DDL needed). Purely additive (all nullable /
+    defaulted), so safe for `prisma migrate deploy` on the servers.
 
 Note migrations 9 and 11 (`add_due_diligence_reviewer`, `rename_due_diligence_to_authenticity_reviewer`):
 a "Due Diligence Reviewer" role was added then renamed to "Authenticity Reviewer" within the same

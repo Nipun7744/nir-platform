@@ -170,14 +170,17 @@ export class AuthService {
         passwordHash,
         fullName: dto.fullName,
         roles: [Role.INNOVATION_SUBMITTER],
-        isActive: false,
+        // Since 2026-11-15 a successful OTP verification (above) approves and activates the
+        // account immediately; there is no admin approval step for self-registration any more.
+        isActive: true,
+        lastLoginAt: verifiedAt,
         innovatorProfile: { create: { irn } },
       },
     });
 
     // Layer on the desired self-service role now, while we still have a userId to
-    // hand these services directly — the account isn't active yet, so it can't
-    // authenticate to call the equivalent /register endpoints itself.
+    // hand these services directly (same call, so the role is in place before the
+    // first token is issued below).
     if (dto.role === Role.INVESTOR) {
       await this.funding.registerInvestor(user.id, {
         organizationName: dto.organizationName ?? '',
@@ -199,7 +202,7 @@ export class AuthService {
       action: 'USER_REGISTERED',
       entityType: 'User',
       entityId: user.id,
-      metadata: { verifiedBy: dto.otpChannel },
+      metadata: { verifiedBy: dto.otpChannel, autoActivated: true },
     });
 
     await this.notifications.send({
@@ -209,10 +212,14 @@ export class AuthService {
       payload: { fullName: user.fullName, irn },
     });
 
+    // Sign the new user straight in. Re-read so the token carries any role added above.
+    const activeUser = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    const tokens = await this.issueTokenPair(activeUser);
     return {
-      pending: true,
-      message:
-        'Your registration has been submitted. An administrator will review and approve your account before you can sign in.',
+      pending: false,
+      message: 'Your account is verified and active.',
+      user: this.toPublicUser(activeUser),
+      ...tokens,
     };
   }
 

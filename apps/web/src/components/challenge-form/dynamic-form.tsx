@@ -2,8 +2,11 @@
 
 import { useState } from 'react';
 import clsx from 'clsx';
+import { useLocale, useTranslations } from 'next-intl';
 import { FileText, Loader2, Upload, X } from 'lucide-react';
 import { uploadFile } from '@/lib/upload';
+import { FileName, cleanFileName } from '@/components/ui/attachment-list';
+import { localizeField } from '@/lib/challenge-i18n';
 import {
   DEFAULT_MAX_FILES,
   UPLOAD_MAX_SIZE_MB,
@@ -21,29 +24,39 @@ const isConsentBox = (f: ChallengeFormFieldDto) => f.type === 'CHECKBOX' && f.op
 const isEmpty = (v: unknown) =>
   v === undefined || v === null || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && v.length === 0);
 
+type FormT = ReturnType<typeof useTranslations<'challenges.form'>>;
+
 /**
  * Client-side mirror of the server's validateResponses (apps/api/src/challenges/challenge-rules.ts)
- * for instant feedback. The server re-validates everything and is authoritative.
+ * for instant feedback, in the visitor's language. The server re-validates everything and is
+ * authoritative.
  */
-export function validateDynamicForm(fields: ChallengeFormFieldDto[], values: FormValues): Record<string, string> {
+export function validateDynamicForm(
+  fields: ChallengeFormFieldDto[],
+  values: FormValues,
+  t: FormT,
+  locale: string,
+): Record<string, string> {
   const errors: Record<string, string> = {};
+  const loc = localizeField(locale);
   for (const f of fields) {
     const v = values[f.key];
+    const label = loc(f).label;
     if (isConsentBox(f)) {
-      if (f.required && v !== true) errors[f.key] = `${f.label} must be checked.`;
+      if (f.required && v !== true) errors[f.key] = t('mustCheck', { label });
       continue;
     }
     if (isEmpty(v)) {
-      if (f.required) errors[f.key] = `${f.label} is required.`;
+      if (f.required) errors[f.key] = t('required', { label });
       continue;
     }
-    if (f.type === 'SHORT_TEXT' && String(v).length > 500) errors[f.key] = 'At most 500 characters.';
-    if (f.type === 'LONG_TEXT' && String(v).length > 20000) errors[f.key] = 'At most 20,000 characters.';
-    if (f.type === 'NUMBER' && !Number.isFinite(Number(v))) errors[f.key] = 'Enter a number.';
-    if (f.type === 'EMAIL' && !EMAIL_RE.test(String(v).trim())) errors[f.key] = 'Enter a valid email address.';
-    if (f.type === 'PHONE' && !PHONE_RE.test(String(v).trim())) errors[f.key] = 'Enter a valid phone number.';
+    if (f.type === 'SHORT_TEXT' && String(v).length > 500) errors[f.key] = t('maxChars', { count: 500 });
+    if (f.type === 'LONG_TEXT' && String(v).length > 20000) errors[f.key] = t('maxChars', { count: 20000 });
+    if (f.type === 'NUMBER' && !Number.isFinite(Number(v))) errors[f.key] = t('number');
+    if (f.type === 'EMAIL' && !EMAIL_RE.test(String(v).trim())) errors[f.key] = t('email');
+    if (f.type === 'PHONE' && !PHONE_RE.test(String(v).trim())) errors[f.key] = t('phone');
     if (f.type === 'MULTI_FILE' && Array.isArray(v) && v.length > (f.maxFiles ?? DEFAULT_MAX_FILES)) {
-      errors[f.key] = `At most ${f.maxFiles ?? DEFAULT_MAX_FILES} files.`;
+      errors[f.key] = t('maxFiles', { count: f.maxFiles ?? DEFAULT_MAX_FILES });
     }
   }
   return errors;
@@ -73,6 +86,7 @@ function FileField({
   const maxMb = field.maxFileSizeMb ?? UPLOAD_MAX_SIZE_MB;
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = useTranslations('challenges.form');
 
   const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files ?? []);
@@ -80,16 +94,16 @@ function FileField({
     if (!picked.length) return;
     setError(null);
     if (files.length + picked.length > max && multiple) {
-      setError(`You can attach at most ${max} files.`);
+      setError(t('tooManyFiles', { max }));
       return;
     }
     for (const file of picked) {
       if (field.acceptedFileTypes.length && !field.acceptedFileTypes.includes(fileExt(file.name))) {
-        setError(`"${file.name}" is not an accepted file type (${field.acceptedFileTypes.join(', ')}).`);
+        setError(t('badType', { name: cleanFileName(file.name), types: field.acceptedFileTypes.join(', ') }));
         return;
       }
       if (file.size > maxMb * 1024 * 1024) {
-        setError(`"${file.name}" is larger than ${maxMb} MB.`);
+        setError(t('tooLarge', { name: cleanFileName(file.name), mb: maxMb }));
         return;
       }
     }
@@ -104,7 +118,7 @@ function FileField({
       }));
       onChange(multiple ? [...files, ...uploaded] : uploaded[0]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      setError(err instanceof Error ? err.message : t('uploadFailed'));
     } finally {
       setUploading(false);
     }
@@ -121,12 +135,12 @@ function FileField({
         <ul className="mb-2 space-y-1.5">
           {files.map((f) => (
             <li key={f.url} className="flex items-center justify-between gap-2 rounded-lg border border-ink-100 bg-ink-50 px-3 py-2 text-sm">
-              <span className="flex min-w-0 items-center gap-2 text-ink-700">
+              <span className="flex min-w-0 flex-1 items-center gap-2 text-ink-700">
                 <FileText className="h-4 w-4 shrink-0 text-brand-600" />
-                <span className="truncate">{f.name}</span>
+                <FileName name={f.name} url={f.url} />
               </span>
               {!disabled && (
-                <button type="button" onClick={() => remove(f.url)} className="focus-ring rounded p-1 text-ink-400 hover:text-red-600" aria-label={`Remove ${f.name}`}>
+                <button type="button" onClick={() => remove(f.url)} className="focus-ring shrink-0 rounded p-1 text-ink-400 hover:text-red-600" aria-label={t('remove', { name: cleanFileName(f.name, f.url) })}>
                   <X className="h-4 w-4" />
                 </button>
               )}
@@ -143,7 +157,7 @@ function FileField({
           )}
         >
           {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-          {uploading ? 'Uploading…' : multiple ? 'Add files' : 'Choose file'}
+          {uploading ? t('uploading') : multiple ? t('addFiles') : t('chooseFile')}
           <input
             type="file"
             className="sr-only"
@@ -155,8 +169,8 @@ function FileField({
         </label>
       )}
       <p className="mt-1 text-xs text-ink-400">
-        {field.acceptedFileTypes.length ? `Accepted: ${field.acceptedFileTypes.join(', ')}. ` : ''}
-        Max {maxMb} MB{multiple ? ` per file, up to ${max} files` : ''}.
+        {field.acceptedFileTypes.length ? `${t('accepted', { types: field.acceptedFileTypes.join(', ') })} ` : ''}
+        {multiple ? t('maxSizeMulti', { mb: maxMb, max }) : t('maxSize', { mb: maxMb })}
       </p>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
@@ -181,24 +195,28 @@ function FieldInput({
   const cls = clsx(inputCls, invalid && 'border-red-400');
   const common = { id, disabled, 'aria-invalid': invalid || undefined, 'aria-describedby': describedBy };
   const str = (value as string) ?? '';
+  const t = useTranslations('challenges.form');
+  const text = localizeField(useLocale())(field);
+  const placeholder = text.placeholder ?? undefined;
 
   switch (field.type) {
     case 'LONG_TEXT':
-      return <textarea {...common} rows={5} value={str} placeholder={field.placeholder ?? undefined} onChange={(e) => onChange(e.target.value)} className={cls} />;
+      return <textarea {...common} rows={5} value={str} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={cls} />;
     case 'NUMBER':
-      return <input {...common} type="number" inputMode="decimal" value={str} placeholder={field.placeholder ?? undefined} onChange={(e) => onChange(e.target.value)} className={cls} />;
+      return <input {...common} type="number" inputMode="decimal" value={str} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={cls} />;
     case 'EMAIL':
-      return <input {...common} type="email" value={str} placeholder={field.placeholder ?? undefined} onChange={(e) => onChange(e.target.value)} className={cls} />;
+      return <input {...common} type="email" value={str} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={cls} />;
     case 'PHONE':
-      return <input {...common} type="tel" value={str} placeholder={field.placeholder ?? '+880 1XXX-XXXXXX'} onChange={(e) => onChange(e.target.value)} className={cls} />;
+      return <input {...common} type="tel" value={str} placeholder={placeholder ?? '+880 1XXX-XXXXXX'} onChange={(e) => onChange(e.target.value)} className={cls} />;
     case 'DATE':
       return <input {...common} type="date" value={str} onChange={(e) => onChange(e.target.value)} className={cls} />;
     case 'SELECT':
+      // Values stay the English option (what's validated and stored); only the visible text changes.
       return (
         <select {...common} value={str} onChange={(e) => onChange(e.target.value)} className={clsx(cls, 'bg-white')}>
-          <option value="">Select…</option>
+          <option value="">{t('select')}</option>
           {field.options.map((o) => (
-            <option key={o} value={o}>{o}</option>
+            <option key={o} value={o}>{text.optionLabel(o)}</option>
           ))}
         </select>
       );
@@ -208,7 +226,7 @@ function FieldInput({
           {field.options.map((o) => (
             <label key={o} className="flex items-center gap-2 text-sm text-ink-700">
               <input type="radio" name={id} disabled={disabled} checked={value === o} onChange={() => onChange(o)} className="focus-ring h-4 w-4 text-brand-600" />
-              {o}
+              {text.optionLabel(o)}
             </label>
           ))}
         </div>
@@ -226,7 +244,7 @@ function FieldInput({
               aria-describedby={describedBy}
               className="focus-ring mt-0.5 h-4 w-4 shrink-0 rounded-sm border-2 border-ink-400 text-brand-600"
             />
-            <span>{field.placeholder || 'Yes'}</span>
+            <span>{placeholder || t('yes')}</span>
           </label>
         );
       }
@@ -242,7 +260,7 @@ function FieldInput({
                 onChange={(e) => onChange(e.target.checked ? [...list, o] : list.filter((x) => x !== o))}
                 className="focus-ring h-4 w-4 rounded-sm border-2 border-ink-400 text-brand-600"
               />
-              {o}
+              {text.optionLabel(o)}
             </label>
           ))}
         </div>
@@ -274,14 +292,17 @@ export function DynamicForm({
   errors?: Record<string, string>;
   preview?: boolean;
 }) {
+  const t = useTranslations('challenges.form');
+  const loc = localizeField(useLocale());
   if (fields.length === 0) {
-    return <p className="text-sm text-ink-400">This form has no fields yet.</p>;
+    return <p className="text-sm text-ink-400">{t('noFields')}</p>;
   }
   return (
     <div className="space-y-6">
       {fields.map((field) => {
         const id = `cf-${field.key}`;
         const error = errors[field.key];
+        const text = loc(field);
         // Radio/checkbox lists and file pickers have no single input for a <label htmlFor>.
         const isGroup =
           field.type === 'RADIO' || field.type === 'FILE' || field.type === 'MULTI_FILE' || (field.type === 'CHECKBOX' && !isConsentBox(field));
@@ -289,10 +310,10 @@ export function DynamicForm({
         return (
           <div key={field.key}>
             <LabelTag id={`${id}-label`} {...(isGroup ? {} : { htmlFor: id })} className="mb-1 block text-sm font-medium text-ink-800">
-              {field.label}
+              {text.label}
               {field.required && <span className="text-red-600"> *</span>}
             </LabelTag>
-            {field.description && <p className="mb-2 text-sm text-ink-500">{field.description}</p>}
+            {text.description && <p className="mb-2 text-sm text-ink-500">{text.description}</p>}
             <FieldInput
               field={field}
               value={values[field.key]}
@@ -301,7 +322,7 @@ export function DynamicForm({
               invalid={Boolean(error)}
             />
             <div id={`${id}-help`}>
-              {field.helpText && <p className="mt-1 text-xs text-ink-400">{field.helpText}</p>}
+              {text.helpText && <p className="mt-1 text-xs text-ink-400">{text.helpText}</p>}
               {error && <p className="mt-1 text-xs font-medium text-red-600">{error}</p>}
             </div>
           </div>

@@ -6,6 +6,7 @@ import { AlertTriangle, ShieldCheck, RotateCcw, CheckCircle2, X } from 'lucide-r
 import { Link, useRouter } from '@/i18n/navigation';
 import { useShortlistedEvaluations, useIpFlags } from '@/hooks/use-evaluations';
 import { useCategories } from '@/hooks/use-content';
+import { PublishInnovationButton } from '@/components/admin/publish-innovation-button';
 
 function Panel({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
@@ -50,7 +51,16 @@ const TABS = [
   { value: 'REVIEWED', label: 'Reviewed' },
 ] as const;
 const PENDING_STATUS = 'SELECTED';
-const REVIEWED_STATUSES = new Set(['APPROVED', 'REJECTED', 'PUBLISHED', 'ARCHIVED']);
+// UNPUBLISHED is a later state of PUBLISHED (taken down via Repository Management) — still settled.
+const REVIEWED_STATUSES = new Set(['APPROVED', 'REJECTED', 'PUBLISHED', 'UNPUBLISHED', 'ARCHIVED']);
+
+const STATUS_PILL: Record<string, { label: string; className: string }> = {
+  APPROVED: { label: 'Approved · not published', className: 'bg-sun-100 text-ink-800' },
+  PUBLISHED: { label: 'Published', className: 'bg-brand-100 text-brand-800' },
+  UNPUBLISHED: { label: 'Unpublished', className: 'bg-ink-100 text-ink-600' },
+  REJECTED: { label: 'Rejected', className: 'bg-red-50 text-red-600' },
+  ARCHIVED: { label: 'Archived', className: 'bg-ink-100 text-ink-500' },
+};
 
 function AdminEvaluationsPageContent() {
   const router = useRouter();
@@ -214,6 +224,7 @@ function AdminEvaluationsPageContent() {
                   {items.map((evaluation) => {
                     const flags = flagsByInnovationId.get(evaluation.innovation.id) ?? [];
                     const isFlagged = flags.length > 0;
+                    const statusPill = activeTab === 'REVIEWED' ? STATUS_PILL[evaluation.innovation.reviewStatus] : undefined;
                     return (
                       <div key={evaluation.id} className="rounded-xl border border-ink-100 px-4 py-3">
                         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -225,14 +236,22 @@ function AdminEvaluationsPageContent() {
                               {evaluation.innovation.innovationCode} · Shortlisted by {evaluation.evaluator.fullName}
                             </p>
                           </div>
-                          <span
-                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                              isFlagged ? 'bg-red-50 text-red-600' : 'bg-brand-50 text-brand-700'
-                            }`}
-                          >
-                            {isFlagged ? <AlertTriangle className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
-                            {isFlagged ? `Flagged for IP review (${flags.length})` : 'No IP flag'}
-                          </span>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            {statusPill && (
+                              <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusPill.className}`}>
+                                {statusPill.label}
+                              </span>
+                            )}
+                            <span
+                              className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                                isFlagged ? 'bg-red-50 text-red-600' : 'bg-brand-50 text-brand-700'
+                              }`}
+                            >
+                              {isFlagged ? <AlertTriangle className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+                              {isFlagged ? `Flagged for IP review (${flags.length})` : 'No IP flag'}
+                            </span>
+                            <PublishInnovationButton innovation={evaluation.innovation} size="sm" />
+                          </div>
                         </div>
                         {isFlagged && (
                           <div className="mt-2 space-y-1.5 border-t border-ink-100 pt-2">

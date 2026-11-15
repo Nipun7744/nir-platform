@@ -112,6 +112,43 @@ active), written twice.
 
 ## Reusable patterns
 
+- **Password fields (2026-11-15):** use `components/auth/password-input.tsx` (`PasswordInput`),
+  never a bare `type="password"` input. It adds an eye / eye-off toggle (`type="button"`, so it
+  never submits; `aria-label`/`aria-pressed`, translated `auth.showPassword`/`hidePassword`) and
+  passes every other prop through (`required`, `minLength`, `autoComplete`), so validation is
+  unchanged. Used on sign-in (`current-password`) and register (`new-password`).
+- **File names (2026-11-15):** render uploaded file names with `FileName` / `cleanFileName` from
+  `components/ui/attachment-list.tsx`. It strips paths, replaces server UUID names with
+  `Attachment.<ext>`, URL-decodes, always keeps the extension visible while the base name
+  truncates with "…", and puts the full name in a `title` tooltip. Its parent must allow
+  shrinking (`min-w-0`/`flex-1`). `AttachmentList` rows use it, take an optional `renderAction`
+  (e.g. Remove), and split challenge captions ("Question: file.pdf") so the question shows on the
+  second line. Used by the challenge form's uploaded-file list, the submitter's Attachments panel,
+  `ChallengeResponses` and all reviewer attachment lists. Grids holding file rows need
+  `minmax(0,1fr)` columns, not `1fr`, or long names push the layout wider.
+
+- **Attachments as rows, images in a lightbox (2026-11-15).** `components/ui/attachment-list.tsx`
+  (`AttachmentList`, `toAttachmentItems`, `isImageAttachment`) lists files as compact rows (type
+  icon, name, "PNG image · 2.3 MB", Preview/Open). Images never render inline: clicking one opens
+  a lightbox (prev/next across that list's images, arrow keys, Esc, backdrop click, "Open
+  original", locks page scroll). Other files open in a new tab. Used for **challenge submissions**
+  on every reviewer screen: inside `ChallengeResponses` (each file answer), and on
+  `/repository/[slug]`, `/dashboard/evaluations/[id]` and `/dashboard/admin/evaluations/[id]`,
+  which no longer show the big hero photo for a challenge submission. Their "Supporting documents"
+  lists only attachments not already shown under a form answer (`challengeExtraAttachments`). On
+  `/repository/[slug]` this applies only when the viewer gets `challengeResponses` (reviewers,
+  admins, submitter), so a published challenge innovation's public page keeps its cover photo.
+  General (non-challenge) submissions keep the hero photo.
+
+- **"Live challenge" nav highlight (2026-11-15).** `components/layout/site-header.tsx` reads the
+  shared `['challenges']` query (`useChallenges()`, public `GET /challenges`). While any challenge
+  has `acceptingSubmissions: true`, the Challenges nav item turns green/semibold with a
+  `LiveChallengeMark`: a `Sparkles` icon (`animate-twinkle`, new keyframe in `tailwind.config.ts`)
+  plus a pulsing dot (existing `animate-live-pulse`). The mobile menu row also gets a tinted
+  background and an "Open now" pill (`nav.challengesLive`, en/bn). "Running" deliberately means
+  *accepting submissions*, not just `status === OPEN`: an OPEN challenge with submissions off or
+  outside its dates doesn't sparkle. Animations stop under `prefers-reduced-motion` (globals.css).
+
 - **CAPTCHA-gated actions + OTP step (2026-11-12).** The submit stays disabled until
   `useSecurityConfig()` has loaded and, if a provider is configured, the widget has produced a
   token; a small hint ("Complete the security check to continue.") shows meanwhile. After every
@@ -302,16 +339,20 @@ active), written twice.
   admin/coordinator move. Every other entry in `NEXT_STATUS` is untouched. Don't add `SELECTED`
   back to that array without also reconsidering the evaluator-driven auto-transition it would then
   be competing with. `NEXT_STATUS['SELECTED']` is `['APPROVED', 'ARCHIVED']` — kept (not removed,
-  unlike the `SHORTLISTED` case) as a manual fallback for innovations with no Recognition/Mentor/
-  Fund request at all, where the Admin Evaluations detail page's approval section shows no action
-  button to make the decision through; the normal path is still `PATCH /innovations/:id/approval`.
-  `NEXT_STATUS['APPROVED']` is `['PUBLISHED', 'ARCHIVED']` — this generic button is currently the
-  *only* way to publish (no dedicated "Publish" UI exists yet).
+  unlike the `SHORTLISTED` case) as a manual fallback; the normal path is
+  `PATCH /innovations/:id/approval` (since 2026-11-15 the Admin Evaluations detail page shows an
+  "Approve innovation" button even when no Recognition/Mentor/Fund request exists).
+  `NEXT_STATUS['APPROVED']` is `['PUBLISHED', 'ARCHIVED']` — one of three places to publish, next
+  to Repository Management and the Admin Evaluations pages (see below).
 - **The Admin Evaluations page's Pending/Reviewed tabs key off `reviewStatus`, and which raw value
   means "Pending" changed** when the Expert Evaluator's decision became auto-applying (see above).
   `dashboard/admin/evaluations/page.tsx`: `PENDING_STATUS = 'SELECTED'` (an Expert Evaluator has
   shortlisted it — this **is** the Admin's pending list, exactly what they need to review for their
-  own approval decision), `REVIEWED_STATUSES = {'APPROVED', 'REJECTED', 'PUBLISHED', 'ARCHIVED'}`.
+  own approval decision), `REVIEWED_STATUSES = {'APPROVED', 'REJECTED', 'PUBLISHED', 'UNPUBLISHED', 'ARCHIVED'}`.
+  Reviewed rows show a status pill and, for `APPROVED`/`UNPUBLISHED`, a small **Publish**/
+  **Republish** button (`components/admin/publish-innovation-button.tsx`, shared with the detail
+  page's **Publication** panel; same `PATCH /innovations/:id/status` call and `ConfirmDialog`
+  confirmation as Repository Management).
   Do not put `'SHORTLISTED'` (the raw status) back into `PENDING_STATUS` — that status now means
   "awaiting Expert Evaluation," a different, earlier stage than "awaiting Admin's decision." See
   [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules) for the full reasoning, including why
@@ -515,6 +556,15 @@ active), written twice.
 - Messages: `apps/web/messages/en.json` and `messages/bn.json`, structurally identical key trees.
   Add a key to both files in the same change; a missing BN key doesn't crash but will
   silently regress the Bangla site.
+- **Challenge content is bilingual (2026-11-15).** Every admin-entered challenge text has an `…En`
+  (or unsuffixed) value and an optional `…Bn` one: title, description, organizer, prize summary,
+  details sections, timeline/FAQ/resource rows, and each form field's label, description,
+  placeholder, help text and options. Always render it through `lib/challenge-i18n.ts`
+  (`useChallengeText()` → `pick`/`title`/`organizer`/`prize`/`date`, or `localizeField(locale)` for
+  form fields): Bangla when entered, English otherwise. Option *values* stay English (stored and
+  validated); only `optionLabel()` changes. Interface strings for challenge screens live in the
+  `challenges.*` namespace (list, submit, form + validation, closed reasons, responses). The API's
+  `closedReason` is English; show `challenges.closed.<closedCode>` instead.
 - **No RTL logic exists or is needed** — Bangla is LTR. Bilingual support is a font-family swap
   (`font-bangla` vs `font-sans`, chosen in the root layout by `locale === 'bn'`) plus translated
   strings, nothing structural.

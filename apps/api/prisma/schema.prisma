@@ -921,6 +921,7 @@ model Challenge {
   titleEn            String
   titleBn            String?
   organizingAgency   String
+  organizingAgencyBn String?
   categoryId         String?
   descriptionEn      String
   descriptionBn      String?
@@ -930,6 +931,7 @@ model Challenge {
   deadline           DateTime?
   bannerImageUrl     String?
   prizeInfoEn        String?
+  prizeInfoBn        String?
   applyUrl           String?
   // Public details page sections (2026-11-11) — all optional; a section is hidden when empty.
   // Bn columns fall back to En on the Bangla site when unset.
@@ -947,8 +949,9 @@ model Challenge {
   contactEmail         String?
   contactPhone         String?
   // JSON lists, validated by the DTOs (see challenges/dto/challenge.dto.ts):
-  // timelinePhases [{label, date?: 'YYYY-MM-DD', description?}],
-  // faqs [{question, answer}], resources [{label, url}] (url: http(s) or /uploads/...).
+  // timelinePhases [{label, labelBn?, date?: 'YYYY-MM-DD', description?, descriptionBn?}],
+  // faqs [{question, questionBn?, answer, answerBn?}], resources [{label, labelBn?, url}]
+  // (url: http(s) or /uploads/...). The *Bn keys (2026-11-15) fall back to English when blank.
   timelinePhases       Json?
   faqs                 Json?
   resources            Json?
@@ -977,12 +980,19 @@ model ChallengeFormField {
   challenge         Challenge               @relation(fields: [challengeId], references: [id], onDelete: Cascade)
   key               String // stable machine key, unique per challenge, used as the response key
   label             String
+  labelBn           String?
   description       String?
+  descriptionBn     String?
   type              FormFieldType
   required          Boolean                 @default(false)
   placeholder       String?
+  placeholderBn     String?
   helpText          String?
+  helpTextBn        String?
   options           String[]                @default([]) // SELECT / RADIO / CHECKBOX choices
+  // Bangla display text for `options`, index-aligned ('' = fall back to English). Answers always
+  // store the English option, so validation and reviewer views don't depend on the language.
+  optionsBn         String[]                @default([])
   acceptedFileTypes String[]                @default([]) // FILE / MULTI_FILE, e.g. [".pdf", ".docx"]
   maxFileSizeMb     Int? // FILE / MULTI_FILE, capped at the upload endpoint's 50 MB
   maxFiles          Int? // MULTI_FILE only

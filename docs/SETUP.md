@@ -110,7 +110,8 @@ Tests use Node's built-in runner against the compiled `dist/` output (no extra d
 cd apps/api
 npm run build          # tests import dist/, so build first
 npm test               # unit: challenge-rules (validation, submission window, form definitions),
-                       #       sms-gateway (SMS template/escaping, BD phone normalization)
+                       #       sms-gateway (SMS template/escaping, BD phone normalization),
+                       #       upload-name (UTF-8 re-decoding of uploaded file names)
 npm run test:e2e       # end-to-end against a RUNNING API (default http://localhost:4000/api/v1,
                        # override with NIR_API_URL) + the dev DB; logs in as the seeded
                        # admin@nir.gov.bd / innovator1@nir.gov.bd (Password123!)
@@ -130,6 +131,10 @@ skip themselves if the API isn't reachable. The uploaded test PDF stays in `apps
   `CAPTCHA_PROVIDER=none` for the test run or pass a token via `NIR_CAPTCHA_TOKEN`.
 - The OTP send endpoint is throttled to 10/min per IP and one run uses about 8, so **wait a minute
   between back-to-back runs** or the second run fails with 429s.
+- **Running the OTP e2e tests without touching `.env`:** start the API with
+  `MAIL_TRANSPORT=console` and `SMS_PROVIDER=console` in its process environment (they override
+  `.env`), and run `MAIL_TRANSPORT=console SMS_PROVIDER=console npm run test:e2e`. The test guard
+  also merges `process.env` over `.env`. Restart the API normally afterwards.
 - **Real delivery guard:** the e2e tests that make the API send a code **skip themselves** when
   `apps/api/.env` has a real `MAIL_TRANSPORT` / `SMS_PROVIDER` (anything but `console`).
   Otherwise they'd email `@example.com` addresses (bounces land in the support mailbox) and text
@@ -458,6 +463,17 @@ docker compose up --build
 Postgres, API, and web each run in their own container; `postgres_data` and `api_uploads` are
 persistent volumes. The API container runs `prisma migrate deploy` automatically on boot — seed
 manually once: `docker compose exec api npx ts-node prisma/seed.ts`.
+
+**Reverse proxy upload size (found 2026-11-15).** The host nginx in front of the containers must
+allow request bodies up to the API's upload limit (`UPLOAD_MAX_SIZE_MB` = 50 in
+`apps/api/src/uploads/upload-limits.ts`). nginx's default `client_max_body_size` is **1m**, and
+dev.challenge.gov.bd was still on that default: any file over 1 MB got `413 Request Entity Too
+Large` from nginx/1.18.0 and never reached the API, so innovation-submission uploads "didn't
+work". Fix on the server, in the `server {}` (or `location /api/`) block for the site:
+`client_max_body_size 55m;` then `sudo nginx -t && sudo systemctl reload nginx`. Cloudflare's own
+limit (100 MB on Free/Pro) is above 50 MB, so nothing to change there. Check:
+`curl -s -o /dev/null -w "%{http_code}" -F "file=@<2MB file>;type=application/pdf" https://<host>/api/v1/uploads`
+should print `401` (reached the API, no token), not `413`.
 
 **Two API URLs, don't conflate them.** `NEXT_PUBLIC_API_URL` is what the *browser* calls (e.g.
 `https://dev.challenge.gov.bd`, where a reverse proxy routes `/api/v1` to the api container).

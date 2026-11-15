@@ -164,12 +164,18 @@ describe('registration OTP — email', () => {
 
     const ok = await call('POST', '/auth/register', { ...base, otpCode: '246810' });
     assert.equal(ok.status, 201, JSON.stringify(ok.body));
-    assert.equal(ok.body.pending, true);
+    // Verified OTP = approved + active, and the response signs the user in.
+    assert.equal(ok.body.pending, false);
+    assert.ok(ok.body.accessToken && ok.body.refreshToken, 'returns a session');
+    assert.equal(ok.body.user.email, newEmail);
 
     const user = await prisma.user.findUnique({ where: { email: newEmail } });
     assert.ok(user.emailVerifiedAt, 'emailVerifiedAt is set');
     assert.equal(user.phoneVerifiedAt, null);
-    assert.equal(user.isActive, false, 'still needs admin approval');
+    assert.equal(user.isActive, true, 'activated on OTP verification');
+
+    const me = await fetch(`${API}/auth/me`, { headers: { Authorization: `Bearer ${ok.body.accessToken}` } });
+    assert.equal(me.status, 200, 'the returned token works');
 
     const reused = await call('POST', '/auth/register', { ...base, email: `x${newEmail}`, otpCode: '246810' });
     assert.equal(reused.status, 400, 'a code is bound to its address');

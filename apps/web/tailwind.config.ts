@@ -97,6 +97,10 @@ const config: Config = {
           from: { transform: 'scale(.6)', opacity: '.7' },
           to: { transform: 'scale(1.5)', opacity: '0' },
         },
+        'twinkle': {
+          '0%, 100%': { transform: 'scale(1) rotate(0deg)', opacity: '1' },
+          '50%': { transform: 'scale(.7) rotate(20deg)', opacity: '.55' },
+        },
       },
       animation: {
         'fade-up': 'fade-up 0.6s ease-out both',
@@ -105,6 +109,7 @@ const config: Config = {
         'dash': 'dash 1.8s ease-out forwards',
         'flow': 'flow 26s linear infinite',
         'live-pulse': 'live-pulse 2s ease-out infinite',
+        'twinkle': 'twinkle 1.8s ease-in-out infinite',
       },
     },
   },

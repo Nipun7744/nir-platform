@@ -32,8 +32,13 @@ restricts a route to callers holding **at least one** of the listed roles; a rou
 - `@Roles(...roles)` — read by `RolesGuard`; 403s if the caller has none of the listed roles.
 - `@CurrentUser()` — param decorator, pulls `{ id, email, roles }` off `request.user`.
 - `OptionalJwtAuthGuard` — used with `@Public()` on routes that are viewable anonymously but
-  personalized when a token is present (e.g. innovation detail view, feedback submission); never
-  throws on a missing/invalid token.
+  personalized when a token is present (e.g. innovation detail view, feedback submission). No
+  token means anonymous. **Since 2026-11-15 a token that is sent but invalid/expired gets `401`**
+  (it used to be silently downgraded to anonymous, so a reviewer with a lapsed 15-min access token
+  got 404 on unpublished submissions and the web client never refreshed). The web client
+  (`lib/api-client.ts`) refreshes on 401 and, if the refresh fails, retries once without a token,
+  so public pages still load. Other API consumers must not send a stale bearer token to these
+  routes.
 
 `CommonModule` is `@Global()` and also exports `AuditLogService`, `IdGeneratorService` (IRN /
 innovation code generation), `IdentityVerificationService` (mocked NID/BIN check).
@@ -104,12 +109,16 @@ to the client once and never persisted in plaintext.
   All of the above are optional even when their role is selected — only `ministryId` is
   practically required (the frontend form marks it `required`, but the DTO itself doesn't
   enforce that server-side).
-- **Registration never issues tokens.** It creates the `User` with
-  `roles: [INNOVATION_SUBMITTER]` and `isActive: false`, plus an `innovatorProfile`, generates an
-  IRN, writes a `USER_REGISTERED` audit log entry, sends a `WELCOME` notification, and returns
-  `{ pending: true, message: "..." }`. An admin must call `PATCH /users/:id/status` to activate
-  the account before `login` will succeed (403 otherwise, with a message that differs for
-  "rejected" vs. "pending" — see `User.rejectedAt`).
+- **A verified OTP approves, activates and signs in the new account (since 2026-11-15).** It
+  creates the `User` with `roles: [INNOVATION_SUBMITTER]` (+ the chosen self-service role) and
+  **`isActive: true`**, plus an `innovatorProfile`, generates an IRN, writes a `USER_REGISTERED`
+  audit entry (`metadata.autoActivated: true`), sends a `WELCOME` notification, and returns
+  `{ pending: false, message, user: <publicUser>, accessToken, refreshToken }`, the same session
+  shape as `login`. There is no admin approval step for self-registration any more. (Before
+  2026-11-15 it returned `{ pending: true, message }` with an inactive account. Accounts created
+  that way, and seeded `pending*@nir.gov.bd` demo users, still need `PATCH /users/:id/status`;
+  `login` still returns 403 for inactive accounts, with different text for "rejected" vs.
+  "pending" — see `User.rejectedAt`.)
 - **`LoginDto`:** `email`, `password`, `captchaToken?` (enforced in `AuthService.login` whenever a
   provider is configured) → on success, updates `lastLoginAt`, writes a `USER_LOGIN`
   audit entry, returns `{ user: <publicUser>, accessToken, refreshToken }` where `publicUser` is
@@ -301,7 +310,12 @@ sub-resources: FAQs, news, challenges, resources, partners, feedback)
 
 `ChallengesModule` (`apps/api/src/challenges/`, 2026-11-10). Literal `admin` routes are declared
 before `:slug`. Every challenge object returned carries computed `acceptingSubmissions`,
-`closedReason` (null when accepting) and `formFieldCount`; admin listings also carry
+`closedReason` (English, null when accepting), `closedCode` (2026-11-15, one of `NOT_PUBLISHED` /
+`INACTIVE` / `SUBMISSIONS_DISABLED` / `NOT_OPEN_YET` / `NO_LONGER_ACCEPTING` / `DEADLINE_PASSED` /
+`NOT_CONFIGURED`, null when accepting — the web app translates it) and `formFieldCount`. Bangla
+text (2026-11-15): create/update also accept `organizingAgencyBn`, `prizeInfoBn` (blank → null)
+and optional `labelBn`/`descriptionBn` (timeline), `questionBn`/`answerBn` (FAQ), `labelBn`
+(resources); admin listings also carry
 `submissionCount`. Rules for when a challenge accepts submissions: see
 [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules).
 
@@ -316,7 +330,7 @@ before `:slug`. Every challenge object returned carries computed `acceptingSubmi
 | POST | `/challenges` | Create (`CreateChallengeDto`, now also `isPublished`/`isActive`/`submissionsEnabled`, and — 2026-11-11 — the optional details-page fields listed below the table). 400 if `submissionsEnabled` without `categoryId`, or unknown category; 409 duplicate slug. Writes `CHALLENGE_CREATED` | `PLATFORM_ADMIN` |
 | PATCH | `/challenges/:id` | Partial update — now a real `UpdateChallengeDto` class (was an unvalidated `Partial<>`); `''` clears `startDate`/`deadline`/`categoryId`. Same 400/409 rules. Writes `CHALLENGE_UPDATED` with `{field: {from, to}}` for `isPublished`/`isActive`/`submissionsEnabled`/`status` changes | `PLATFORM_ADMIN` |
 | DELETE | `/challenges/:id` | 204. **409 if the challenge has any submissions** (unpublish/deactivate instead). Writes `CHALLENGE_DELETED` | `PLATFORM_ADMIN` |
-| PUT | `/challenges/:id/form` | Form builder save — replaces the whole form. Body `{ fields: FormFieldDto[] }` in display order (`id?`, `key?`, `label`, `description?`, `type`, `required?`, `placeholder?`, `helpText?`, `options?`, `acceptedFileTypes?`, `maxFileSizeMb?`, `maxFiles?`, `mapsTo?`). Keys are kept when sent, generated from the label otherwise. 400 with `message: string[]` of human-readable problems (missing label/options, bad key, duplicate key/mapping, unsupported file type, size > 50 MB, mapping on a non-text field, > 60 fields). Ids are kept only if they already belonged to this challenge. Returns the same shape as `GET /challenges/admin/:id`. Writes `CHALLENGE_FORM_UPDATED` | `PLATFORM_ADMIN` |
+| PUT | `/challenges/:id/form` | Form builder save — replaces the whole form. Body `{ fields: FormFieldDto[] }` in display order (`id?`, `key?`, `label`, `labelBn?`, `description?`, `descriptionBn?`, `type`, `required?`, `placeholder?`, `placeholderBn?`, `helpText?`, `helpTextBn?`, `options?`, `optionsBn?` (index-aligned; kept paired when blank options are dropped), `acceptedFileTypes?`, `maxFileSizeMb?`, `maxFiles?`, `mapsTo?`). A consent checkbox (CHECKBOX, no options) keeps its `placeholder`/`placeholderBn` as the box text (it was discarded before 2026-11-15). Keys are kept when sent, generated from the label otherwise. 400 with `message: string[]` of human-readable problems (missing label/options, bad key, duplicate key/mapping, unsupported file type, size > 50 MB, mapping on a non-text field, > 60 fields). Ids are kept only if they already belonged to this challenge. Returns the same shape as `GET /challenges/admin/:id`. Writes `CHALLENGE_FORM_UPDATED` | `PLATFORM_ADMIN` |
 
 **Details-page fields (2026-11-11)** — accepted by both `POST /challenges` and
 `PATCH /challenges/:id` (shared `ChallengeDetailsDto` base class), all optional, returned as-is on
@@ -387,7 +401,9 @@ Single endpoint: `POST /uploads`, `multipart/form-data`, field name `file`. Auth
 role restriction. Accepted MIME types: `image/png|jpeg|webp|gif`, `video/mp4|webm`,
 `application/pdf`, Word (`.doc`/`.docx`), PowerPoint (`.ppt`/`.pptx`). Max size **50 MB**. Storage:
 disk, `UPLOAD_DIR` env (default `./uploads`), server-generated UUID filenames (client filename
-is never trusted). Response: `{ url, originalName, mimeType, sizeBytes }`. No virus scanning
+is never trusted). Response: `{ url, originalName, mimeType, sizeBytes }`. `originalName` is
+re-decoded as UTF-8 (2026-11-15, `readableOriginalName`): multer reads multipart names as latin1,
+which garbled Bangla and other non-English names. Any client path is stripped. No virus scanning
 in-app (deferred to a hosting-layer control). Uploading a file and registering it in the media
 library are two separate calls: `POST /uploads` then `POST /media`.
 

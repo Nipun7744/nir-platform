@@ -66,6 +66,9 @@ export async function apiFetch<T = unknown>(path: string, options: RequestOption
   if (res.status === 401 && !skipAuth) {
     const newToken = await refreshAccessToken();
     if (newToken) res = await doFetch(newToken);
+    // Refresh failed (session gone): retry once without a token so optional-auth public routes
+    // (which now 401 on an expired token instead of ignoring it) still load anonymously.
+    else if (accessToken) res = await doFetch(null);
   }
 
   if (!res.ok) {

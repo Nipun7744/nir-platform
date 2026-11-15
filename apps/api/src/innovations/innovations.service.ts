@@ -65,7 +65,7 @@ const DETAIL_INCLUDE = {
   sdgTags: { include: { sdgTag: true } },
   successStory: true,
   awards: true,
-  challenge: { select: { id: true, slug: true, titleEn: true } },
+  challenge: { select: { id: true, slug: true, titleEn: true, titleBn: true } },
 } as const;
 
 @Injectable()
@@ -91,7 +91,7 @@ export class InnovationsService {
       });
       const state = challenge
         ? submissionState({ ...challenge, formFieldCount: challenge._count.formFields })
-        : { acceptingSubmissions: false, closedReason: 'This challenge no longer exists.' };
+        : { acceptingSubmissions: false, closedReason: 'This challenge no longer exists.', closedCode: null };
       if (!state.acceptingSubmissions) throw new ForbiddenException(state.closedReason);
       return;
     }

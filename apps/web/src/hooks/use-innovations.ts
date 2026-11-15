@@ -102,6 +102,8 @@ export function useUpdateInnovationStatus(innovationId: string) {
     // endpoint — see InnovationsService.updateStatus) and its activity-log panel.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['innovation', innovationId] });
+      // Admin Evaluations list — its Reviewed tab shows status + a Publish button per row.
+      queryClient.invalidateQueries({ queryKey: ['shortlisted-evaluations'] });
       queryClient.invalidateQueries({ queryKey: ['moderation-queue'] });
       queryClient.invalidateQueries({ queryKey: ['preliminary-review-queue'] });
       queryClient.invalidateQueries({ queryKey: ['authenticity-review-queue'] });
@@ -127,7 +129,7 @@ export function useUpdateInnovationApproval(innovationId: string) {
       // Set only by the deliberate "Save approval decisions" click — see InnovationsService.updateApproval.
       finalize?: boolean;
     }) => api.patch(`/innovations/${innovationId}/approval`, input),
-    // `finalize: true` can also move reviewStatus SELECTED -> PUBLISHED server-side, which is what
+    // `finalize: true` can also move reviewStatus SELECTED -> APPROVED server-side, which is what
     // moves the innovation from the Admin Evaluations "Pending" tab to "Reviewed" — invalidate
     // everything that could be showing that status, not just this one innovation.
     onSuccess: () => {

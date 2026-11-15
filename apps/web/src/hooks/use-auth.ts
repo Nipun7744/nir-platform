@@ -56,13 +56,23 @@ export function useLogin() {
   });
 }
 
-interface RegisterResponse {
-  pending: true;
-  message: string;
-}
+// Since 2026-11-15 a verified OTP activates the account, and the response is a full session
+// (`pending: false`). `pending: true` (no tokens) is kept for API versions that still queue for
+// admin approval.
+type RegisterResponse =
+  | ({ pending: false; message: string } & AuthResponse)
+  | { pending: true; message: string };
 
 export function useRegister() {
+  const setSession = useAuthStore((s) => s.setSession);
+  const queryClient = useQueryClient();
   return useMutation({
+    onSuccess: (data) => {
+      if (!data.pending) {
+        setSession(data as any);
+        queryClient.invalidateQueries();
+      }
+    },
     mutationFn: (input: {
       email: string;
       password: string;

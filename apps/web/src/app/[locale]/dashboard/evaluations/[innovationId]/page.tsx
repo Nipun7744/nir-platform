@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { Link, useRouter } from '@/i18n/navigation';
-import { ArrowLeft, ShieldAlert, CheckCircle2, XCircle, Mail, Phone, Building2, User as UserIcon, FileText } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, CheckCircle2, XCircle, Mail, Phone, Building2, User as UserIcon } from 'lucide-react';
 import { useInnovation } from '@/hooks/use-repository-search';
 import { useSubmitEvaluation, useFlagIp, useEvaluationsForInnovation } from '@/hooks/use-evaluations';
 import { useSubmitterProfile } from '@/hooks/use-submitter-profile';
 import { useRequireAuth } from '@/hooks/use-require-auth';
 import { ReviewCommentTimeline } from '@/components/reviews/review-comment-timeline';
-import { ChallengeResponses } from '@/components/challenge-form/challenge-responses';
+import { ChallengeResponses, challengeExtraAttachments } from '@/components/challenge-form/challenge-responses';
+import { AttachmentList, toAttachmentItems } from '@/components/ui/attachment-list';
 
 const RUBRIC = ['Innovativeness', 'Feasibility', 'Impact', 'Scalability'];
 
@@ -119,8 +120,13 @@ export default function EvaluationFormPage({ params }: { params: { innovationId:
 
   const myEvaluation = existingEvaluations?.find((e) => e.evaluatorId === user?.id);
 
-  const photo = innovation.attachments?.find((a: any) => a.kind === 'PHOTO');
-  const documents = innovation.attachments?.filter((a: any) => a.kind !== 'PHOTO') ?? [];
+  // Challenge submissions: no inline hero image. Images are listed as attachments (lightbox on
+  // click), and files already shown under their form question aren't repeated.
+  const isChallengeSubmission = Boolean(innovation.challengeId);
+  const photo = isChallengeSubmission ? undefined : innovation.attachments?.find((a: any) => a.kind === 'PHOTO');
+  const documents = isChallengeSubmission
+    ? challengeExtraAttachments(innovation)
+    : innovation.attachments?.filter((a: any) => a.kind !== 'PHOTO') ?? [];
 
   return (
     <div className="max-w-5xl">
@@ -184,18 +190,8 @@ export default function EvaluationFormPage({ params }: { params: { innovationId:
           {documents.length > 0 && (
             <section>
               <h2 className="font-display text-base font-bold text-ink-900">Supporting documents</h2>
-              <div className="mt-2 space-y-2">
-                {documents.map((a: any) => (
-                  <a
-                    key={a.id}
-                    href={a.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="focus-ring flex items-center gap-2 rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700 hover:border-brand-300 hover:text-brand-700"
-                  >
-                    <FileText className="h-4 w-4 shrink-0" /> <span className="min-w-0 truncate">{a.caption ?? a.kind}</span>
-                  </a>
-                ))}
+              <div className="mt-2">
+                <AttachmentList items={toAttachmentItems(documents)} />
               </div>
             </section>
           )}

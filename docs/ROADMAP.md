@@ -309,6 +309,27 @@ completed work)*
 
 ## Known issues
 
+- **Self-registration is now active immediately (2026-11-15), including privileged-looking
+  roles.** A verified OTP proves only control of an email/phone. Investor, Mentor and especially
+  **Ministry Focal Point** (tied to a ministry the registrant picks) used to get a human check via
+  User Approvals; now they don't. If that matters, the options are: keep auto-activation for
+  Innovation Submitters only and queue the other roles, or auto-activate everyone but require
+  admin confirmation of the ministry link. Decision needed from the product owner.
+- **Challenge reviewer views stay English for form question labels.** Submissions store a
+  snapshot of the English labels (`challengeResponses[].label`), so the Bangla site's "Challenge
+  submission" block shows English question text. Fine for reviewers; storing `labelBn` in the
+  snapshot would fix it for submitters if wanted.
+- **Server-side validation messages on challenge submit are English** (`fieldErrors` from
+  `validateResponses`). Rarely seen, since the client validates first in the visitor's language.
+
+- **Uploads over 1 MB fail on dev.challenge.gov.bd (2026-11-15)** — the host nginx is on the
+  default `client_max_body_size 1m` and returns 413. Server-side fix: `client_max_body_size 55m;`
+  (see [SETUP.md](SETUP.md#docker-path-not-used-on-this-machine-but-supported)). Two related
+  app-side gaps in `apps/web/src/lib/upload.ts` (used by the challenge submission form and the
+  innovation edit page): it sends the stored access token without the refresh-on-401 that
+  `lib/api-client.ts` does, so an upload after 15+ minutes on the form fails "Unauthorized"; and a
+  non-JSON error reply (like nginx's 413 HTML) surfaces only as a generic "Upload failed".
+
 - **Challenge-submission placeholders on public pages (2026-11-10)** — a challenge submission
   whose form has no field mapped to Problem statement / Proposed solution stores the placeholder
   "See the challenge submission responses (…)" in those columns. Reviewers see the real answers
@@ -406,6 +427,9 @@ completed work)*
   photo/video management and an activity log. The Moderation page's generic "Move to X" button
   still works for `APPROVED -> PUBLISHED` too (unchanged, not removed) but `UNPUBLISHED` is
   deliberately not exposed there — see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules).
+  **2026-11-15:** Publish/Republish also added to the Admin Evaluations list (Reviewed tab) and
+  detail page, and the detail page's missing approve button for no-support-request innovations
+  was fixed (session 46).
 - **`EvaluationRecommendation.FUND`** is still a valid enum value (existing data may use it) but
   the Expert Evaluator UI no longer offers it — the decision is binary (Shortlist/Reject) as of
   session 14. If a "recommend for funding" concept is needed again, it needs its own explicit UI,

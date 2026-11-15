@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { FormFieldType } from '@nir/shared';
+import { useLocale, useTranslations } from 'next-intl';
 import { useAdminChallenge, useSaveChallengeForm } from '@/hooks/use-admin';
 import { ApiError } from '@/lib/api-client';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -74,12 +75,19 @@ function toPayload(fields: BuilderField[]) {
     ...(f.id ? { id: f.id } : {}),
     ...(f.key ? { key: f.key } : {}),
     label: f.label,
+    labelBn: f.labelBn || null,
     description: f.description || null,
+    descriptionBn: f.descriptionBn || null,
     type: f.type,
     required: f.required,
     placeholder: f.placeholder || null,
+    placeholderBn: f.placeholderBn || null,
     helpText: f.helpText || null,
-    options: CHOICE.includes(f.type) ? f.options.filter((o) => o.trim()) : [],
+    helpTextBn: f.helpTextBn || null,
+    // Sent unfiltered: the server drops blank options while keeping each Bangla line paired with
+    // its English option (challenge-rules.ts normalizeFormDefinition).
+    options: CHOICE.includes(f.type) ? f.options : [],
+    optionsBn: CHOICE.includes(f.type) ? f.optionsBn ?? [] : [],
     acceptedFileTypes: FILES.includes(f.type) ? f.acceptedFileTypes : [],
     maxFileSizeMb: FILES.includes(f.type) ? f.maxFileSizeMb ?? null : null,
     maxFiles: f.type === 'MULTI_FILE' ? f.maxFiles ?? null : null,
@@ -222,6 +230,49 @@ function FieldEditor({
           </select>
         </div>
       )}
+      {/* Bangla (2026-11-15): shown on the Bangla site; blank = English is used. */}
+      <details className="rounded-lg border border-ink-100 bg-ink-50/40 p-3 sm:col-span-2" open={Boolean(field.labelBn) || undefined}>
+        <summary className="cursor-pointer text-xs font-semibold text-ink-700">
+          বাংলা <span className="font-normal text-ink-500">— optional; the Bangla site falls back to English for anything left blank</span>
+        </summary>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label htmlFor={id('labelBn')} className="mb-1 block text-xs font-medium text-ink-500">Label (Bangla)</label>
+            <input id={id('labelBn')} value={field.labelBn ?? ''} onChange={(e) => set('labelBn', e.target.value)} className={inputCls} />
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor={id('descBn')} className="mb-1 block text-xs font-medium text-ink-500">Description (Bangla)</label>
+            <textarea id={id('descBn')} rows={2} value={field.descriptionBn ?? ''} onChange={(e) => set('descriptionBn', e.target.value)} className={inputCls} />
+          </div>
+          {((!CHOICE.includes(field.type) && !FILES.includes(field.type)) || (field.type === 'CHECKBOX' && field.options.length === 0)) && (
+            <div>
+              <label htmlFor={id('phBn')} className="mb-1 block text-xs font-medium text-ink-500">
+                {field.type === 'CHECKBOX' ? 'Checkbox text (Bangla)' : 'Placeholder (Bangla)'}
+              </label>
+              <input id={id('phBn')} value={field.placeholderBn ?? ''} onChange={(e) => set('placeholderBn', e.target.value)} className={inputCls} />
+            </div>
+          )}
+          <div>
+            <label htmlFor={id('helpBn')} className="mb-1 block text-xs font-medium text-ink-500">Help text (Bangla)</label>
+            <input id={id('helpBn')} value={field.helpTextBn ?? ''} onChange={(e) => set('helpTextBn', e.target.value)} className={inputCls} />
+          </div>
+          {CHOICE.includes(field.type) && field.options.length > 0 && (
+            <div className="sm:col-span-2">
+              <label htmlFor={id('optsBn')} className="mb-1 block text-xs font-medium text-ink-500">
+                Options (Bangla) — one per line, in the same order as the English options
+              </label>
+              <textarea
+                id={id('optsBn')}
+                rows={Math.max(3, field.options.length + 1)}
+                value={(field.optionsBn ?? []).join('\n')}
+                onChange={(e) => set('optionsBn', e.target.value.split('\n'))}
+                placeholder={field.options.join('\n')}
+                className={clsx(inputCls, 'font-mono')}
+              />
+            </div>
+          )}
+        </div>
+      </details>
       {field.key && <p className="text-xs text-ink-400 sm:col-span-2">Response key: <span className="font-mono">{field.key}</span></p>}
     </div>
   );
@@ -241,6 +292,9 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
   const [editingUid, setEditingUid] = useState<string | null>(null);
   const [newType, setNewType] = useState<string>('SHORT_TEXT');
   const [preview, setPreview] = useState(false);
+  // Preview validates in the admin's current site language, like applicants will see it.
+  const tForm = useTranslations('challenges.form');
+  const locale = useLocale();
   const [previewValues, setPreviewValues] = useState<FormValues>({});
   const [previewErrors, setPreviewErrors] = useState<Record<string, string>>({});
   const [dragUid, setDragUid] = useState<string | null>(null);
@@ -322,7 +376,7 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
             />
             <button
               type="button"
-              onClick={() => setPreviewErrors(validateDynamicForm(previewFields, previewValues))}
+              onClick={() => setPreviewErrors(validateDynamicForm(previewFields, previewValues, tForm, locale))}
               className="focus-ring mt-6 rounded-full bg-brand-600 px-5 py-2 text-sm font-semibold text-white"
             >
               Test validation

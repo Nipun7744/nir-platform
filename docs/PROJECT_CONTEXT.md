@@ -98,13 +98,16 @@ since each was an explicit scope call:
 - **JWT held in browser (Zustand + localStorage), not httpOnly cookies.** Accepted for this phase
   under an "email/password now, SSO later" decision. Known XSS exposure; flagged for revisit
   before a production rollout.
-- **New registrations require admin approval before login works.** `POST /auth/register` never
-  issues tokens — it creates an inactive account and an admin must call
-  `PATCH /users/:id/status` first. See [API.md](API.md#auth).
+- **A verified OTP approves and activates a new account (decided 2026-11-15, replacing the
+  admin approval gate).** `POST /auth/register` creates the account active and returns a login
+  session, so the user lands in their dashboard (or back on the challenge form they came from)
+  right after entering the code. Applies to every self-registration role (Innovation Submitter,
+  Investor, Mentor, Ministry Focal Point). Admins can still deactivate an account from User
+  Approvals / the users list; that page now only holds older pending accounts. See
+  [API.md](API.md#auth) and [ROLES.md](ROLES.md).
 - **Registration is OTP-verified before the account exists; every login is CAPTCHA-checked**
   (2026-11-12). The registrant picks email or SMS, receives a 6-digit code, and the account is
-  created only when the code matches, so no unverified rows are created. The admin approval gate
-  above still applies afterwards. The CAPTCHA provider is pluggable (Turnstile / reCAPTCHA v2 /
+  created only when the code matches, so no unverified rows are created. The CAPTCHA provider is pluggable (Turnstile / reCAPTCHA v2 /
   hCaptcha), and so are email (SMTP) and SMS (a template-driven HTTP client, because BD
   aggregators all differ). In production the API **refuses to start** unless each integration is
   chosen explicitly, so security controls can't silently go missing. Prerequisites and config are
@@ -214,7 +217,12 @@ since each was an explicit scope call:
   published — publication (`APPROVED -> PUBLISHED`) is a fully separate, later action. As of
   2026-08-17 it's reachable both via the Moderation page's generic transition tool and via the
   dedicated Admin Repository Management page (`/dashboard/admin/repository`, Platform/System Admin
-  only) — see the `UNPUBLISHED` bullet below. Once an innovation leaves `SELECTED` (i.e. is
+  only) — see the `UNPUBLISHED` bullet below. Since 2026-11-15 it is also on the Admin Evaluations
+  pages: a **Publish** button on each `APPROVED`/`UNPUBLISHED` row of the Reviewed tab, and a
+  **Publication** panel on the detail page (Publish, or "View public page" once live). It's still
+  a separate click with its own confirmation, never part of the approval save. Innovations that
+  requested no Recognition/Mentor/Fund support get an "Approve innovation" button (previously no
+  button at all, so they could never be approved or published from this page). Once an innovation leaves `SELECTED` (i.e. is
   `APPROVED` or later),
   `dashboard/admin/evaluations/[innovationId]`'s Permission & Approval section renders **read-only**
   — every toggle, comment field, the letter-upload control, and the Save button are all hidden or
@@ -305,7 +313,8 @@ since each was an explicit scope call:
     Preliminary/Authenticity reviewers — enabling submissions without one is refused (400).
     **Login is mandatory**: the submit page redirects anonymous visitors to
     `/sign-in?next=/challenges/:slug/submit`; sign-in returns there afterwards and carries `next`
-    through to `/register` and back (registration still needs admin approval first, unchanged).
+    through to `/register` and back (since 2026-11-15 a verified OTP signs the new user in and
+    returns them straight to the challenge form).
     The API refuses anonymous submissions (401) and requires an `Innovator` profile (403
     otherwise). Answers are validated server-side against the challenge's current form; files
     must be real `/uploads/<uuid>.<ext>` uploads on disk, of an accepted type and within the

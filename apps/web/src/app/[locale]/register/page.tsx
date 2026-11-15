@@ -4,10 +4,11 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { safeNextPath, withNext } from '@/lib/safe-next';
 import { useTranslations, useLocale } from 'next-intl';
-import { Link } from '@/i18n/navigation';
+import { Link, useRouter } from '@/i18n/navigation';
 import { AlertCircle, ArrowLeft, CheckCircle2, Mail, Smartphone } from 'lucide-react';
 import { AuthCard } from '@/components/auth/auth-card';
 import { SsoButtons } from '@/components/auth/sso-buttons';
+import { PasswordInput } from '@/components/auth/password-input';
 import { CaptchaWidget, type CaptchaHandle } from '@/components/auth/captcha-widget';
 import { useRegister, useSecurityConfig, useSendOtp, type OtpChannel, type OtpSent } from '@/hooks/use-auth';
 import { useCategories, useMinistries, useTags } from '@/hooks/use-content';
@@ -34,6 +35,24 @@ function ChipSelect({ options, selected, onToggle }: { options: { id: string; la
         );
       })}
     </div>
+  );
+}
+
+/** Auto-continues after a short pause (so the confirmation is seen), with a manual button too. */
+function RedirectAfterRegister({ to, label }: { to: string; label: string }) {
+  const router = useRouter();
+  useEffect(() => {
+    const id = setTimeout(() => router.push(to), 1500);
+    return () => clearTimeout(id);
+  }, [router, to]);
+  return (
+    <button
+      type="button"
+      onClick={() => router.push(to)}
+      className="focus-ring mt-4 w-full rounded-full bg-brand-600 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
+    >
+      {label}
+    </button>
   );
 }
 
@@ -148,9 +167,8 @@ function RegisterPageInner() {
     try {
       // Base registration always creates an Innovation Submitter account (every
       // registrant gets an Innovator Recognition Number); the desired self-service
-      // role, if any, is layered on server-side in the same call — the account is
-      // created inactive and can't authenticate to a separate role-registration
-      // call yet, since it still needs an admin's approval.
+      // role, if any, is layered on server-side in the same call. A verified code
+      // activates the account and the response signs the user in (useRegister).
       await register.mutateAsync({
         otpChannel,
         otpCode: code,
@@ -173,6 +191,20 @@ function RegisterPageInner() {
     }
   };
 
+  // Verified OTP → active account, already signed in: go straight on (back to the challenge form
+  // when they came from one, else the dashboard).
+  if (register.isSuccess && register.data && !register.data.pending) {
+    return (
+      <AuthCard title={t('registerActiveTitle')} subtitle={t('registerSubtitle')}>
+        <div className="flex flex-col items-center gap-3 py-4 text-center">
+          <CheckCircle2 className="h-10 w-10 text-brand-600" />
+          <p className="text-sm text-ink-700">{t('registerActiveBody')}</p>
+        </div>
+        <RedirectAfterRegister to={next ?? '/dashboard'} label={t('registerActiveContinue')} />
+      </AuthCard>
+    );
+  }
+
   if (register.isSuccess) {
     return (
       <AuthCard title={t('registerTitle')} subtitle={t('registerSubtitle')}>
@@ -180,7 +212,7 @@ function RegisterPageInner() {
           <CheckCircle2 className="h-10 w-10 text-brand-600" />
           <p className="text-sm text-ink-700">{register.data?.message ?? t('registerPendingBody')}</p>
           {next?.startsWith('/challenges/') && (
-            <p className="text-sm text-ink-500">Once your account is approved, sign in with the link below and you'll be taken back to the challenge submission form.</p>
+            <p className="text-sm text-ink-500">{t('registerChallengeHint')}</p>
           )}
         </div>
         <p className="mt-6 text-center text-sm text-ink-500">
@@ -307,10 +339,10 @@ function RegisterPageInner() {
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-ink-700">{t('password')}</label>
-          <input
-            type="password"
+          <PasswordInput
             required
             minLength={8}
+            autoComplete="new-password"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             className="focus-ring w-full rounded-lg border border-ink-100 px-3 py-2.5 text-sm"

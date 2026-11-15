@@ -7,18 +7,17 @@ import { X } from 'lucide-react';
 import { Link, usePathname } from '@/i18n/navigation';
 import { useChallenges } from '@/hooks/use-content';
 import { challengeDaysLeft, pickPromotedChallenge } from '@/lib/challenge-dates';
+import { useChallengeText } from '@/lib/challenge-i18n';
 
 const DISMISSED_KEY_PREFIX = 'nir-challenge-popup-dismissed:';
 
 // Popup is scoped to the public marketing site — dashboard/auth routes have their own tasks in flight.
 const HIDDEN_ROUTES = ['/dashboard', '/sign-in', '/register'];
 
-function formatPopupDate(value: string) {
-  return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
-}
-
 export function ChallengePopup() {
   const t = useTranslations('home.challengePopup');
+  const tx = useChallengeText();
+  const formatPopupDate = (value: string) => tx.date(value, { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
   const pathname = usePathname();
   const { data } = useChallenges();
   const challenge = pickPromotedChallenge(data);
@@ -112,10 +111,10 @@ export function ChallengePopup() {
                 )}
 
                 <h2 id="challenge-popup-title" className="my-3.5 font-display text-2xl font-bold text-navy">
-                  {challenge.titleEn}
+                  {tx.title(challenge)}
                 </h2>
                 {/* Teaser only — the full write-up lives on the details page ("View details"). */}
-                <p className="line-clamp-3 text-slate">{challenge.descriptionEn}</p>
+                <p className="line-clamp-3 text-slate">{tx.description(challenge)}</p>
 
                 <div className="my-6 flex flex-wrap gap-8">
                   {challenge.deadline && (
@@ -130,7 +129,7 @@ export function ChallengePopup() {
                     </div>
                   )}
                   <div>
-                    <b className="block font-mono text-sm text-navy">{challenge.organizingAgency.toUpperCase()}</b>
+                    <b className="block font-mono text-sm text-navy">{tx.organizer(challenge).toUpperCase()}</b>
                     <span className="text-xs uppercase tracking-[0.08em] text-slate">{t('organizer')}</span>
                   </div>
                 </div>

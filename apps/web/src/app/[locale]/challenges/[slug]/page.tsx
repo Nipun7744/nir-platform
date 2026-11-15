@@ -44,6 +44,8 @@ export default function ChallengeDetailPage({ params }: { params: { slug: string
     new Date(value).toLocaleDateString(bn ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
   const title = pick(challenge.titleEn, challenge.titleBn)!;
+  const organizer = pick(challenge.organizingAgency, challenge.organizingAgencyBn);
+  const prizeInfo = pick(challenge.prizeInfoEn, challenge.prizeInfoBn);
   const daysLeft = challenge.status === 'OPEN' ? challengeDaysLeft(challenge.deadline) : null;
   const sections = buildSections(challenge, pick, formatDate, t);
   const hasContact = Boolean(challenge.contactName || challenge.contactEmail || challenge.contactPhone);
@@ -72,7 +74,7 @@ export default function ChallengeDetailPage({ params }: { params: { slug: string
       </div>
       <h1 className="mt-4 max-w-4xl font-display text-3xl font-extrabold text-navy sm:text-4xl">{title}</h1>
       <p className="mt-2 flex items-center gap-1.5 text-sm text-slate">
-        <Landmark className="h-4 w-4 shrink-0 text-nirgreen-deep" /> {challenge.organizingAgency}
+        <Landmark className="h-4 w-4 shrink-0 text-nirgreen-deep" /> {organizer}
       </p>
 
       {challenge.bannerImageUrl && (
@@ -128,12 +130,12 @@ export default function ChallengeDetailPage({ params }: { params: { slug: string
                     </div>
                   </div>
                 )}
-                {challenge.prizeInfoEn && (
+                {prizeInfo && (
                   <div className="flex gap-3">
                     <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-nirgreen-deep" />
                     <div>
                       <dt className="text-xs uppercase tracking-[0.08em] text-slate">{t('prize')}</dt>
-                      <dd className="font-medium text-navy">{challenge.prizeInfoEn}</dd>
+                      <dd className="font-medium text-navy">{prizeInfo}</dd>
                     </div>
                   </div>
                 )}
@@ -141,7 +143,7 @@ export default function ChallengeDetailPage({ params }: { params: { slug: string
                   <Landmark className="mt-0.5 h-4 w-4 shrink-0 text-nirgreen-deep" />
                   <div className="min-w-0">
                     <dt className="text-xs uppercase tracking-[0.08em] text-slate">{t('organizer')}</dt>
-                    <dd className="font-medium text-navy">{challenge.organizingAgency}</dd>
+                    <dd className="font-medium text-navy">{organizer}</dd>
                   </div>
                 </div>
               </dl>
@@ -204,6 +206,7 @@ export default function ChallengeDetailPage({ params }: { params: { slug: string
 }
 
 function SubmitBlock({ challenge, t }: { challenge: ChallengeDto; t: ReturnType<typeof useTranslations<'challengeDetail'>> }) {
+  const tClosed = useTranslations('challenges.closed');
   if (challenge.acceptingSubmissions) {
     return (
       <>
@@ -220,7 +223,7 @@ function SubmitBlock({ challenge, t }: { challenge: ChallengeDto; t: ReturnType<
   return (
     <div className="flex items-start gap-2 text-sm text-slate">
       <Lock className="mt-0.5 h-4 w-4 shrink-0" />
-      <p>{challenge.closedReason ?? t('notAccepting')}</p>
+      <p>{challenge.closedCode && tClosed.has(challenge.closedCode) ? tClosed(challenge.closedCode) : t('notAccepting')}</p>
     </div>
   );
 }
@@ -257,8 +260,10 @@ function buildSections(
                   aria-hidden
                 />
                 {p.date && <p className="font-mono text-xs font-medium uppercase text-slate">{formatDate(p.date)}</p>}
-                <p className={`font-semibold ${past ? 'text-slate' : 'text-navy'}`}>{p.label}</p>
-                {p.description && <p className="mt-1 whitespace-pre-line text-sm text-slate">{p.description}</p>}
+                <p className={`font-semibold ${past ? 'text-slate' : 'text-navy'}`}>{pick(p.label, p.labelBn)}</p>
+                {pick(p.description, p.descriptionBn) && (
+                  <p className="mt-1 whitespace-pre-line text-sm text-slate">{pick(p.description, p.descriptionBn)}</p>
+                )}
               </li>
             );
           })}
@@ -270,15 +275,16 @@ function buildSections(
   text('evaluation', t('evaluationCriteria'), pick(c.evaluationCriteriaEn, c.evaluationCriteriaBn));
 
   const prizeDetails = pick(c.prizeDetailsEn, c.prizeDetailsBn);
-  if (prizeDetails || c.prizeInfoEn) {
+  const prizeInfo = pick(c.prizeInfoEn, c.prizeInfoBn);
+  if (prizeDetails || prizeInfo) {
     sections.push({
       id: 'prizes',
       title: t('prizes'),
       content: (
         <div className="space-y-3">
-          {c.prizeInfoEn && (
+          {prizeInfo && (
             <p className="inline-flex items-center gap-2 rounded-lg bg-mist px-3 py-2 font-semibold text-navy">
-              <Banknote className="h-4 w-4 text-nirgreen-deep" /> {c.prizeInfoEn}
+              <Banknote className="h-4 w-4 text-nirgreen-deep" /> {prizeInfo}
             </p>
           )}
           {prizeDetails && <Prose text={prizeDetails} />}
@@ -303,7 +309,7 @@ function buildSections(
                 className="focus-ring flex items-center gap-3 rounded-lg border border-greenline bg-white px-4 py-3 text-sm font-medium text-navy hover:border-nirgreen"
               >
                 <FileText className="h-4 w-4 shrink-0 text-nirgreen-deep" />
-                <span className="min-w-0 truncate">{r.label}</span>
+                <span className="min-w-0 truncate" title={pick(r.label, r.labelBn) ?? undefined}>{pick(r.label, r.labelBn)}</span>
               </a>
             </li>
           ))}
@@ -322,10 +328,10 @@ function buildSections(
           {faqs.map((f, i) => (
             <details key={i} className="group px-4 py-3">
               <summary className="focus-ring flex cursor-pointer list-none items-center justify-between gap-3 font-semibold text-navy [&::-webkit-details-marker]:hidden">
-                {f.question}
+                {pick(f.question, f.questionBn)}
                 <ChevronDown className="h-4 w-4 shrink-0 text-slate transition group-open:rotate-180" />
               </summary>
-              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate">{f.answer}</p>
+              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate">{pick(f.answer, f.answerBn)}</p>
             </details>
           ))}
         </div>

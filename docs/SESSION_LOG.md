@@ -6,6 +6,111 @@
 
 ---
 
+## 2026-11-15 (session 46) — Publish button missing on Admin Evaluations
+
+- **Reported:** in the admin Evaluations tab, an evaluated innovation has no Publish button.
+- **Findings:** (1) by design, publishing only existed on Repository Management and the
+  Moderation page, never on the Evaluations pages. (2) A real blocker: the detail page's approval
+  section hid its only action button when the innovation requested no Recognition/Mentor/Fund
+  support, so such an innovation sat at `SELECTED` with no way to approve (and therefore publish)
+  it from here. No backend change needed: `APPROVED → PUBLISHED` via `PATCH /innovations/:id/status`
+  is already admin-guarded and sets `publishedAt`.
+- **Changes (web only):**
+  - New `components/admin/publish-innovation-button.tsx`: Publish/Republish for
+    `APPROVED`/`UNPUBLISHED`, with `ConfirmDialog` and inline error.
+  - `dashboard/admin/evaluations/page.tsx`: Reviewed rows show a status pill + Publish button;
+    `UNPUBLISHED` now counts as Reviewed.
+  - `dashboard/admin/evaluations/[innovationId]/page.tsx`: new Publication panel (Publish / "View
+    public page" / link to Repository Management); the approve button always shows while
+    `SELECTED` ("Approve innovation" when nothing was requested). Fixed stale comments that said
+    approval moves to `PUBLISHED`.
+  - `hooks/use-innovations.ts`: status changes also invalidate `shortlisted-evaluations`.
+- **Tests:** web `tsc --noEmit` clean. In the browser as `admin@nir.gov.bd`, with two throwaway
+  `SELECTED` innovations (one with no requests, one with mentorship): approved both, published one
+  from the list and one from the detail panel; DB showed `PUBLISHED` + `publishedAt`, the public
+  API served them (200), and the lists refreshed without reload. Test rows deleted afterwards.
+- **Note:** the dev DB has 6 innovations at `SHORTLISTED` with a `SHORTLIST` evaluation (seeded
+  that way). They appear in neither tab. Pre-existing seed artefact, not touched.
+- **Files:** the four web files above; `docs/PROJECT_CONTEXT.md`, `UI_GUIDELINES.md`,
+  `ROADMAP.md`, `SESSION_LOG.md`.
+- **Demo data (local dev DB only, kept on purpose for the user to try publishing):**
+  `NIR-2026-000079`–`000082` at `APPROVED` (Solar Hydroponic Fodder Unit; Ma-Shishu Alert; Coastal
+  Solar Desalination Kiosk; Pathshala Radio) and `NIR-2026-000083` at `SELECTED` (Digital Land
+  Mutation Tracker). Each has a `SHORTLIST` evaluation and preliminary/authenticity review notes.
+  They were inserted directly via Prisma, not through the API, so they have no audit-log history
+  for the earlier stages.
+- **Sparkling Challenges nav item:** the top-menu "Challenges" link now shows a twinkling sparkle
+  and a pulsing green dot (mobile: plus an "Open now" pill) while any challenge is accepting
+  submissions. Files: `components/layout/site-header.tsx`, `tailwind.config.ts` (`twinkle`
+  animation), `messages/en.json` + `bn.json` (`nav.challengesLive`). Web `tsc` clean. Verified in
+  the browser by temporarily setting `UiChallenge` to `OPEN`, then restored it to `CLOSED`. No
+  challenge in the local DB is accepting submissions at the moment, so the sparkle is currently
+  off. See [UI_GUIDELINES.md](UI_GUIDELINES.md#reusable-patterns).
+- **dev.challenge.gov.bd uploads failing (diagnosed, server fix needed):** host nginx is on the
+  default `client_max_body_size 1m`, so uploads over 1 MB get 413 from nginx (probed without
+  auth: 900 KB → 401 from the API, 1.1 MB / 3 MB → 413 from nginx). Fix documented in
+  [SETUP.md](SETUP.md#docker-path-not-used-on-this-machine-but-supported). Two app-side
+  weaknesses found on the way (not fixed yet, see ROADMAP): `lib/upload.ts` doesn't refresh an
+  expired access token (15 min TTL), and it shows a generic "Upload failed" for a 413 HTML reply.
+- **Challenge submission images as attachments + lightbox:** images on reviewer screens were a
+  large inline hero (first `PHOTO` attachment, since challenge file answers become
+  `InnovationAttachment` rows). Now every file shows as a compact row (icon, name, type, size);
+  images open in a lightbox on click. New `components/ui/attachment-list.tsx`; changed
+  `challenge-form/challenge-responses.tsx` (+ `challengeExtraAttachments`),
+  `repository/innovation-detail.tsx`, `dashboard/evaluations/[innovationId]/page.tsx`,
+  `dashboard/admin/evaluations/[innovationId]/page.tsx`. See UI_GUIDELINES "Reusable patterns".
+  Tested in the browser on a throwaway challenge submission (3 images + 1 PDF): no inline images,
+  no duplicates, lightbox prev/next/Esc work, PDF opens as a link. Test row deleted.
+- **Optional-auth guard fix (found while testing):** `OptionalJwtAuthGuard` treated an
+  expired/invalid bearer token as anonymous, so after 15 min a reviewer could get 404 "Innovation
+  not found" on unpublished submissions, with no token refresh. It now returns 401 for a bad token
+  (no token is still anonymous). `lib/api-client.ts` retries once without a token if the refresh
+  fails. Verified with curl: no token → 404 (unpublished), bad token → 401, `GET /challenges` →
+  200. API rebuilt and restarted. See API.md.
+- **Note:** the local "Open now" sparkle is on because a new challenge `test123` (not created in
+  this session) is accepting submissions.
+- **Next:** not committed or pushed yet. Per the standing rule, push goes to GitLab `development`.
+
+### Session 46, part 2 (2026-11-15) — five-item batch
+
+1. **Challenge images as attachments + lightbox:** already done earlier this session (re-requested);
+   confirmed still in place.
+2. **Show/hide password:** new `components/auth/password-input.tsx` (eye / eye-off, translated
+   labels, `type="button"`), used on sign-in and register. Validation attributes unchanged.
+   Verified in the browser on both pages (en + bn).
+3. **Readable file names:** `FileName`/`cleanFileName` in `components/ui/attachment-list.tsx`
+   (extension always visible, base truncates with "…", tooltip with the full name, UUID names →
+   `Attachment.<ext>`); challenge captions split into name + question. Applied to the challenge
+   form's file list, the submitter's Attachments panel (`AttachmentList` + `renderAction` for
+   Remove), `ChallengeResponses` (grid `minmax(0,1fr)` fix) and reviewer lists. API:
+   `readableOriginalName` re-decodes multer's latin1 file names as UTF-8 (Bangla names were
+   garbled). New `test/upload-name.test.js`. Browser check: long / UUID / Bangla names, no overflow.
+4. **Bilingual challenges:** migration `20261115092802_challenge_bangla_fields` (organizer, prize,
+   form field label/description/placeholder/help/options in Bangla); JSON list `…Bn` keys
+   (fixed `toData`, which would have dropped them); `closedCode` on submission state.
+   Web: `lib/challenge-i18n.ts`, new `challenges.*` messages (en + bn, 267 keys each, parity
+   checked); list, details, submit page, dynamic form + validation, answers block, home banner,
+   popup and sign-in/register challenge hints all localized; admin editor + form builder have
+   Bangla inputs. Fixed on the way: a consent checkbox's text was discarded on save.
+   API round-trip verified with a throwaway challenge (deleted).
+5. **OTP verification auto-activates the account:** `AuthService.register` creates the user active
+   and returns a session; the register page signs the user in and continues to `next` or
+   `/dashboard`. e2e test updated. **Open product question** about Ministry Focal Point / Investor
+   (see ROADMAP known issues).
+- **Tests:** unit 40/40; e2e 28/28 (auth suite rerun with console delivery after the OTP rate
+  limit window; no real email/SMS sent); web `tsc` clean.
+- **Files:** API `auth.service.ts`, `uploads.controller.ts`, `challenge-rules.ts`,
+  `challenges.service.ts`, `dto/challenge.dto.ts`, `innovations.service.ts`, `schema.prisma` +
+  migration, `package.json`, tests (`auth-security.e2e`, `challenge-rules`, new `upload-name`).
+  Web: `password-input.tsx` (new), `lib/challenge-i18n.ts` (new), `attachment-list.tsx`,
+  `dynamic-form.tsx`, `challenge-responses.tsx`, `types.ts`, `challenge-form-builder.tsx`,
+  `admin/page.tsx`, challenges list/details/submit pages, `sign-in`, `register`, `use-auth.ts`,
+  `use-content.ts`, `innovations/[id]/page.tsx`, `challenge-banner.tsx`, `challenge-popup.tsx`,
+  `messages/en.json` + `bn.json`. Docs: API, DATABASE, PROJECT_CONTEXT, ROLES, UI_GUIDELINES,
+  ROADMAP, SETUP, this log.
+- **Deploy note:** the new migration must run on the servers (`prisma migrate deploy`; the
+  Docker API container does it automatically).
+
 ## 2026-11-12 (session 45) — Preliminary Reviewer couldn't longlist/forward or reject
 
 - **Reported:** (1) a Preliminary Reviewer can't longlist submitted innovations (forward them to the

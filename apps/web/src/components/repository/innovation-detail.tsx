@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useLocale } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
-import { MapPin, Users, FileText, Award as AwardIcon, ArrowLeft, User as UserIcon, ShieldCheck } from 'lucide-react';
+import { MapPin, Users, Award as AwardIcon, ArrowLeft, User as UserIcon, ShieldCheck } from 'lucide-react';
 import { useInnovation, useRelatedInnovations } from '@/hooks/use-repository-search';
 import { useReviewComments } from '@/hooks/use-innovations';
 import { useEvaluationsForInnovation } from '@/hooks/use-evaluations';
@@ -13,7 +13,8 @@ import { CategoryIcon } from '@/components/ui/category-icon';
 import { InnovationCard } from '@/components/ui/innovation-card';
 import { useAuthStore } from '@/store/auth-store';
 import { Role } from '@nir/shared';
-import { ChallengeResponses } from '@/components/challenge-form/challenge-responses';
+import { ChallengeResponses, challengeExtraAttachments } from '@/components/challenge-form/challenge-responses';
+import { AttachmentList, toAttachmentItems } from '@/components/ui/attachment-list';
 
 const SUBMITTER_PROFILE_ROLES = [Role.PRELIMINARY_REVIEWER, Role.AUTHENTICITY_REVIEWER, Role.EXPERT_EVALUATOR, Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN];
 
@@ -108,7 +109,14 @@ export function InnovationDetail({ slug }: { slug: string }) {
   if (isLoading) return <div className="container-page py-24 text-center text-ink-400">Loading…</div>;
   if (!innovation) return <div className="container-page py-24 text-center text-ink-400">Innovation not found.</div>;
 
-  const photo = innovation.attachments?.find((a: any) => a.kind === 'PHOTO');
+  // Review view of a challenge submission (the API returns challengeResponses only to reviewers,
+  // admins and the submitter): no inline hero image; images are listed as attachments with an
+  // on-click lightbox. The public page of a published challenge innovation keeps its cover photo.
+  const challengeReviewView = Boolean(innovation.challengeId && innovation.challengeResponses);
+  const photo = challengeReviewView ? undefined : innovation.attachments?.find((a: any) => a.kind === 'PHOTO');
+  const documents: any[] = challengeReviewView
+    ? challengeExtraAttachments(innovation)
+    : (innovation.attachments ?? []).filter((a: any) => a.kind !== 'PHOTO');
   const leadInnovator = innovation.team?.find((m: any) => m.roleInTeam === 'Lead Innovator') ?? innovation.team?.[0];
   // Admin-created innovations credit the admin, not the team — the API sets `submittedByAdmin` only
   // for those (see InnovationsService.findOneForViewer).
@@ -213,23 +221,11 @@ export function InnovationDetail({ slug }: { slug: string }) {
             </section>
           )}
 
-          {innovation.attachments?.length > 0 && (
+          {documents.length > 0 && (
             <section>
               <h2 className="font-display text-xl font-bold text-ink-900">Supporting documents</h2>
-              <div className="mt-3 space-y-2">
-                {innovation.attachments
-                  .filter((a: any) => a.kind !== 'PHOTO')
-                  .map((a: any) => (
-                    <a
-                      key={a.id}
-                      href={a.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="focus-ring flex items-center gap-2 rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700 hover:border-brand-300 hover:text-brand-700"
-                    >
-                      <FileText className="h-4 w-4 shrink-0" /> <span className="min-w-0 truncate">{a.caption ?? a.kind}</span>
-                    </a>
-                  ))}
+              <div className="mt-3">
+                <AttachmentList items={toAttachmentItems(documents)} />
               </div>
             </section>
           )}

@@ -431,13 +431,14 @@ function NewsTab() {
   );
 }
 
-type TimelinePhaseInput = { label: string; date: string; description: string };
-type FaqInput = { question: string; answer: string };
-type ResourceInput = { label: string; url: string };
+// *Bn = Bangla text (2026-11-15); blank falls back to English on the Bangla site.
+type TimelinePhaseInput = { label: string; labelBn: string; date: string; description: string; descriptionBn: string };
+type FaqInput = { question: string; questionBn: string; answer: string; answerBn: string };
+type ResourceInput = { label: string; labelBn: string; url: string };
 
 /** Optional details-page text fields (2026-11-11) — shown on /challenges/[slug] only when filled. */
 const DETAIL_TEXT_KEYS = [
-  'titleBn', 'descriptionBn',
+  'titleBn', 'descriptionBn', 'organizingAgencyBn', 'prizeInfoBn',
   'problemStatementEn', 'problemStatementBn', 'eligibilityEn', 'eligibilityBn',
   'evaluationCriteriaEn', 'evaluationCriteriaBn', 'prizeDetailsEn', 'prizeDetailsBn',
   'additionalInfoEn', 'additionalInfoBn', 'contactName', 'contactEmail', 'contactPhone',
@@ -470,19 +471,25 @@ function challengeToForm(c: any): ChallengeForm {
     prizeInfoEn: c.prizeInfoEn ?? '',
     applyUrl: c.applyUrl ?? '',
     ...(Object.fromEntries(DETAIL_TEXT_KEYS.map((k) => [k, c[k] ?? ''])) as Record<DetailTextKey, string>),
-    timelinePhases: (c.timelinePhases ?? []).map((p: any) => ({ label: p.label ?? '', date: p.date ?? '', description: p.description ?? '' })),
-    faqs: (c.faqs ?? []).map((f: any) => ({ question: f.question ?? '', answer: f.answer ?? '' })),
-    resources: (c.resources ?? []).map((r: any) => ({ label: r.label ?? '', url: r.url ?? '' })),
+    timelinePhases: (c.timelinePhases ?? []).map((p: any) => ({
+      label: p.label ?? '', labelBn: p.labelBn ?? '', date: p.date ?? '', description: p.description ?? '', descriptionBn: p.descriptionBn ?? '',
+    })),
+    faqs: (c.faqs ?? []).map((f: any) => ({ question: f.question ?? '', questionBn: f.questionBn ?? '', answer: f.answer ?? '', answerBn: f.answerBn ?? '' })),
+    resources: (c.resources ?? []).map((r: any) => ({ label: r.label ?? '', labelBn: r.labelBn ?? '', url: r.url ?? '' })),
   };
 }
+
+/** Drops empty string values so optional JSON keys (e.g. a blank labelBn) aren't stored as "". */
+const compact = <T extends Record<string, string>>(row: T) =>
+  Object.fromEntries(Object.entries(row).filter(([, v]) => v.trim() !== '')) as Partial<T>;
 
 /** Form state → API body. Half-filled list rows are dropped rather than failing validation. */
 function challengeFormToPayload(form: ChallengeForm) {
   return {
     ...form,
-    timelinePhases: form.timelinePhases.filter((p) => p.label.trim()),
-    faqs: form.faqs.filter((f) => f.question.trim() && f.answer.trim()),
-    resources: form.resources.filter((r) => r.label.trim() && r.url.trim()),
+    timelinePhases: form.timelinePhases.filter((p) => p.label.trim()).map(compact),
+    faqs: form.faqs.filter((f) => f.question.trim() && f.answer.trim()).map(compact),
+    resources: form.resources.filter((r) => r.label.trim() && r.url.trim()).map(compact),
   };
 }
 
@@ -576,11 +583,13 @@ function ChallengeDetailsFields({ form, setForm }: { form: ChallengeForm; setFor
                 <input aria-label={`Phase ${i + 1} name`} placeholder="Phase name" value={p.label} onChange={(e) => updateAt('timelinePhases', i, { label: e.target.value })} className={`${inputCls} min-w-0 flex-1`} />
                 <input aria-label={`Phase ${i + 1} date`} type="date" value={p.date} onChange={(e) => updateAt('timelinePhases', i, { date: e.target.value })} className={`${inputCls} w-full sm:w-auto`} />
                 <input aria-label={`Phase ${i + 1} description`} placeholder="Short description (optional)" value={p.description} onChange={(e) => updateAt('timelinePhases', i, { description: e.target.value })} className={`${inputCls} w-full`} />
+                <input aria-label={`Phase ${i + 1} name (Bangla)`} placeholder="ধাপের নাম (বাংলা, ঐচ্ছিক)" value={p.labelBn} onChange={(e) => updateAt('timelinePhases', i, { labelBn: e.target.value })} className={`${inputCls} min-w-0 flex-1`} />
+                <input aria-label={`Phase ${i + 1} description (Bangla)`} placeholder="সংক্ষিপ্ত বিবরণ (বাংলা, ঐচ্ছিক)" value={p.descriptionBn} onChange={(e) => updateAt('timelinePhases', i, { descriptionBn: e.target.value })} className={`${inputCls} min-w-0 flex-1`} />
                 <button type="button" onClick={() => removeAt('timelinePhases', i)} className={removeBtn}>Remove</button>
               </div>
             ))}
           </div>
-          <button type="button" onClick={() => set({ timelinePhases: [...form.timelinePhases, { label: '', date: '', description: '' }] })} className={`${smallBtn} mt-2`}>
+          <button type="button" onClick={() => set({ timelinePhases: [...form.timelinePhases, { label: '', labelBn: '', date: '', description: '', descriptionBn: '' }] })} className={`${smallBtn} mt-2`}>
             + Add phase
           </button>
         </fieldset>
@@ -592,6 +601,7 @@ function ChallengeDetailsFields({ form, setForm }: { form: ChallengeForm; setFor
             {form.resources.map((r, i) => (
               <div key={i} className="flex flex-wrap gap-2 rounded-lg border border-ink-100 bg-white p-2">
                 <input aria-label={`Resource ${i + 1} name`} placeholder="Name, e.g. Guidelines (PDF)" value={r.label} onChange={(e) => updateAt('resources', i, { label: e.target.value })} className={`${inputCls} min-w-0 flex-1`} />
+                <input aria-label={`Resource ${i + 1} name (Bangla)`} placeholder="নাম (বাংলা, ঐচ্ছিক)" value={r.labelBn} onChange={(e) => updateAt('resources', i, { labelBn: e.target.value })} className={`${inputCls} min-w-0 flex-1`} />
                 <input aria-label={`Resource ${i + 1} link`} placeholder="https://… or upload" value={r.url} onChange={(e) => updateAt('resources', i, { url: e.target.value })} className={`${inputCls} min-w-0 flex-1`} />
                 <label className={`${smallBtn} cursor-pointer self-center`}>
                   {upload.isPending ? 'Uploading…' : 'Upload'}
@@ -614,7 +624,7 @@ function ChallengeDetailsFields({ form, setForm }: { form: ChallengeForm; setFor
             ))}
           </div>
           {upload.isError && <p className="mt-1 text-xs text-red-600">Upload failed — PDF, Word, PowerPoint or image, up to 50 MB.</p>}
-          <button type="button" onClick={() => set({ resources: [...form.resources, { label: '', url: '' }] })} className={`${smallBtn} mt-2`}>
+          <button type="button" onClick={() => set({ resources: [...form.resources, { label: '', labelBn: '', url: '' }] })} className={`${smallBtn} mt-2`}>
             + Add resource
           </button>
         </fieldset>
@@ -627,11 +637,13 @@ function ChallengeDetailsFields({ form, setForm }: { form: ChallengeForm; setFor
               <div key={i} className="flex flex-wrap gap-2 rounded-lg border border-ink-100 bg-white p-2">
                 <input aria-label={`Question ${i + 1}`} placeholder="Question" value={f.question} onChange={(e) => updateAt('faqs', i, { question: e.target.value })} className={`${inputCls} w-full`} />
                 <textarea aria-label={`Answer ${i + 1}`} rows={2} placeholder="Answer" value={f.answer} onChange={(e) => updateAt('faqs', i, { answer: e.target.value })} className={`${inputCls} min-w-0 flex-1`} />
+                <input aria-label={`Question ${i + 1} (Bangla)`} placeholder="প্রশ্ন (বাংলা, ঐচ্ছিক)" value={f.questionBn} onChange={(e) => updateAt('faqs', i, { questionBn: e.target.value })} className={`${inputCls} w-full`} />
+                <textarea aria-label={`Answer ${i + 1} (Bangla)`} rows={2} placeholder="উত্তর (বাংলা, ঐচ্ছিক)" value={f.answerBn} onChange={(e) => updateAt('faqs', i, { answerBn: e.target.value })} className={`${inputCls} w-full`} />
                 <button type="button" onClick={() => removeAt('faqs', i)} className={removeBtn}>Remove</button>
               </div>
             ))}
           </div>
-          <button type="button" onClick={() => set({ faqs: [...form.faqs, { question: '', answer: '' }] })} className={`${smallBtn} mt-2`}>
+          <button type="button" onClick={() => set({ faqs: [...form.faqs, { question: '', questionBn: '', answer: '', answerBn: '' }] })} className={`${smallBtn} mt-2`}>
             + Add question
           </button>
         </fieldset>
@@ -654,6 +666,11 @@ function ChallengeDetailsFields({ form, setForm }: { form: ChallengeForm; setFor
           <div className="mt-3 space-y-3">
             <input placeholder="Title (Bangla)" value={form.titleBn} onChange={(e) => set({ titleBn: e.target.value })} className={`${inputCls} w-full`} />
             <textarea rows={3} placeholder="Description (Bangla)" value={form.descriptionBn} onChange={(e) => set({ descriptionBn: e.target.value })} className={`${inputCls} w-full`} />
+            <input placeholder="Organizing agency (Bangla)" value={form.organizingAgencyBn} onChange={(e) => set({ organizingAgencyBn: e.target.value })} className={`${inputCls} w-full`} />
+            <input placeholder="Prize info (Bangla)" value={form.prizeInfoBn} onChange={(e) => set({ prizeInfoBn: e.target.value })} className={`${inputCls} w-full`} />
+            <p className="text-xs text-ink-500">
+              Timeline phases, resources and FAQs have their own Bangla boxes above. Each submission-form field has a বাংলা section in the form builder.
+            </p>
             {DETAIL_SECTIONS.map((s) => (
               <textarea key={s.bn} rows={2} placeholder={`${s.label} (Bangla)`} value={form[s.bn]} onChange={(e) => set({ [s.bn]: e.target.value } as Partial<ChallengeForm>)} className={`${inputCls} w-full`} />
             ))}

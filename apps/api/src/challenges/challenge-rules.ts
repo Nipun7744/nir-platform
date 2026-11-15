@@ -79,30 +79,48 @@ export interface ChallengeStateInput {
   formFieldCount: number;
 }
 
+/** Stable reason codes, so the web app can show the reason in Bangla or English. */
+export type ClosedCode =
+  | 'NOT_PUBLISHED'
+  | 'INACTIVE'
+  | 'SUBMISSIONS_DISABLED'
+  | 'NOT_OPEN_YET'
+  | 'NO_LONGER_ACCEPTING'
+  | 'DEADLINE_PASSED'
+  | 'NOT_CONFIGURED';
+
 export interface SubmissionState {
   acceptingSubmissions: boolean;
-  /** Human-readable reason when not accepting; null when accepting. */
+  /** Human-readable (English) reason when not accepting; null when accepting. */
   closedReason: string | null;
+  /** Machine-readable reason (2026-11-15); null when accepting. */
+  closedCode: ClosedCode | null;
 }
 
 /** `deadline` is a calendar date (stored at 00:00 UTC) — submissions stay open through that whole day. */
 export function submissionState(c: ChallengeStateInput, now: Date = new Date()): SubmissionState {
-  const closed = (closedReason: string): SubmissionState => ({ acceptingSubmissions: false, closedReason });
-  if (!c.isPublished) return closed('This challenge is not published.');
-  if (!c.isActive) return closed('This challenge is currently inactive.');
-  if (!c.submissionsEnabled) return closed('Submissions are not enabled for this challenge.');
+  const closed = (closedCode: ClosedCode, closedReason: string): SubmissionState => ({
+    acceptingSubmissions: false,
+    closedReason,
+    closedCode,
+  });
+  if (!c.isPublished) return closed('NOT_PUBLISHED', 'This challenge is not published.');
+  if (!c.isActive) return closed('INACTIVE', 'This challenge is currently inactive.');
+  if (!c.submissionsEnabled) return closed('SUBMISSIONS_DISABLED', 'Submissions are not enabled for this challenge.');
   if (c.status !== 'OPEN') {
-    return closed(c.status === 'UPCOMING' ? 'This challenge has not opened yet.' : 'This challenge is no longer accepting submissions.');
+    return c.status === 'UPCOMING'
+      ? closed('NOT_OPEN_YET', 'This challenge has not opened yet.')
+      : closed('NO_LONGER_ACCEPTING', 'This challenge is no longer accepting submissions.');
   }
-  if (c.startDate && now < new Date(c.startDate)) return closed('This challenge has not opened yet.');
+  if (c.startDate && now < new Date(c.startDate)) return closed('NOT_OPEN_YET', 'This challenge has not opened yet.');
   if (c.deadline) {
     const end = new Date(c.deadline);
     end.setUTCHours(23, 59, 59, 999);
-    if (now > end) return closed('The submission deadline has passed.');
+    if (now > end) return closed('DEADLINE_PASSED', 'The submission deadline has passed.');
   }
-  if (!c.categoryId) return closed('This challenge is not yet configured for submissions.');
-  if (c.formFieldCount < 1) return closed('This challenge is not yet configured for submissions.');
-  return { acceptingSubmissions: true, closedReason: null };
+  if (!c.categoryId) return closed('NOT_CONFIGURED', 'This challenge is not yet configured for submissions.');
+  if (c.formFieldCount < 1) return closed('NOT_CONFIGURED', 'This challenge is not yet configured for submissions.');
+  return { acceptingSubmissions: true, closedReason: null, closedCode: null };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -113,12 +131,17 @@ export interface FormFieldInput {
   id?: string;
   key?: string;
   label: string;
+  labelBn?: string | null;
   description?: string | null;
+  descriptionBn?: string | null;
   type: string;
   required?: boolean;
   placeholder?: string | null;
+  placeholderBn?: string | null;
   helpText?: string | null;
+  helpTextBn?: string | null;
   options?: string[];
+  optionsBn?: string[];
   acceptedFileTypes?: string[];
   maxFileSizeMb?: number | null;
   maxFiles?: number | null;
@@ -129,12 +152,18 @@ export interface NormalizedFormField {
   id?: string;
   key: string;
   label: string;
+  labelBn: string | null;
   description: string | null;
+  descriptionBn: string | null;
   type: FormFieldTypeName;
   required: boolean;
   placeholder: string | null;
+  placeholderBn: string | null;
   helpText: string | null;
+  helpTextBn: string | null;
   options: string[];
+  /** Index-aligned with `options`; '' where no Bangla text was given. */
+  optionsBn: string[];
   acceptedFileTypes: string[];
   maxFileSizeMb: number | null;
   maxFiles: number | null;
@@ -198,7 +227,12 @@ export function normalizeFormDefinition(fields: FormFieldInput[]): { fields: Nor
     }
     usedKeys.add(key);
 
-    const options = (f.options ?? []).map((o) => String(o).trim()).filter(Boolean);
+    // Trim/drop empty English options while keeping each Bangla translation paired with its option.
+    const optionPairs = (f.options ?? [])
+      .map((o, i) => [String(o).trim(), String(f.optionsBn?.[i] ?? '').trim()] as const)
+      .filter(([o]) => Boolean(o));
+    const options = optionPairs.map(([o]) => o);
+    const optionsBn = optionPairs.some(([, bn]) => bn) ? optionPairs.map(([, bn]) => bn) : [];
     if (CHOICE_TYPES.includes(type)) {
       if (type !== 'CHECKBOX' && options.length < 1) errors.push(`${where}: add at least one option.`);
       if (new Set(options).size !== options.length) errors.push(`${where}: options must be unique.`);
@@ -240,16 +274,26 @@ export function normalizeFormDefinition(fields: FormFieldInput[]): { fields: Nor
       }
     }
 
+    // Placeholder is meaningless for file/choice fields — except a single consent checkbox (CHECKBOX
+    // with no options), where it is the text shown next to the box. That text used to be dropped
+    // here (fixed 2026-11-15).
+    const isConsentBox = type === 'CHECKBOX' && options.length === 0;
+    const keepPlaceholder = isConsentBox || !(FILE_TYPES.includes(type) || CHOICE_TYPES.includes(type));
     out.push({
       id: f.id || undefined,
       key,
       label,
+      labelBn: blankToNull(f.labelBn),
       description: blankToNull(f.description),
+      descriptionBn: blankToNull(f.descriptionBn),
       type,
       required: Boolean(f.required),
-      placeholder: FILE_TYPES.includes(type) || CHOICE_TYPES.includes(type) ? null : blankToNull(f.placeholder),
+      placeholder: keepPlaceholder ? blankToNull(f.placeholder) : null,
+      placeholderBn: keepPlaceholder ? blankToNull(f.placeholderBn) : null,
       helpText: blankToNull(f.helpText),
+      helpTextBn: blankToNull(f.helpTextBn),
       options: CHOICE_TYPES.includes(type) ? options : [],
+      optionsBn: CHOICE_TYPES.includes(type) ? optionsBn : [],
       acceptedFileTypes,
       maxFileSizeMb,
       maxFiles,

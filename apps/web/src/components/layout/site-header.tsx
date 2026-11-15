@@ -4,11 +4,30 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/navigation';
-import { Menu, X } from 'lucide-react';
+import { Menu, Sparkles, X } from 'lucide-react';
 import { LocaleSwitcher } from './locale-switcher';
 import { useAuthStore } from '@/store/auth-store';
 import clsx from 'clsx';
 import { useGeneralSubmissionOpen } from '@/hooks/use-settings';
+import { useChallenges } from '@/hooks/use-content';
+
+/**
+ * Sparkle + pulsing dot shown next to "Challenges" while at least one challenge is accepting
+ * submissions (`acceptingSubmissions` from GET /challenges — published, active, submissions on,
+ * OPEN and within its dates). Animations stop under prefers-reduced-motion (globals.css).
+ */
+function LiveChallengeMark({ label }: { label: string }) {
+  return (
+    <span className="relative ml-1 inline-flex items-center" title={label}>
+      <Sparkles className="h-3.5 w-3.5 animate-twinkle text-sun-500" aria-hidden />
+      <span className="absolute -right-1.5 -top-1 flex h-2 w-2" aria-hidden>
+        <span className="absolute inline-flex h-full w-full animate-live-pulse rounded-full bg-nirgreen-deep" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-nirgreen-deep" />
+      </span>
+      <span className="sr-only">({label})</span>
+    </span>
+  );
+}
 
 export function SiteHeader() {
   const t = useTranslations();
@@ -17,10 +36,14 @@ export function SiteHeader() {
   const [open, setOpen] = useState(false);
   // Admin-controlled (GET /settings/submission) — hidden when general submission is switched off.
   const generalSubmissionOpen = useGeneralSubmissionOpen();
+  // Same ['challenges'] query the /challenges page uses, so it's shared from the cache.
+  const { data: challenges } = useChallenges();
+  const challengeLive = Boolean(challenges?.some((c) => c.acceptingSubmissions));
+  const liveLabel = t('nav.challengesLive');
 
-  const navItems = [
+  const navItems: { href: string; label: string; live?: boolean }[] = [
     { href: '/repository', label: t('nav.repository') },
-    { href: '/challenges', label: t('nav.challenges') },
+    { href: '/challenges', label: t('nav.challenges'), live: challengeLive },
     { href: '/statistics', label: t('nav.statistics') },
     { href: '/resources', label: t('nav.resources') },
     { href: '/news', label: t('nav.news') },
@@ -71,11 +94,13 @@ export function SiteHeader() {
                     <Link
                       href={item.href}
                       className={clsx(
-                        'focus-ring inline-block border-b-2 py-2 text-sm font-medium no-underline transition',
+                        'focus-ring inline-flex items-center border-b-2 py-2 text-sm font-medium no-underline transition',
                         active ? 'border-nirgreen-deep text-nirgreen-dark' : 'border-transparent text-navy hover:border-nirgreen-deep hover:text-nirgreen-dark',
+                        item.live && !active && 'font-semibold text-nirgreen-dark',
                       )}
                     >
                       {item.label}
+                      {item.live && <LiveChallengeMark label={liveLabel} />}
                     </Link>
                   </li>
                 );
@@ -113,9 +138,20 @@ export function SiteHeader() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className="focus-ring rounded-md px-2 py-2.5 text-sm font-medium text-navy"
+                  className={clsx(
+                    'focus-ring flex items-center rounded-md px-2 py-2.5 text-sm font-medium text-navy',
+                    item.live && 'bg-nirgreen-deep/5 font-semibold text-nirgreen-dark',
+                  )}
                 >
                   {item.label}
+                  {item.live && (
+                    <>
+                      <LiveChallengeMark label={liveLabel} />
+                      <span className="ml-auto rounded-full bg-nirgreen-deep px-2 py-0.5 text-[11px] font-semibold text-white" aria-hidden>
+                        {liveLabel}
+                      </span>
+                    </>
+                  )}
                 </Link>
               ))}
               {generalSubmissionOpen && (

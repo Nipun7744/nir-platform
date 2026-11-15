@@ -5,12 +5,18 @@ export interface ChallengeFormFieldDto {
   id?: string;
   key: string;
   label: string;
+  labelBn?: string | null;
   description?: string | null;
+  descriptionBn?: string | null;
   type: FormFieldType | `${FormFieldType}`;
   required: boolean;
   placeholder?: string | null;
+  placeholderBn?: string | null;
   helpText?: string | null;
+  helpTextBn?: string | null;
   options: string[];
+  /** Bangla display text, index-aligned with `options` ('' = use English). Answers store `options`. */
+  optionsBn?: string[];
   acceptedFileTypes: string[];
   maxFileSizeMb?: number | null;
   maxFiles?: number | null;

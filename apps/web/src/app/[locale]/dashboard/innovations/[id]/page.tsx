@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Link, useRouter } from '@/i18n/navigation';
-import { ArrowLeft, ImagePlus, FileText, UserPlus, Send, Trash2, Pencil, CheckCircle2, XCircle, Globe, AlertCircle, Trophy } from 'lucide-react';
+import { ArrowLeft, ImagePlus, UserPlus, Send, Trash2, Pencil, CheckCircle2, XCircle, Globe, AlertCircle, Trophy } from 'lucide-react';
 import { Role, SubmissionChannel } from '@nir/shared';
 import { useInnovation } from '@/hooks/use-repository-search';
 import {
@@ -20,6 +20,7 @@ import { FileUploadButton } from '@/components/ui/file-upload-button';
 import { StagePill } from '@/components/ui/stage-pill';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ChallengeResponses } from '@/components/challenge-form/challenge-responses';
+import { AttachmentList, cleanFileName, toAttachmentItems } from '@/components/ui/attachment-list';
 
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: 'bg-ink-50 text-ink-500',
@@ -254,23 +255,23 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
           <h2 className="flex items-center gap-2 font-display text-base font-bold text-ink-900">
             <ImagePlus className="h-4 w-4 text-brand-600" /> Attachments
           </h2>
-          <div className="mt-3 space-y-2">
-            {innovation.attachments?.map((a: any) => (
-              <div key={a.id} className="flex items-center gap-2 rounded-lg border border-ink-100 px-3 py-2 text-sm text-ink-700">
-                <a href={a.url} target="_blank" rel="noreferrer" className="focus-ring flex min-w-0 flex-1 items-center gap-2 hover:text-brand-700">
-                  <FileText className="h-4 w-4 shrink-0" /> <span className="min-w-0 truncate">{a.caption ?? a.kind}</span>
-                </a>
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmRemoveAttachment({ id: a.id, caption: a.caption ?? a.kind })}
-                    className="focus-ring shrink-0 text-xs font-semibold text-ink-400 hover:text-red-600"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            ))}
+          <div className="mt-3">
+            <AttachmentList
+              items={toAttachmentItems(innovation.attachments)}
+              renderAction={
+                canEdit
+                  ? (a) => (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRemoveAttachment({ id: a.id!, caption: cleanFileName(a.name, a.url) })}
+                        className="focus-ring text-xs font-semibold text-ink-400 hover:text-red-600"
+                      >
+                        Remove
+                      </button>
+                    )
+                  : undefined
+              }
+            />
             {!innovation.attachments?.length && <p className="text-xs text-ink-400">No files uploaded yet.</p>}
           </div>
           {canEdit && (

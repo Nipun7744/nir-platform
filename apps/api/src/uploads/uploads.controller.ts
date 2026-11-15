@@ -28,6 +28,17 @@ const ALLOWED_MIME = new Set([
   'application/vnd.ms-powerpoint',
 ]);
 
+/**
+ * Multer (busboy) decodes multipart filenames as latin1, so a UTF-8 name such as a Bangla one
+ * arrives as mojibake ("à¦ªà§...pdf"). Re-decode as UTF-8, keeping the original when the bytes
+ * weren't valid UTF-8 (a genuine latin1 name). Also strips any path a browser may send.
+ */
+export function readableOriginalName(raw: string): string {
+  const decoded = Buffer.from(raw, 'latin1').toString('utf8');
+  const name = decoded.includes('�') ? raw : decoded;
+  return name.split(/[\\/]/).pop()!.trim() || 'file';
+}
+
 @Controller('uploads')
 export class UploadsController {
   @Post()
@@ -41,6 +52,8 @@ export class UploadsController {
       }),
       limits: { fileSize: UPLOAD_MAX_SIZE_BYTES },
       fileFilter: (_req, file, cb) => {
+        // Runs before storage, so the stored extension and the returned originalName both use it.
+        file.originalname = readableOriginalName(file.originalname);
         if (!ALLOWED_MIME.has(file.mimetype)) {
           return cb(new BadRequestException(`File type ${file.mimetype} is not allowed`), false);
         }
