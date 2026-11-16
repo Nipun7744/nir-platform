@@ -442,6 +442,7 @@ const DETAIL_TEXT_KEYS = [
   'problemStatementEn', 'problemStatementBn', 'eligibilityEn', 'eligibilityBn',
   'evaluationCriteriaEn', 'evaluationCriteriaBn', 'prizeDetailsEn', 'prizeDetailsBn',
   'additionalInfoEn', 'additionalInfoBn', 'contactName', 'contactEmail', 'contactPhone',
+  'submitButtonLabelEn', 'submitButtonLabelBn',
 ] as const;
 type DetailTextKey = (typeof DETAIL_TEXT_KEYS)[number];
 
@@ -532,6 +533,18 @@ function ChallengeFormFields({ form, setForm }: { form: ChallengeForm; setForm: 
       />
       <input placeholder="Prize info (optional)" value={form.prizeInfoEn} onChange={(e) => setForm({ ...form, prizeInfoEn: e.target.value })} className={inputCls} />
       <input placeholder="Apply URL (optional)" value={form.applyUrl} onChange={(e) => setForm({ ...form, applyUrl: e.target.value })} className={`${inputCls} sm:col-span-2`} />
+      <label className="block sm:col-span-2">
+        <span className="mb-1 block text-xs font-medium text-ink-500">
+          Submission button label — shown on the popup, homepage banner, challenge list and details page. Leave blank for the default (“Apply now” / “Submit Innovation”). Bangla version under বাংলা translations.
+        </span>
+        <input
+          maxLength={40}
+          placeholder="e.g. Submit your design"
+          value={form.submitButtonLabelEn}
+          onChange={(e) => setForm({ ...form, submitButtonLabelEn: e.target.value })}
+          className={`${inputCls} w-full`}
+        />
+      </label>
     </div>
     <ChallengeDetailsFields form={form} setForm={setForm} />
     </>
@@ -668,6 +681,7 @@ function ChallengeDetailsFields({ form, setForm }: { form: ChallengeForm; setFor
             <textarea rows={3} placeholder="Description (Bangla)" value={form.descriptionBn} onChange={(e) => set({ descriptionBn: e.target.value })} className={`${inputCls} w-full`} />
             <input placeholder="Organizing agency (Bangla)" value={form.organizingAgencyBn} onChange={(e) => set({ organizingAgencyBn: e.target.value })} className={`${inputCls} w-full`} />
             <input placeholder="Prize info (Bangla)" value={form.prizeInfoBn} onChange={(e) => set({ prizeInfoBn: e.target.value })} className={`${inputCls} w-full`} />
+            <input maxLength={40} placeholder="Submission button label (Bangla)" value={form.submitButtonLabelBn} onChange={(e) => set({ submitButtonLabelBn: e.target.value })} className={`${inputCls} w-full`} />
             <p className="text-xs text-ink-500">
               Timeline phases, resources and FAQs have their own Bangla boxes above. Each submission-form field has a বাংলা section in the form builder.
             </p>

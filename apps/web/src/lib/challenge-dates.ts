@@ -18,6 +18,29 @@ export function challengeDaysLeft(deadline?: string | null, now: Date = new Date
 }
 
 /**
+ * Milliseconds left to apply (same end-of-deadline-day-UTC cutoff as challengeDaysLeft), or null
+ * once the deadline has passed (or there is none). Drives the popup's live countdown.
+ */
+export function challengeTimeLeftMs(deadline?: string | null, now: number = Date.now()): number | null {
+  if (!deadline) return null;
+  const end = new Date(deadline);
+  if (Number.isNaN(end.getTime())) return null;
+  const remaining = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()) + DAY_MS - now;
+  return remaining > 0 ? remaining : null;
+}
+
+/** Splits a duration into whole days / hours / minutes / seconds. */
+export function splitDuration(ms: number) {
+  const total = Math.floor(ms / 1000);
+  return {
+    days: Math.floor(total / 86400),
+    hours: Math.floor((total % 86400) / 3600),
+    minutes: Math.floor((total % 3600) / 60),
+    seconds: total % 60,
+  };
+}
+
+/**
  * The challenge to promote on the homepage banner and the site-wide popup: the featured open,
  * active challenge, else the first open, active one. Undefined when none is open.
  */

@@ -310,7 +310,11 @@ completed work)*
 ## Known issues
 
 - **Self-registration is now active immediately (2026-11-15), including privileged-looking
-  roles.** A verified OTP proves only control of an email/phone. Investor, Mentor and especially
+  roles.** *Mitigated 2026-11-16:* sign-up no longer offers Investor / Mentor / Ministry Focal
+  Point at all (the dropdown is fixed to Innovation Submitter and the API rejects other roles), so
+  the risk below only returns if `SELF_SERVICE_ROLES_AT_SIGNUP` is switched back on. How users
+  get those roles in the meantime (admin User Management, or the per-role `/register` endpoints
+  from the dashboard) is still a product decision. A verified OTP proves only control of an email/phone. Investor, Mentor and especially
   **Ministry Focal Point** (tied to a ministry the registrant picks) used to get a human check via
   User Approvals; now they don't. If that matters, the options are: keep auto-activation for
   Innovation Submitters only and queue the other roles, or auto-activate everyone but require
@@ -329,6 +333,14 @@ completed work)*
   innovation edit page): it sends the stored access token without the refresh-on-401 that
   `lib/api-client.ts` does, so an upload after 15+ minutes on the form fails "Unauthorized"; and a
   non-JSON error reply (like nginx's 413 HTML) surfaces only as a generic "Upload failed".
+  **Re-measured 2026-11-16, still unfixed:** cutoff is exactly 1 MiB of request body (a
+  1,048,300-byte file is stored, 1,048,400 → 413), logged in or not. The open challenge `uich`
+  tells applicants "Max 5 MB" / "Max 50 MB" and both fields show only "Upload failed" for a 2 MB
+  file; the admin banner upload shows "Upload failed — try a smaller image…". "Upload failed" is
+  English on the Bangla site too (thrown in `lib/upload.ts`).
+- **The challenge popup opens on the challenge's own submit page (seen 2026-11-16)** —
+  `challenge-popup.tsx` only hides on `/dashboard`, `/sign-in`, `/register`, so it covers
+  `/challenges/<slug>/submit` (and the details page) until dismissed. Hide it under `/challenges/`.
 
 - **Challenge-submission placeholders on public pages (2026-11-10)** — a challenge submission
   whose form has no field mapped to Problem statement / Proposed solution stores the placeholder

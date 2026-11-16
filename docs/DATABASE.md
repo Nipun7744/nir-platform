@@ -288,6 +288,9 @@ Applied so far (`apps/api/prisma/migrations/`, oldest first):
     option). The JSON lists `timelinePhases`/`faqs`/`resources` gained optional `labelBn`,
     `descriptionBn`, `questionBn`, `answerBn` keys (no DDL needed). Purely additive (all nullable /
     defaulted), so safe for `prisma migrate deploy` on the servers.
+25. `20261116042925_challenge_submit_button_label` — `Challenge.submitButtonLabelEn` /
+    `submitButtonLabelBn` (nullable TEXT): the admin's custom label for the "submit to this
+    challenge" button; NULL → the site's default ("Apply now" / "Submit Innovation"). Additive.
 
 Note migrations 9 and 11 (`add_due_diligence_reviewer`, `rename_due_diligence_to_authenticity_reviewer`):
 a "Due Diligence Reviewer" role was added then renamed to "Authenticity Reviewer" within the same

@@ -16,6 +16,13 @@ import { ApiError } from '@/lib/api-client';
 
 type DesiredRole = 'INNOVATION_SUBMITTER' | 'INVESTOR' | 'MENTOR' | 'MINISTRY_FOCAL_POINT';
 
+/**
+ * 2026-11-16: every new account is an Innovation Submitter only — the role dropdown is shown
+ * locked to it and the API rejects any other role. Set to true (here and SELF_SERVICE_ROLES_AT_SIGNUP
+ * in apps/api/src/auth/auth.service.ts) to let registrants pick Investor / Mentor / Ministry again.
+ */
+const SELF_SERVICE_ROLES_AT_SIGNUP = false;
+
 function ChipSelect({ options, selected, onToggle }: { options: { id: string; label: string }[]; selected: string[]; onToggle: (id: string) => void }) {
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -350,17 +357,33 @@ function RegisterPageInner() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-ink-700">{t('roleLabel')}</label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as DesiredRole)}
-            className="focus-ring w-full rounded-lg border border-ink-100 bg-white px-3 py-2.5 text-sm"
-          >
-            <option value="INNOVATION_SUBMITTER">{t('roleSubmitter')}</option>
-            <option value="INVESTOR">{t('roleInvestor')}</option>
-            <option value="MENTOR">{t('roleMentor')}</option>
-            <option value="MINISTRY_FOCAL_POINT">{t('roleMinistry')}</option>
-          </select>
+          <label htmlFor="register-role" className="mb-1 block text-sm font-medium text-ink-700">{t('roleLabel')}</label>
+          {SELF_SERVICE_ROLES_AT_SIGNUP ? (
+            <select
+              id="register-role"
+              value={role}
+              onChange={(e) => setRole(e.target.value as DesiredRole)}
+              className="focus-ring w-full rounded-lg border border-ink-100 bg-white px-3 py-2.5 text-sm"
+            >
+              <option value="INNOVATION_SUBMITTER">{t('roleSubmitter')}</option>
+              <option value="INVESTOR">{t('roleInvestor')}</option>
+              <option value="MENTOR">{t('roleMentor')}</option>
+              <option value="MINISTRY_FOCAL_POINT">{t('roleMinistry')}</option>
+            </select>
+          ) : (
+            <>
+              <select
+                id="register-role"
+                value="INNOVATION_SUBMITTER"
+                disabled
+                aria-describedby="register-role-hint"
+                className="w-full cursor-not-allowed rounded-lg border border-ink-100 bg-ink-50 px-3 py-2.5 text-sm text-ink-700"
+              >
+                <option value="INNOVATION_SUBMITTER">{t('roleSubmitter')}</option>
+              </select>
+              <p id="register-role-hint" className="mt-1 text-xs text-ink-500">{t('roleFixedHint')}</p>
+            </>
+          )}
         </div>
 
         {role === 'INVESTOR' && (

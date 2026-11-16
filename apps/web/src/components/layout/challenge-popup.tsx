@@ -6,10 +6,51 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { Link, usePathname } from '@/i18n/navigation';
 import { useChallenges } from '@/hooks/use-content';
-import { challengeDaysLeft, pickPromotedChallenge } from '@/lib/challenge-dates';
+import { challengeTimeLeftMs, pickPromotedChallenge, splitDuration } from '@/lib/challenge-dates';
 import { useChallengeText } from '@/lib/challenge-i18n';
 
 const DISMISSED_KEY_PREFIX = 'nir-challenge-popup-dismissed:';
+
+/**
+ * Live "Days : Hours : Minutes : Seconds" countdown to the end of the deadline day (UTC, the same
+ * cutoff the API uses). Ticks every second while mounted; renders nothing once the deadline passes.
+ */
+function Countdown({ deadline }: { deadline?: string | null }) {
+  const t = useTranslations('home.challengePopup.countdown');
+  const tx = useChallengeText();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const left = challengeTimeLeftMs(deadline, now);
+  if (left === null) return null;
+  const parts = splitDuration(left);
+  const num = new Intl.NumberFormat(tx.locale === 'bn' ? 'bn-BD' : 'en-US', { minimumIntegerDigits: 2, useGrouping: false });
+  const units = [
+    ['days', parts.days],
+    ['hours', parts.hours],
+    ['minutes', parts.minutes],
+    ['seconds', parts.seconds],
+  ] as const;
+  return (
+    <div
+      role="timer"
+      aria-label={t('aria', parts)}
+      className="inline-flex items-start gap-1 rounded-xl bg-amber/20 px-2.5 py-1.5 text-amber-deep"
+    >
+      {units.map(([unit, value], i) => (
+        <span key={unit} className="flex items-start gap-1" aria-hidden="true">
+          {i > 0 && <span className="font-mono text-base font-bold leading-5">:</span>}
+          <span className="flex min-w-[2.25rem] flex-col items-center">
+            <span className="font-mono text-base font-bold leading-5 tabular-nums">{num.format(value)}</span>
+            <span className="text-[9px] font-semibold uppercase leading-3 tracking-[0.04em]">{t(unit)}</span>
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 // Popup is scoped to the public marketing site — dashboard/auth routes have their own tasks in flight.
 const HIDDEN_ROUTES = ['/dashboard', '/sign-in', '/register'];
@@ -56,7 +97,6 @@ export function ChallengePopup() {
     return () => window.removeEventListener('keydown', onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show]);
-  const daysLeft = challengeDaysLeft(challenge?.deadline);
 
   return (
     <AnimatePresence>
@@ -98,17 +138,16 @@ export function ChallengePopup() {
               )}
 
               <div className="p-6 sm:p-8">
+                {/* "Open now" pill and the countdown share one row; they wrap only on narrow phones. */}
+                <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-2 rounded-full bg-nirgreen-deep px-3 py-1 text-xs font-semibold uppercase tracking-[0.04em] text-white">
                   <span className="relative inline-block h-2 w-2 shrink-0 rounded-full bg-white">
                     <span className="absolute -inset-1 animate-live-pulse rounded-full border-[1.5px] border-white" />
                   </span>
                   {t('eyebrow')}
                 </span>
-                {daysLeft !== null && (
-                  <span className="ml-2 inline-flex rounded-full bg-amber/20 px-3 py-1 text-xs font-semibold text-amber-deep">
-                    {t('daysLeft', { count: daysLeft })}
-                  </span>
-                )}
+                <Countdown deadline={challenge.deadline} />
+                </div>
 
                 <h2 id="challenge-popup-title" className="my-3.5 font-display text-2xl font-bold text-navy">
                   {tx.title(challenge)}
@@ -141,7 +180,7 @@ export function ChallengePopup() {
                       onClick={close}
                       className="focus-ring rounded-full bg-nirgreen-deep px-[26px] py-[13px] text-base font-semibold text-white transition hover:bg-nirgreen-dark"
                     >
-                      {t('applyNow')}
+                      {tx.submitLabel(challenge, t('applyNow'))}
                     </Link>
                   )}
                   <Link

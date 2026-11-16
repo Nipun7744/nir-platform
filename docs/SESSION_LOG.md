@@ -6,6 +6,60 @@
 
 ---
 
+## 2026-11-16 (session 47) — six-item batch: fixed sign-up role, submit-button label, SSO hidden, NIR full name, live countdown, 200 options
+
+1. **Registration fixed to Innovation Submitter:** the register page shows the role dropdown
+   disabled with only Innovation Submitter, plus a hint (`auth.roleFixedHint`).
+   `AuthService.register` rejects any `role` with 400 before touching the OTP. Both sides sit
+   behind `SELF_SERVICE_ROLES_AT_SIGNUP = false` (API `auth.service.ts`, web `register/page.tsx`).
+   This also mitigates the 2026-11-15 open question about Ministry Focal Point self-sign-up (see
+   ROADMAP).
+2. **Configurable challenge submit-button label:** migration
+   `20261116042925_challenge_submit_button_label` (`Challenge.submitButtonLabelEn/Bn`), DTO fields
+   (max 40 chars), blank stored as NULL. Admin challenge form: English input under Apply URL,
+   Bangla under বাংলা translations. Used by every challenge-submit CTA (popup, homepage banner,
+   challenges list + its aria-label, both details-page buttons) via `tx.submitLabel`; the default
+   labels are unchanged when blank.
+3. **SSO buttons hidden** on sign-in and register (`SSO_BUTTONS_VISIBLE = false` in
+   `sso-buttons.tsx`).
+4. **Full form of NIR on sign-in / register:** first done as an extra "NIR – National Innovation
+   Repository" line under the logo; on feedback, replaced by putting the full name in the titles
+   instead ("Sign in to National Innovation Repository", "Create your National Innovation
+   Repository account"; Bangla "জাতীয় উদ্ভাবন রিপোজিটরি-তে সাইন ইন করুন" / "আপনার জাতীয় উদ্ভাবন
+   রিপোজিটরি অ্যাকাউন্ট তৈরি করুন"). `AuthCard` is unchanged; `auth.nirFullName` removed.
+5. **Popup countdown** is now `Days : Hours : Minutes : Seconds`, ticking every second
+   (`challengeTimeLeftMs` + `splitDuration` in `lib/challenge-dates.ts`, same
+   end-of-deadline-day-UTC cutoff as before). The popup's `daysLeft` message was replaced by
+   `home.challengePopup.countdown.*`. Follow-up: the countdown now sits beside the "Challenge open
+   now" pill (one flex-wrap row, countdown made more compact); it wraps below only on phones.
+   Checked in en + bn at desktop width.
+6. **Form builder options limit 100 → 200** (`MAX_OPTIONS` in `challenge-rules.ts`, used by the DTO
+   for `options` and `optionsBn`). The builder shows "N / 200 options" and caps the textarea at 14
+   rows.
+- **Tests:** API unit 40/40; e2e 25 pass / 0 fail / 3 skipped (a later rerun hit the login
+  throttle, 429, not a code failure); web `tsc --noEmit` clean. API checks: register with
+  `role: INVESTOR` → 400; label create/trim/clear round-trip; 200 options → 200, 201 → 400.
+  Browser: register (locked role, no SSO, full name), `/bn/sign-in`, homepage popup countdown
+  (14 d 19 h 25 m, correct for a 30 Nov deadline), custom label on `test123` in the en list and
+  bn details page (temporary label removed afterwards; throwaway challenge deleted). The admin
+  form-builder counter and label inputs were type-checked only, not viewed in the browser.
+- **Files:** API `schema.prisma` + migration, `auth.service.ts`, `challenge-rules.ts`,
+  `challenges.service.ts`, `dto/challenge.dto.ts`. Web `register/page.tsx`, `auth-card.tsx`,
+  `sso-buttons.tsx`, `challenge-popup.tsx`, `challenge-banner.tsx`, challenges list + details
+  pages, `dashboard/admin/page.tsx`, `challenge-form-builder.tsx`, `lib/challenge-dates.ts`,
+  `lib/challenge-i18n.ts`, `hooks/use-content.ts`, `messages/en.json` + `bn.json`. Docs: API,
+  DATABASE, PROJECT_CONTEXT, ROLES, UI_GUIDELINES, ROADMAP, this log.
+- **Deploy note:** new migration → `prisma migrate deploy` on the servers.
+- **Upload-size test on dev.challenge.gov.bd (same session):** signed in as admin (Turnstile
+  passed on its own). Cutoff is exactly 1 MiB of request body via host nginx (1,048,300-byte file
+  → 201 and served back; 1,048,400 B, 2, 5 and 10 MB → 413 HTML), same with or without login.
+  The app's own 50 MB limit is never reached. Live UI: the `uich` form (accepting, "Max 5 MB" /
+  "Max 50 MB") shows only "Upload failed" for 2 MB files; the admin banner field shows "Upload
+  failed — try a smaller image or paste a URL instead." Also found the challenge popup covering
+  the submit page. Both in ROADMAP Known issues. Three test PNGs (100 KB, 900 KB, 1 MB) were left
+  in the dev server's `/uploads` (no delete endpoint). Dev is not yet running this session's code.
+- **Next:** not committed or pushed. Per the standing rule, push goes to GitLab `development`.
+
 ## 2026-11-15 (session 46) — Publish button missing on Admin Evaluations
 
 - **Reported:** in the admin Evaluations tab, an evaluated innovation has no Publish button.

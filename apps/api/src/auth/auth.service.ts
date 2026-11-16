@@ -31,6 +31,9 @@ export interface TokenPair {
 
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+/** Whether a registrant may also pick Investor / Mentor / Ministry Focal Point (off since 2026-11-16). */
+const SELF_SERVICE_ROLES_AT_SIGNUP = false;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -137,6 +140,12 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
+    // 2026-11-16: every new account is an Innovation Submitter only. Investor / Mentor / Ministry
+    // Focal Point can no longer be self-selected at sign-up (the form shows the role as fixed);
+    // flip SELF_SERVICE_ROLES_AT_SIGNUP to restore the old dropdown behaviour.
+    if (dto.role && !SELF_SERVICE_ROLES_AT_SIGNUP) {
+      throw new BadRequestException('New accounts are registered as Innovation Submitter only.');
+    }
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('An account with this email already exists');
 

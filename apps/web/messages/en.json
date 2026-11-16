@@ -75,7 +75,13 @@
       "viewDetails": "View details",
       "dismiss": "Maybe later",
       "close": "Close",
-      "daysLeft": "{count, plural, =0 {Last day to apply} one {# day left} other {# days left}}"
+      "countdown": {
+        "days": "Days",
+        "hours": "Hours",
+        "minutes": "Minutes",
+        "seconds": "Seconds",
+        "aria": "Time left to apply: {days} days, {hours} hours, {minutes} minutes, {seconds} seconds"
+      }
     },
     "news": {
       "eyebrow": "Latest from the ecosystem",
@@ -141,9 +147,9 @@
     "formSuccess": "Thank you — your message has been received."
   },
   "auth": {
-    "signInTitle": "Sign in to NIR",
+    "signInTitle": "Sign in to National Innovation Repository",
     "signInSubtitle": "Track your submissions, evaluations, or investments.",
-    "registerTitle": "Create your NIR account",
+    "registerTitle": "Create your National Innovation Repository account",
     "registerSubtitle": "Join innovators, evaluators, mentors, and investors across Bangladesh.",
     "email": "Email address",
     "password": "Password",
@@ -158,6 +164,7 @@
     "phone": "Phone number (optional)",
     "roleLabel": "I'm creating an account as a…",
     "roleSubmitter": "Innovation Submitter",
+    "roleFixedHint": "All new accounts are registered as Innovation Submitters for now.",
     "roleInvestor": "Investor",
     "roleMentor": "Mentor",
     "roleMinistry": "Ministry Innovation Focal Point",
@@ -256,7 +263,7 @@
       "featured": "Featured",
       "accepting": "Accepting submissions",
       "submit": "Submit Innovation",
-      "submitAria": "Submit Innovation – {title}",
+      "submitAria": "{label} – {title}",
       "viewDetails": "View details",
       "empty": "No challenges published yet."
     },

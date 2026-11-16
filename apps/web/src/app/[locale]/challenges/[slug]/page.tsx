@@ -19,6 +19,7 @@ import {
 import { Link } from '@/i18n/navigation';
 import { useChallenge, type ChallengeDto } from '@/hooks/use-content';
 import { challengeDaysLeft } from '@/lib/challenge-dates';
+import { pickText } from '@/lib/challenge-i18n';
 
 type Section = { id: string; title: string; content: React.ReactNode };
 
@@ -196,7 +197,7 @@ export default function ChallengeDetailPage({ params }: { params: { slug: string
               href={`/challenges/${challenge.slug}/submit`}
               className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-nirgreen-deep px-5 py-2.5 text-sm font-semibold text-white hover:bg-nirgreen-dark"
             >
-              <Send className="h-4 w-4" /> {t('submit')}
+              <Send className="h-4 w-4" /> {pickText(locale, challenge.submitButtonLabelEn, challenge.submitButtonLabelBn).trim() || t('submit')}
             </Link>
           </div>
         </div>
@@ -207,6 +208,7 @@ export default function ChallengeDetailPage({ params }: { params: { slug: string
 
 function SubmitBlock({ challenge, t }: { challenge: ChallengeDto; t: ReturnType<typeof useTranslations<'challengeDetail'>> }) {
   const tClosed = useTranslations('challenges.closed');
+  const locale = useLocale();
   if (challenge.acceptingSubmissions) {
     return (
       <>
@@ -214,7 +216,7 @@ function SubmitBlock({ challenge, t }: { challenge: ChallengeDto; t: ReturnType<
           href={`/challenges/${challenge.slug}/submit`}
           className="focus-ring flex w-full items-center justify-center gap-1.5 rounded-full bg-nirgreen-deep px-5 py-3 text-sm font-semibold text-white transition hover:bg-nirgreen-dark"
         >
-          <Send className="h-4 w-4" /> {t('submit')}
+          <Send className="h-4 w-4" /> {pickText(locale, challenge.submitButtonLabelEn, challenge.submitButtonLabelBn).trim() || t('submit')}
         </Link>
         <p className="mt-2 text-center text-xs text-slate">{t('signInNote')}</p>
       </>

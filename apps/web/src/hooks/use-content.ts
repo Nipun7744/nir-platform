@@ -65,6 +65,9 @@ export interface ChallengeDto {
   prizeInfoEn?: string;
   prizeInfoBn?: string | null;
   applyUrl?: string;
+  /** Custom label for the "submit to this challenge" button (2026-11-16); null → default label. */
+  submitButtonLabelEn?: string | null;
+  submitButtonLabelBn?: string | null;
   titleBn?: string | null;
   descriptionBn?: string | null;
   // Details-page sections (2026-11-11) — all optional; Bn falls back to En.

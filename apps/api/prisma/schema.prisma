@@ -933,6 +933,9 @@ model Challenge {
   prizeInfoEn        String?
   prizeInfoBn        String?
   applyUrl           String?
+  // Label of the "submit to this challenge" button (2026-11-16); NULL → the site's default label.
+  submitButtonLabelEn String?
+  submitButtonLabelBn String?
   // Public details page sections (2026-11-11) — all optional; a section is hidden when empty.
   // Bn columns fall back to En on the Bangla site when unset.
   problemStatementEn   String?

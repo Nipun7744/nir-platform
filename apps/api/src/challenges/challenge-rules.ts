@@ -51,6 +51,8 @@ export const MAX_FILES_CEILING = 20;
 export const SHORT_TEXT_MAX = 500;
 export const LONG_TEXT_MAX = 20_000;
 export const MAX_FIELDS = 60;
+/** Most options a dropdown / radio / checkbox field may have (raised from 100 to 200 on 2026-11-16). */
+export const MAX_OPTIONS = 200;
 
 const CHOICE_TYPES: FormFieldTypeName[] = ['SELECT', 'RADIO', 'CHECKBOX'];
 const FILE_TYPES: FormFieldTypeName[] = ['FILE', 'MULTI_FILE'];

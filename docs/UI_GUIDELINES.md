@@ -92,7 +92,7 @@ local `inputCls` constant). Keep this in mind before assuming a `<Button>` exist
 | Folder | Contents |
 |---|---|
 | `ui/` | `category-icon.tsx` (name→lucide-react icon map), `stage-pill.tsx` (colored badge for `DevelopmentStage`), `innovation-card.tsx` (repository grid card), `animated-counter.tsx` (count-up via Framer Motion), `file-upload-button.tsx` (wraps `lib/upload.ts`), `confirm-dialog.tsx` (2026-08-17 — blocking confirm modal for critical/destructive actions; first of its kind in this repo, reuse it rather than adding another `window.confirm`/bespoke modal — originally admin-only contexts, extended 2026-08-31 to the Submitter Dashboard's delete-draft/remove-file flows, so treat it as app-wide, not admin-specific), `pagination.tsx` (2026-08-17 — record-count summary + optional page-size selector + Previous/windowed-page-numbers/Next; first reusable pagination component — `repository-browse.tsx`'s inline flat page-number list predates it and wasn't retrofitted, reuse this one for new paginated admin lists instead of copying that older pattern), `mutation-error.tsx` (2026-11-12 — `<MutationError mutation={m} fallback="…" />` shows the API's error message under an action that failed; use it on every mutation button so a failed action never looks like a dead button — used by the preliminary and authenticity review pages) |
-| `auth/` | `auth-card.tsx` (shared centered-card shell for sign-in/register), `sso-buttons.tsx` (disabled placeholder buttons), `captcha-widget.tsx` (2026-11-12 — `CaptchaWidget` with a `reset()` ref: one component for Turnstile/reCAPTCHA v2/hCaptcha, provider + site key from `useSecurityConfig()`; renders nothing for provider `none`; **always call `reset()` after a submit**, because tokens are single-use. The one deliberate `forwardRef` in the codebase, needed for the imperative reset) |
+| `auth/` | `auth-card.tsx` (shared centered-card shell for sign-in/register; since 2026-11-16 the titles spell out the full name: "Sign in to National Innovation Repository" / "Create your National Innovation Repository account", `auth.signInTitle`/`registerTitle`), `sso-buttons.tsx` (placeholder buttons, hidden since 2026-11-16 via `SSO_BUTTONS_VISIBLE = false`), `captcha-widget.tsx` (2026-11-12 — `CaptchaWidget` with a `reset()` ref: one component for Turnstile/reCAPTCHA v2/hCaptcha, provider + site key from `useSecurityConfig()`; renders nothing for provider `none`; **always call `reset()` after a submit**, because tokens are single-use. The one deliberate `forwardRef` in the codebase, needed for the imperative reset) |
 | `layout/` | `site-header.tsx`, `site-footer.tsx`, `locale-switcher.tsx` (EN/বাংলা pill toggle), `challenge-popup.tsx` (site-wide "running challenge" modal, see below) |
 | `home/` | `hero.tsx`, `confluence-graphic.tsx` (decorative animated SVG), `stats-strip.tsx`, `quick-links.tsx`, `featured-innovations.tsx`, `category-grid.tsx`, `challenge-banner.tsx`, `news-section.tsx`, `partners-strip.tsx` — landing-page-only, each fetches its own data |
 | `submit/` | `innovation-form-fields.tsx` (2026-08-31, R-002) — the full innovation submission field set, extracted out of `app/[locale]/submit/page.tsx` so `dashboard/innovations/[id]/edit/page.tsx` can reuse it verbatim instead of forking the form; exports `InnovationFormFields`, `InnovationFormState`, `EMPTY_INNOVATION_FORM` |
@@ -160,6 +160,8 @@ active), written twice.
   `AuthCard` with a large monospace code input (`inputMode=numeric`,
   `autoComplete=one-time-code`), a resend button with a countdown (the CAPTCHA widget only
   appears once a resend is allowed, since each send needs a fresh token), and "Change details".
+  Since 2026-11-16 the role dropdown is shown **disabled, fixed to Innovation Submitter**, with a
+  one-line hint (`auth.roleFixedHint`); `SELF_SERVICE_ROLES_AT_SIGNUP` restores the full list.
   New strings live in the `auth` namespace in both `en.json` and `bn.json`.
 
 - **Gating the general "Submit an Innovation" entry points (2026-11-10).** Never hard-code a
@@ -230,9 +232,20 @@ active), written twice.
   [DATABASE.md](DATABASE.md#component-4--communication--cms)), falling back to the first OPEN
   challenge if none is featured. Reuse this exact fallback chain (`featured ?? first-open`) in any
   new UI that has to pick one challenge to highlight — don't invent a different tie-break.
+- **Challenge submit-button label (2026-11-16).** Every "submit to this challenge" CTA (popup,
+  homepage banner, challenges list, both buttons on the details page) shows the admin's
+  `submitButtonLabelEn/Bn` via `tx.submitLabel(challenge, fallback)` (`lib/challenge-i18n.ts`),
+  falling back to the page's default string. Use it for any new CTA of this kind. Edited in the
+  admin challenge form (English under "Apply URL", Bangla under বাংলা translations).
+- **Form builder options (2026-11-16):** up to 200 options per choice field (`MAX_OPTIONS`, same
+  value as the API); the options box shows "N / 200 options" (red when over) and grows to 14 rows,
+  then scrolls.
 - **Popup = teaser, details page = full write-up (2026-11-11).** The running-challenge popup
   stays short on purpose (it interrupts the visitor): description clamped to 3 lines
-  (`line-clamp-3`) plus an amber "N days left" badge; everything else lives on
+  (`line-clamp-3`) plus an amber live countdown (since 2026-11-16: `Days : Hours : Minutes :
+  Seconds`, ticking every second, from `challengeTimeLeftMs()` + `splitDuration()`; Bangla digits
+  on the Bangla site; `role="timer"` with a spoken aria-label; sits on the same row as the
+  "Challenge open now" pill, wrapping below it only on phone widths); everything else lives on
   `/challenges/[slug]`. Don't add sections to the popup — add them to the details page.
   "Days left" everywhere comes from `challengeDaysLeft()` (`lib/challenge-dates.ts`), which
   mirrors the API's end-of-deadline-day-UTC rule (`0` = "Last day to apply", `null` once passed).

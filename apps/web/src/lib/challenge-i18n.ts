@@ -21,6 +21,9 @@ export function useChallengeText() {
     description: (c: Pick<ChallengeDto, 'descriptionEn' | 'descriptionBn'>) => pick(c.descriptionEn, c.descriptionBn),
     organizer: (c: Pick<ChallengeDto, 'organizingAgency' | 'organizingAgencyBn'>) => pick(c.organizingAgency, c.organizingAgencyBn),
     prize: (c: Pick<ChallengeDto, 'prizeInfoEn' | 'prizeInfoBn'>) => pick(c.prizeInfoEn, c.prizeInfoBn),
+    /** The admin's custom submit-button label (2026-11-16), else `fallback` (the default label). */
+    submitLabel: (c: Pick<ChallengeDto, 'submitButtonLabelEn' | 'submitButtonLabelBn'>, fallback: string) =>
+      pick(c.submitButtonLabelEn, c.submitButtonLabelBn).trim() || fallback,
     field: localizeField(locale),
     /** Dates in the visitor's language (Bangla digits/month names on the Bangla site). */
     date: (value: string, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }) =>

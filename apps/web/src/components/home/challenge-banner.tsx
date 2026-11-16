@@ -69,7 +69,7 @@ export function ChallengeBanner() {
                 href={`/challenges/${challenge.slug}/submit`}
                 className="focus-ring rounded-full bg-nirgreen-deep px-[26px] py-[13px] text-base font-semibold text-white transition hover:bg-nirgreen-dark"
               >
-                {t('applyNow')}
+                {tx.submitLabel(challenge, t('applyNow'))}
               </Link>
             )}
             <Link

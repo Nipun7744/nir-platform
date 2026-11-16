@@ -105,6 +105,12 @@ since each was an explicit scope call:
   Investor, Mentor, Ministry Focal Point). Admins can still deactivate an account from User
   Approvals / the users list; that page now only holds older pending accounts. See
   [API.md](API.md#auth) and [ROLES.md](ROLES.md).
+- **Every new registration is an Innovation Submitter only (decided 2026-11-16, temporary).**
+  The register form shows the role fixed to Innovation Submitter and `POST /auth/register`
+  rejects any other `role` (400). Investor / Mentor / Ministry Focal Point are not self-selectable
+  at sign-up until `SELF_SERVICE_ROLES_AT_SIGNUP` is switched back on (API + web).
+- **Challenge submit-button label is admin-configurable (2026-11-16)** per challenge, in English
+  and Bangla; blank means the default label. See [UI_GUIDELINES.md](UI_GUIDELINES.md).
 - **Registration is OTP-verified before the account exists; every login is CAPTCHA-checked**
   (2026-11-12). The registrant picks email or SMS, receives a 6-digit code, and the account is
   created only when the code matches, so no unverified rows are created. The CAPTCHA provider is pluggable (Turnstile / reCAPTCHA v2 /
@@ -125,7 +131,8 @@ since each was an explicit scope call:
     `SmsService` over Teletalk Bulk SMS (the a2i account) or a configurable HTTP gateway) but are used only for registration OTPs so far.
     Wiring `NotificationsService.deliver()` to them is open work (it would also need the
     recipient's address/phone, which `deliver()` doesn't receive today) — see [ROADMAP.md](ROADMAP.md).
-  - SSO (Google/Apple/Microsoft) — buttons present, disabled in the UI.
+  - SSO (Google/Apple/Microsoft) — not wired; the placeholder buttons are hidden on sign-in and
+    register since 2026-11-16.
 - **Bilingual fields are parallel columns** (`titleEn`/`titleBn`, `summaryEn`/`summaryBn`, ...),
   not a separate translations table. Simpler at this schema size; would need revisiting if new
   languages are ever added.

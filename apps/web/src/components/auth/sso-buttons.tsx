@@ -2,8 +2,15 @@
 
 import { useTranslations } from 'next-intl';
 
+/**
+ * Google / Apple / Microsoft sign-in isn't wired up yet, so the placeholder buttons are hidden on
+ * the sign-in and register pages (2026-11-16). Set to true to show them again.
+ */
+const SSO_BUTTONS_VISIBLE = false;
+
 export function SsoButtons() {
   const t = useTranslations('auth');
+  if (!SSO_BUTTONS_VISIBLE) return null;
 
   return (
     <div className="mt-6">

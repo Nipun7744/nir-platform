@@ -42,7 +42,8 @@ Permissions are **not** stored as a permission list — they're implicit in whic
 decorators guard which NestJS routes (full detail in [API.md](API.md)), plus which nav items each
 role sees in `dashboard-shell.tsx`'s `NAV_ITEMS` (frontend gating is convenience, not security —
 the real enforcement is always server-side via `RolesGuard`). A user can hold **multiple roles**
-simultaneously (`Role[]` on `User`), which is how the self-service Investor/Mentor/Ministry roles
+simultaneously (`Role[]` on `User`), which is how the self-service Investor/Mentor/Ministry roles (not selectable at sign-up since
+2026-11-16 — registration creates Innovation Submitters only; see API.md `POST /auth/register`)
 stack on top of the base `INNOVATION_SUBMITTER` role.
 
 **Reviewer actions (`PATCH /innovations/:id/status`), fixed 2026-11-12.** A non-senior reviewer

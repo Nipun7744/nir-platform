@@ -32,6 +32,10 @@ import {
 } from '@/components/challenge-form/types';
 
 const inputCls = 'focus-ring w-full rounded-lg border border-ink-100 px-3 py-2 text-sm';
+/** Most options per choice field — mirrors MAX_OPTIONS in the API's challenge-rules.ts (2026-11-16: 100 → 200). */
+const MAX_OPTIONS = 200;
+/** Options textareas grow with their content up to this many rows, then scroll. */
+const optionRows = (count: number) => Math.min(14, Math.max(3, count + 1));
 const CHOICE = ['SELECT', 'RADIO', 'CHECKBOX'];
 const FILES = ['FILE', 'MULTI_FILE'];
 const TEXT = ['SHORT_TEXT', 'LONG_TEXT'];
@@ -164,12 +168,13 @@ function FieldEditor({
 
       {CHOICE.includes(field.type) && (
         <div className="sm:col-span-2">
-          <label htmlFor={id('opts')} className="mb-1 block text-xs font-medium text-ink-500">
-            Options — one per line{field.type === 'CHECKBOX' && ' (leave empty for a single yes/consent checkbox)'}
+          <label htmlFor={id('opts')} className="mb-1 flex items-baseline justify-between gap-3 text-xs font-medium text-ink-500">
+            <span>Options — one per line{field.type === 'CHECKBOX' && ' (leave empty for a single yes/consent checkbox)'}</span>
+            <OptionCount count={field.options.filter((o) => o.trim()).length} />
           </label>
           <textarea
             id={id('opts')}
-            rows={Math.max(3, field.options.length + 1)}
+            rows={optionRows(field.options.length)}
             value={field.options.join('\n')}
             onChange={(e) => set('options', e.target.value.split('\n'))}
             className={clsx(inputCls, 'font-mono')}
@@ -263,7 +268,7 @@ function FieldEditor({
               </label>
               <textarea
                 id={id('optsBn')}
-                rows={Math.max(3, field.options.length + 1)}
+                rows={optionRows(field.options.length)}
                 value={(field.optionsBn ?? []).join('\n')}
                 onChange={(e) => set('optionsBn', e.target.value.split('\n'))}
                 placeholder={field.options.join('\n')}
@@ -525,5 +530,15 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
         }}
       />
     </div>
+  );
+}
+
+/** "12 / 200 options" next to the options box; red once over the limit (the API rejects more). */
+function OptionCount({ count }: { count: number }) {
+  const over = count > MAX_OPTIONS;
+  return (
+    <span className={clsx('shrink-0 tabular-nums', over ? 'font-semibold text-red-600' : 'text-ink-400')}>
+      {count} / {MAX_OPTIONS} options{over && ' — too many'}
+    </span>
   );
 }

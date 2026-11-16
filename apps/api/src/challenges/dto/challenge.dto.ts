@@ -18,7 +18,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ChallengeStatus, ReviewStatus } from '@prisma/client';
-import { FIELD_MAPPINGS, FORM_FIELD_TYPES, MAX_FIELDS } from '../challenge-rules';
+import { FIELD_MAPPINGS, FORM_FIELD_TYPES, MAX_FIELDS, MAX_OPTIONS } from '../challenge-rules';
 
 // ---------------------------------------------------------------- details-page sections (2026-11-11)
 
@@ -65,6 +65,9 @@ class ChallengeDetailsDto {
   @IsOptional() @IsString() @MaxLength(120) contactName?: string;
   @IsOptional() @IsString() @MaxLength(300) organizingAgencyBn?: string;
   @IsOptional() @IsString() @MaxLength(300) prizeInfoBn?: string;
+  // Label of the "submit to this challenge" button (2026-11-16); blank → the default label.
+  @IsOptional() @IsString() @MaxLength(40) submitButtonLabelEn?: string;
+  @IsOptional() @IsString() @MaxLength(40) submitButtonLabelBn?: string;
   @IsOptional() @ValidateIf((_, v) => v !== '') @IsEmail() contactEmail?: string;
   @IsOptional() @IsString() @MaxLength(40) contactPhone?: string;
   @IsOptional() @IsArray() @ArrayMaxSize(20) @ValidateNested({ each: true }) @Type(() => TimelinePhaseDto)
@@ -133,8 +136,8 @@ export class FormFieldDto {
   @IsOptional() @IsString() @MaxLength(200) placeholderBn?: string | null;
   @IsOptional() @IsString() @MaxLength(500) helpText?: string | null;
   @IsOptional() @IsString() @MaxLength(500) helpTextBn?: string | null;
-  @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) @MaxLength(200, { each: true }) options?: string[];
-  @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) @MaxLength(200, { each: true }) optionsBn?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(MAX_OPTIONS) @IsString({ each: true }) @MaxLength(200, { each: true }) options?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(MAX_OPTIONS) @IsString({ each: true }) @MaxLength(200, { each: true }) optionsBn?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) acceptedFileTypes?: string[];
   @IsOptional() @IsInt() maxFileSizeMb?: number | null;
   @IsOptional() @IsInt() maxFiles?: number | null;

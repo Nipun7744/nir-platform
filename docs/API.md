@@ -97,6 +97,10 @@ to the client once and never persisted in plaintext.
   guesses can't exceed the cap. On success, `emailVerifiedAt` or `phoneVerifiedAt` is set and the
   `USER_REGISTERED` audit entry gets `metadata.verifiedBy`. Then the rest of the existing fields
   apply:
+  **Since 2026-11-16 any `role` is rejected with 400 "New accounts are registered as Innovation
+  Submitter only."** (checked first, before the OTP is consumed), so every new account is
+  Innovation Submitter only. The constant `SELF_SERVICE_ROLES_AT_SIGNUP` in `auth.service.ts`
+  (and its twin in the register page) turns the behaviour below back on:
   `role?` (one of `INVESTOR | MENTOR | MINISTRY_FOCAL_POINT`), plus role-specific optional
   fields that `AuthService.register` forwards to the matching profile service — all were already
   supported by `FundingService.registerInvestor` / `MentorshipService.registerMentor` /
@@ -327,10 +331,10 @@ and optional `labelBn`/`descriptionBn` (timeline), `questionBn`/`answerBn` (FAQ)
 | POST | `/challenges/:slug/submissions` | Submit to a challenge. Body `{ responses: { [fieldKey]: value } }`. 401 anonymous; 404 unknown/unpublished; 403 not accepting (`message` = `closedReason`) or caller has no `Innovator` profile; 400 `{ message, fieldErrors: { [key]: string } }` on validation failure. Value shapes: text/email/phone/date(`YYYY-MM-DD`)/select/radio → string; number → number or numeric string; checkbox with options → string[]; consent checkbox (no options) → boolean; FILE → `{url, name, mimeType}` from `POST /uploads`; MULTI_FILE → array of those. Unknown keys are dropped. Creates an `Innovation` (`CHALLENGE` channel, `UNDER_REVIEW`, `submittedAt` now, Lead Innovator team row, files as attachments) and writes `INNOVATION_CHALLENGE_SUBMITTED`. Returns `{ id, innovationCode, slug, titleEn, reviewStatus, submittedAt, challenge }` | authenticated |
 | GET | `/challenges/admin` | All challenges incl. unpublished, newest first | `PLATFORM_ADMIN` |
 | GET | `/challenges/admin/:id` | One challenge + `formFields` (form builder) | `PLATFORM_ADMIN` |
-| POST | `/challenges` | Create (`CreateChallengeDto`, now also `isPublished`/`isActive`/`submissionsEnabled`, and — 2026-11-11 — the optional details-page fields listed below the table). 400 if `submissionsEnabled` without `categoryId`, or unknown category; 409 duplicate slug. Writes `CHALLENGE_CREATED` | `PLATFORM_ADMIN` |
+| POST | `/challenges` | Create (`CreateChallengeDto`, now also `isPublished`/`isActive`/`submissionsEnabled`, and — 2026-11-11 — the optional details-page fields listed below the table, plus — 2026-11-16 — `submitButtonLabelEn?`/`submitButtonLabelBn?` (max 40 chars; trimmed, `''` → NULL → default label)). 400 if `submissionsEnabled` without `categoryId`, or unknown category; 409 duplicate slug. Writes `CHALLENGE_CREATED` | `PLATFORM_ADMIN` |
 | PATCH | `/challenges/:id` | Partial update — now a real `UpdateChallengeDto` class (was an unvalidated `Partial<>`); `''` clears `startDate`/`deadline`/`categoryId`. Same 400/409 rules. Writes `CHALLENGE_UPDATED` with `{field: {from, to}}` for `isPublished`/`isActive`/`submissionsEnabled`/`status` changes | `PLATFORM_ADMIN` |
 | DELETE | `/challenges/:id` | 204. **409 if the challenge has any submissions** (unpublish/deactivate instead). Writes `CHALLENGE_DELETED` | `PLATFORM_ADMIN` |
-| PUT | `/challenges/:id/form` | Form builder save — replaces the whole form. Body `{ fields: FormFieldDto[] }` in display order (`id?`, `key?`, `label`, `labelBn?`, `description?`, `descriptionBn?`, `type`, `required?`, `placeholder?`, `placeholderBn?`, `helpText?`, `helpTextBn?`, `options?`, `optionsBn?` (index-aligned; kept paired when blank options are dropped), `acceptedFileTypes?`, `maxFileSizeMb?`, `maxFiles?`, `mapsTo?`). A consent checkbox (CHECKBOX, no options) keeps its `placeholder`/`placeholderBn` as the box text (it was discarded before 2026-11-15). Keys are kept when sent, generated from the label otherwise. 400 with `message: string[]` of human-readable problems (missing label/options, bad key, duplicate key/mapping, unsupported file type, size > 50 MB, mapping on a non-text field, > 60 fields). Ids are kept only if they already belonged to this challenge. Returns the same shape as `GET /challenges/admin/:id`. Writes `CHALLENGE_FORM_UPDATED` | `PLATFORM_ADMIN` |
+| PUT | `/challenges/:id/form` | Form builder save — replaces the whole form. Body `{ fields: FormFieldDto[] }` in display order (`id?`, `key?`, `label`, `labelBn?`, `description?`, `descriptionBn?`, `type`, `required?`, `placeholder?`, `placeholderBn?`, `helpText?`, `helpTextBn?`, `options?`, `optionsBn?` (index-aligned; kept paired when blank options are dropped), `acceptedFileTypes?`, `maxFileSizeMb?`, `maxFiles?`, `mapsTo?`). A consent checkbox (CHECKBOX, no options) keeps its `placeholder`/`placeholderBn` as the box text (it was discarded before 2026-11-15). Keys are kept when sent, generated from the label otherwise. 400 with `message: string[]` of human-readable problems (missing label/options, bad key, duplicate key/mapping, unsupported file type, size > 50 MB, mapping on a non-text field, > 60 fields; more than 200 `options`/`optionsBn` per field (`MAX_OPTIONS`, was 100 before 2026-11-16)). Ids are kept only if they already belonged to this challenge. Returns the same shape as `GET /challenges/admin/:id`. Writes `CHALLENGE_FORM_UPDATED` | `PLATFORM_ADMIN` |
 
 **Details-page fields (2026-11-11)** — accepted by both `POST /challenges` and
 `PATCH /challenges/:id` (shared `ChallengeDetailsDto` base class), all optional, returned as-is on
@@ -419,7 +423,7 @@ email/SMS (currently mocked — see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#impo
 |---|---|---|
 | NID/Birth Registration & BIN verification | Mocked — format-validates and accepts | `common/services/identity-verification.service.ts` |
 | SMS/Email delivery | Mocked — logs and marks sent | `notifications/notifications.service.ts` |
-| SSO (Google/Apple/Microsoft) | UI present, disabled | `components/auth/sso-buttons.tsx` |
+| SSO (Google/Apple/Microsoft) | Not wired; buttons hidden since 2026-11-16 (`SSO_BUTTONS_VISIBLE`) | `components/auth/sso-buttons.tsx` |
 
 ## API changes
 

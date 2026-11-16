@@ -91,10 +91,10 @@ export default function ChallengesPage() {
                 {challenge.acceptingSubmissions && (
                   <Link
                     href={`/challenges/${challenge.slug}/submit`}
-                    aria-label={t('submitAria', { title })}
+                    aria-label={t('submitAria', { label: tx.submitLabel(challenge, t('submit')), title })}
                     className="focus-ring inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
                   >
-                    <Send className="h-4 w-4" /> {t('submit')}
+                    <Send className="h-4 w-4" /> {tx.submitLabel(challenge, t('submit'))}
                   </Link>
                 )}
                 <Link href={`/challenges/${challenge.slug}`} className="focus-ring text-center text-sm font-semibold text-brand-700 hover:underline">

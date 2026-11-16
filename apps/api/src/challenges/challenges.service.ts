@@ -37,6 +37,8 @@ const DETAIL_TEXT_FIELDS = [
   'additionalInfoEn', 'additionalInfoBn', 'contactName', 'contactEmail', 'contactPhone',
   // Bangla organizer / prize summary (2026-11-15); blank → NULL → the Bangla site shows English.
   'organizingAgencyBn', 'prizeInfoBn',
+  // Custom submit-button label (2026-11-16); blank → NULL → the site's default label.
+  'submitButtonLabelEn', 'submitButtonLabelBn',
 ] as const;
 
 type Viewer = { id: string; roles: Role[] } | undefined;
