@@ -345,6 +345,10 @@ since each was an explicit scope call:
   - **Who sees the answers:** `challengeResponses` is returned only to the submitter and to
     review/admin roles (Platform/System Admin, Coordinator, Innovation Manager, Preliminary/
     Authenticity Reviewer, Expert Evaluator); everyone else gets `null`, even once published.
+  - **Evaluator view (2026-11-16):** on `/dashboard/evaluations/[innovationId]`, a challenge
+    submission hides the **Innovation details** and **Support requested** cards. Evaluators judge
+    the challenge form answers, and those generic fields are mostly defaults for challenge entries.
+    General submissions still show both cards, and the admin evaluation page is unchanged.
 - Full history of Preliminary/Authenticity reviewer comments is kept in `ReviewComment`
   (separate from `Innovation.reviewRemarks`, which only holds the latest note), so context isn't
   lost across reject/resubmit loops.

@@ -6,7 +6,7 @@
 
 ---
 
-## 2026-11-16 (session 48) — removed GitLab CI/CD
+## 2026-11-16 (session 48) — removed GitLab CI/CD; evaluator view trimmed for challenge submissions
 
 1. **Deleted** `.gitlab-ci.yml` (verify → SSH deploy → smoke, manual rollback), `deploy/deploy.sh`
    (backup + health-checked compose deploy + auto-rollback) and `.gitattributes` (it only forced
@@ -16,6 +16,10 @@
    not code in the repo).
 3. **Docs:** SETUP.md's CI/CD section replaced by a short manual deploy procedure; the ROADMAP
    tech-debt note and SETUP's env note no longer mention `deploy.sh` rollback.
+4. **Evaluator view, challenge submissions:** `dashboard/evaluations/[innovationId]/page.tsx` hides
+   the Innovation details and Support requested cards when `innovation.challengeId` is set (the
+   page's existing `isChallengeSubmission` flag). General submissions and the admin evaluation page
+   are unchanged. Web `tsc` is clean; not checked in a browser.
 
 **Next steps:** pushing to GitLab `development` no longer deploys anything. Someone with server
 access deploys by hand (SETUP.md), and the CI/CD variables in GitLab (SSH key, host, etc.) can be

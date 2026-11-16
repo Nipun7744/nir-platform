@@ -200,6 +200,10 @@ export default function EvaluationFormPage({ params }: { params: { innovationId:
         <aside className="min-w-0 space-y-6">
           <SubmitterProfileCard userId={innovation.submittedById} />
 
+          {/* Challenge submissions: evaluators judge the challenge form answers, so the generic
+              Innovation details / Support requested cards are hidden (2026-11-16). */}
+          {!isChallengeSubmission && (
+          <>
           <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
             <h3 className="text-sm font-bold uppercase tracking-wide text-ink-500">Innovation details</h3>
             <dl className="mt-3 space-y-2.5 text-sm">
@@ -259,6 +263,8 @@ export default function EvaluationFormPage({ params }: { params: { innovationId:
               </div>
             </dl>
           </div>
+          </>
+          )}
 
           <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
             <h3 className="text-sm font-bold uppercase tracking-wide text-ink-500">Review history</h3>
