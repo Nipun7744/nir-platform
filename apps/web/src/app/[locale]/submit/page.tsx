@@ -117,7 +117,7 @@ export default function SubmitInnovationPage() {
         </button>
         <p className="text-xs text-ink-400">
           {isAdmin
-            ? "This saves as a draft. You'll be able to attach photos, documents, and the innovation team next, then publish it directly to the repository."
+            ? "This saves as a draft. You'll be able to attach photos, documents, and the team next, then publish it directly to the repository."
             : "This saves as a draft. You'll be able to attach photos and documents next, and submit for review when ready."}
         </p>
       </form>

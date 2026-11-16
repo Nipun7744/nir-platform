@@ -35,7 +35,10 @@
    `innovation-detail.tsx` (the `/repository/[slug]` page that Preliminary/Authenticity reviewers
    open from their queues, also the public page) and the submitter's own innovation page. It
    applies to every submission, not just challenge ones. English-only hardcoded strings (no i18n
-   key); the prose sentence on `/submit` was left as is.
+   key). Follow-up: the `/submit` sentence now says "the team" too, so no "innovation team" text is
+   left in the web app. No challenge form field (local DB or dev.challenge.gov.bd, checked via the
+   public form API) uses the label. Browser-checked: evaluator page, `/repository/[slug]` (the
+   reviewers' view), admin evaluation page, the innovator's own page and `/submit` all show "Team".
 
 **Next steps:** pushing to GitLab `development` no longer deploys anything. Someone with server
 access deploys by hand (SETUP.md), and the CI/CD variables in GitLab (SSH key, host, etc.) can be
