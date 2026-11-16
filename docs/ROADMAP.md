@@ -5,6 +5,13 @@
 
 ## Completed
 
+- **Full end-to-end workflow test (2026-11-16)** — new applicant registered through the UI
+  (email OTP) → challenge submission through the UI → preliminary → authenticity → expert
+  evaluation → admin approval → publish. Data checked intact at every stage and visibility checked
+  per audience. Found and fixed: evaluations accepted before the evaluation stage (see API.md
+  `POST /evaluations`), the "sign in to submit" note shown to signed-in users, and the challenge
+  form's final button ignoring the custom submit label. Details in SESSION_LOG session 48.
+
 - **GitLab CI/CD removed (2026-11-16)** — `.gitlab-ci.yml`, `deploy/deploy.sh` and `.gitattributes`
   deleted at the user's request. Pushing to GitLab `development` no longer deploys
   dev.challenge.gov.bd; deploys are manual (see [SETUP.md](SETUP.md#deploying-to-devchallengegovbd-manual)).
@@ -313,6 +320,17 @@ completed work)*
   picked up).
 
 ## Known issues
+
+- **Any Expert Evaluator can evaluate any SHORTLISTED innovation (found 2026-11-16).**
+  `POST /evaluations` checks the stage, but not whether the evaluator is assigned to the
+  innovation or covers its category. The evaluator's list only *shows* assigned or
+  category-matched items, but the API doesn't enforce it, and the first SHORTLIST/REJECT decides
+  the outcome. A fix would mirror `listAssignedToMe` (panel assignment OR category match); not
+  done yet because it changes who may evaluate.
+- **Challenge answers don't feed the generic innovation fields (2026-11-16).** Only text fields
+  can map to title/summary/problem/solution. A challenge's "stage" or "type" question (radio or
+  select) doesn't set `developmentStage`/`innovationType`, so the public "Innovation details" card
+  shows defaults (e.g. Stage: Idea) even when the applicant answered "Prototype".
 
 - **Self-registration is now active immediately (2026-11-15), including privileged-looking
   roles.** *Mitigated 2026-11-16:* sign-up no longer offers Investor / Mentor / Ministry Focal

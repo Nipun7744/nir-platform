@@ -6,7 +6,7 @@
 
 ---
 
-## 2026-11-16 (session 48) — removed GitLab CI/CD; evaluator view trimmed for challenge submissions
+## 2026-11-16 (session 48) — removed GitLab CI/CD; evaluator view trimmed for challenge submissions; full workflow test + fixes
 
 1. **Deleted** `.gitlab-ci.yml` (verify → SSH deploy → smoke, manual rollback), `deploy/deploy.sh`
    (backup + health-checked compose deploy + auto-rollback) and `.gitattributes` (it only forced
@@ -39,6 +39,30 @@
    left in the web app. No challenge form field (local DB or dev.challenge.gov.bd, checked via the
    public form API) uses the label. Browser-checked: evaluator page, `/repository/[slug]` (the
    reviewers' view), admin evaluation page, the innovator's own page and `/submit` all show "Team".
+7. **Full end-to-end workflow test (local).** Ran the API with `MAIL_TRANSPORT=console
+   SMS_PROVIDER=console` (process env overrides `.env`; restored afterwards) so no real email/SMS
+   went out.
+   - Admin created `e2e-wf-mwj1h089` (Agriculture, custom label "Submit your idea", 8-field form:
+     4 mapped text fields, select, radio, number, consent).
+   - A new applicant registered in the browser with an email OTP read from the API log, then
+     filled and submitted the form in the browser → NIR-2026-000086.
+   - API checks at each stage: answers and mapped fields identical for the applicant, preliminary,
+     authenticity, evaluator and admin; review notes passed forward; the evaluator's scores and
+     comment reached admin; not public before publishing; public and other innovators see no
+     challenge answers or scores; the applicant sees PUBLISHED; found in search; full audit trail.
+     Browser checks: applicant's "My innovations" shows PUBLISHED, the signed-out public page and
+     repository search show it.
+   - **Bug found and fixed:** `POST /evaluations` had no stage check. An evaluator's early score
+     (during authenticity review) was saved, moved nothing, and then blocked their real evaluation
+     with 409. Now 400 before `SHORTLISTED`, 404 for an unknown id. A regression test was added to
+     `review-workflow.e2e.test.js` (7/7). The stray early evaluation row was deleted.
+   - **Also fixed:** the challenge page's "You'll need to sign in (or register) to submit" note now
+     shows only when signed out. The challenge form's final button uses the custom submit label
+     when set (was always "Submit to <title>"); checked in EN and BN.
+   - **Found, not fixed** (ROADMAP known issues): evaluators aren't restricted to
+     assigned/category innovations by the API; radio/select answers can't map to stage/type.
+   - Tests: unit 40/40, e2e 27 pass / 3 skipped. Test data left in the local DB: challenge
+     `e2e-wf-mwj1h089`, published NIR-2026-000086, applicant `e2e-wf-mwj1h089@example.com`.
 
 **Next steps:** pushing to GitLab `development` no longer deploys anything. Someone with server
 access deploys by hand (SETUP.md), and the CI/CD variables in GitLab (SSH key, host, etc.) can be

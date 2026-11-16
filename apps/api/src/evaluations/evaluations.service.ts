@@ -1,10 +1,14 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ReviewStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditLogService } from '../common/services/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AssignPanelDto } from './dto/assign-panel.dto';
 import { SubmitEvaluationDto } from './dto/submit-evaluation.dto';
 import { IpFlagDto } from './dto/ip-flag.dto';
+
+/** Review stages before expert evaluation — POST /evaluations is refused for these. */
+const NOT_YET_EVALUABLE: ReviewStatus[] = ['DRAFT', 'UNDER_REVIEW', 'AUTHENTICITY_REVIEW'];
 
 @Injectable()
 export class EvaluationsService {
@@ -103,6 +107,21 @@ export class EvaluationsService {
   }
 
   async submitEvaluation(dto: SubmitEvaluationDto, evaluatorId: string) {
+    // Evaluation only starts once Authenticity Review has passed the submission (SHORTLISTED).
+    // Before that, an early score was saved without moving anything and then blocked the
+    // evaluator's real evaluation with 409 (found by the 2026-11-16 workflow test). Later stages
+    // stay allowed so a second evaluator can still record a score after the first one decided.
+    const target = await this.prisma.innovation.findUnique({
+      where: { id: dto.innovationId },
+      select: { reviewStatus: true },
+    });
+    if (!target) throw new NotFoundException('Innovation not found');
+    if (NOT_YET_EVALUABLE.includes(target.reviewStatus)) {
+      throw new BadRequestException(
+        'This submission has not reached expert evaluation yet. It can be evaluated after authenticity review.',
+      );
+    }
+
     const existing = await this.prisma.evaluation.findUnique({
       where: { innovationId_evaluatorId: { innovationId: dto.innovationId, evaluatorId } },
     });

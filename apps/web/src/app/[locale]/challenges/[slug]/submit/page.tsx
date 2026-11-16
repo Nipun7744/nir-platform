@@ -173,7 +173,7 @@ export default function ChallengeSubmitPage({ params }: { params: { slug: string
             disabled={submit.isPending || !termsAccepted}
             className="focus-ring w-full rounded-full bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60 sm:w-auto"
           >
-            {submit.isPending ? t('submitting') : t('submitTo', { title })}
+            {submit.isPending ? t('submitting') : tx.submitLabel(challenge, t('submitTo', { title }))}
           </button>
           <p className="text-xs text-ink-400">{t('footNote')}</p>
         </form>

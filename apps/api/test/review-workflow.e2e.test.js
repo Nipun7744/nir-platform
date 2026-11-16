@@ -94,11 +94,13 @@ before(async () => {
   submitterId = (await prisma.user.findFirstOrThrow({ where: { email: 'innovator1@nir.gov.bd' }, select: { id: true } })).id;
   await makeReviewer('prelim', ['PRELIMINARY_REVIEWER'], [inCategory], []);
   await makeReviewer('dual', ['PRELIMINARY_REVIEWER', 'AUTHENTICITY_REVIEWER'], [inCategory], [inCategory]);
+  await makeReviewer('evaluator', ['EXPERT_EVALUATOR'], [], []);
 });
 
 after(async () => {
   if (innovationIds.length) {
     await prisma.reviewComment.deleteMany({ where: { innovationId: { in: innovationIds } } });
+    await prisma.evaluation.deleteMany({ where: { innovationId: { in: innovationIds } } });
     await prisma.innovation.deleteMany({ where: { id: { in: innovationIds } } });
     await prisma.auditLog.deleteMany({ where: { entityId: { in: innovationIds } } });
   }
@@ -176,5 +178,33 @@ describe('user holding both reviewer roles (regression)', () => {
     const r = await setStatus('dual', id, 'REJECTED');
     assert.equal(r.status, 200, JSON.stringify(r.body));
     assert.equal(r.body.rejectedAtStage, 'PRELIMINARY_REVIEW');
+  });
+});
+
+describe('expert evaluation stage guard (regression, 2026-11-16)', () => {
+  const evaluate = (id) =>
+    call('POST', '/evaluations', tokens.evaluator, { innovationId: id, scores: { Innovativeness: 7 }, recommendation: 'SHORTLIST' });
+
+  test('refuses an evaluation before authenticity review, then accepts it once SHORTLISTED', async (t) => {
+    if (!reachable) return t.skip('API not reachable');
+    const id = await makePending('eval-guard');
+    const early = await evaluate(id);
+    assert.equal(early.status, 400, JSON.stringify(early.body));
+    assert.equal(await prisma.evaluation.count({ where: { innovationId: id } }), 0, 'nothing saved');
+
+    assert.equal((await setStatus('dual', id, 'AUTHENTICITY_REVIEW')).status, 200);
+    assert.equal((await evaluate(id)).status, 400, 'still refused during authenticity review');
+    assert.equal((await setStatus('dual', id, 'SHORTLISTED')).status, 200);
+
+    const ok = await evaluate(id);
+    assert.equal(ok.status, 201, JSON.stringify(ok.body));
+    const inv = await prisma.innovation.findUnique({ where: { id }, select: { reviewStatus: true } });
+    assert.equal(inv.reviewStatus, 'SELECTED');
+  });
+
+  test('unknown innovation gives 404', async (t) => {
+    if (!reachable) return t.skip('API not reachable');
+    const r = await call('POST', '/evaluations', tokens.evaluator, { innovationId: 'does-not-exist', scores: { Innovativeness: 7 }, recommendation: 'SHORTLIST' });
+    assert.equal(r.status, 404);
   });
 });
