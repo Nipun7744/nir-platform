@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-11-16 (session 48) — removed GitLab CI/CD
+
+1. **Deleted** `.gitlab-ci.yml` (verify → SSH deploy → smoke, manual rollback), `deploy/deploy.sh`
+   (backup + health-checked compose deploy + auto-rollback) and `.gitattributes` (it only forced
+   LF on `*.sh`, and no shell scripts remain).
+2. **Kept:** `apps/api/Dockerfile`, `apps/web/Dockerfile`, `docker-compose.yml`, `.dockerignore`
+   (the server runs the stack with them) and the GitHub → Vercel integration (configured in Vercel,
+   not code in the repo).
+3. **Docs:** SETUP.md's CI/CD section replaced by a short manual deploy procedure; the ROADMAP
+   tech-debt note and SETUP's env note no longer mention `deploy.sh` rollback.
+
+**Next steps:** pushing to GitLab `development` no longer deploys anything. Someone with server
+access deploys by hand (SETUP.md), and the CI/CD variables in GitLab (SSH key, host, etc.) can be
+deleted. If the GitLab runner was only for this project, it can be retired too.
+
+---
+
 ## 2026-11-16 (session 47) — six-item batch: fixed sign-up role, submit-button label, SSO hidden, NIR full name, live countdown, 200 options
 
 1. **Registration fixed to Innovation Submitter:** the register page shows the role dropdown

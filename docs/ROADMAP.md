@@ -5,6 +5,11 @@
 
 ## Completed
 
+- **GitLab CI/CD removed (2026-11-16)** — `.gitlab-ci.yml`, `deploy/deploy.sh` and `.gitattributes`
+  deleted at the user's request. Pushing to GitLab `development` no longer deploys
+  dev.challenge.gov.bd; deploys are manual (see [SETUP.md](SETUP.md#deploying-to-devchallengegovbd-manual)).
+  The Dockerfiles and `docker-compose.yml` stay, since the server runs the stack with them.
+
 - **Richer challenge details page (2026-11-11)** — optional problem statement, eligibility,
   timeline phases, evaluation criteria, prize breakdown, resources, FAQ, additional info and
   contact per challenge (EN + optional BN), edited from Platform admin → Challenges; redesigned
@@ -480,8 +485,8 @@ completed work)*
   a2i Google Workspace and Teletalk Bulk SMS, see SETUP.md) and set all of them on every deployed
   environment. Confirm the server can reach `bulksms1.teletalk.com.bd:8091` (outbound HTTP; the
   gateway may whitelist IPs). **Until the server `.env`
-  has `CAPTCHA_PROVIDER`/`MAIL_TRANSPORT`/`SMS_PROVIDER`, GitLab deploys of this code fail their
-  health check and roll back.** (b) `OtpCode` rows are never purged; add a scheduled cleanup
+  has `CAPTCHA_PROVIDER`/`MAIL_TRANSPORT`/`SMS_PROVIDER`, the API container of this code won't
+  boot on a server deploy.** (b) `OtpCode` rows are never purged; add a scheduled cleanup
   (`@nestjs/schedule` is already a dependency). (c) `NotificationsService.deliver()` is still a
   mock; route it through `MailService`/`SmsService`. (d) The sign-in/register UI was browser-checked
   locally with Turnstile *test* keys only; check it again with the real site key on staging (the

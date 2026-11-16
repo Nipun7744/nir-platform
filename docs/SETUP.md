@@ -157,9 +157,9 @@ start** and logs which one is missing. Turning a feature off in production takes
 Outside production they default to `none`/`console`. Misconfiguration also fails at startup, e.g.
 `MAIL_TRANSPORT=smtp` without `SMTP_HOST`, or a CAPTCHA provider without its keys.
 
-So **before the next GitLab deploy**, add these variables to the server's `.env`
+So **before the next server deploy**, add these variables to the server's `.env`
 (`docker-compose.yml` passes them through to the API container). Without them the new API
-container won't boot, and `deploy.sh`'s health check rolls the deploy back.
+container won't boot.
 
 ### Third-party services needed
 
@@ -484,31 +484,22 @@ falls back to the public URL — behind Cloudflare that request loops back throu
 gets a 403 "Error 1000: DNS points to prohibited IP", so every uploaded image breaks (seen on
 dev.challenge.gov.bd, 2026-11-05).
 
-## CI/CD — GitLab → dev.challenge.gov.bd
+## Deploying to dev.challenge.gov.bd (manual)
 
-[`.gitlab-ci.yml`](../.gitlab-ci.yml) runs on every push to GitLab `development` (MRs run only the
-verify stage):
+There is **no CI/CD pipeline** for GitLab. `.gitlab-ci.yml` and `deploy/deploy.sh` were removed
+on 2026-11-16 at the user's request, so pushing to GitLab `development` no longer builds,
+deploys or smoke-tests anything. Deploy by hand on the server, from the repo clone:
 
-1. **verify** — `build` (npm ci + build shared/api/web on `node:20-bookworm`) and
-   `compose-config` (`docker compose config` against `.env.example`).
-2. **deploy** — SSHes to the server and pipes [`deploy/deploy.sh`](../deploy/deploy.sh) into
-   `bash`: lock → refuse if tracked files were edited on the server → `git fetch` → `pg_dump`
-   backup to `<DEPLOY_PATH>/.deploy/backups/` (last 10 kept) → checkout the pipeline's commit
-   (detached) → `docker compose build --pull && up -d` → health check (API
-   `/api/v1/repository/search`, web `/`, and one real `/uploads/*` file through the web proxy).
-   A failed build or health check rolls back to the previous commit automatically. Migrations
-   are **not** reverted — restore from the backup if a migration was the problem.
-   `resource_group` serialises deploys.
-3. **smoke** — the same checks against the public `https://dev.challenge.gov.bd`.
+```bash
+docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner'   | gzip > ~/nir-backup-$(date -u +%Y%m%dT%H%M%SZ).sql.gz   # back up first
+git fetch origin development && git checkout <commit>
+docker compose up -d --build                                  # API runs migrate deploy on start
+```
 
-Manual `rollback` job (deploy stage): redeploys `.deploy/previous_sha`, or `ROLLBACK_SHA` if set.
-
-**One-time setup:** CI/CD variables `SSH_PRIVATE_KEY` (File), `SSH_KNOWN_HOSTS` (File, from
-`ssh-keyscan`), `DEPLOY_HOST` (origin IP, not the Cloudflare name), `DEPLOY_USER`, `DEPLOY_PATH`,
-optional `DEPLOY_PORT` — all protected, with `development` a protected branch. On the server:
-`DEPLOY_PATH` is a git clone whose `origin` fetches without a prompt (deploy token/key), `.env`
-present, the deploy user in the `docker` group, `git`/`curl`/`flock` installed. A GitLab runner
-with the Docker executor must be available to the project.
+Then check `/api/v1/repository/search`, `/` and one `/uploads/*` file. Nothing rolls back on
+its own: if something breaks, check out the previous commit and run `up -d --build` again, and
+restore the backup if a migration was the cause. The GitHub → Vercel auto-deploy (above) is
+separate: it is a Vercel integration, not code in this repo, and it is unchanged.
 
 ## Demo accounts
 
