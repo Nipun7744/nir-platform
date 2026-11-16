@@ -299,7 +299,7 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
 
         <section className="min-w-0 rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
           <h2 className="flex items-center gap-2 font-display text-base font-bold text-ink-900">
-            <UserPlus className="h-4 w-4 text-brand-600" /> Innovation team
+            <UserPlus className="h-4 w-4 text-brand-600" /> Team
           </h2>
           <ul className="mt-3 space-y-2">
             {innovation.team?.map((m: any) => (

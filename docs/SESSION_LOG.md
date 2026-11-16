@@ -31,6 +31,11 @@
    takes extensions (`.png`), and the status DTO is `{reviewStatus, note}`. The homepage popup still
    opens over `/challenges/[slug]` (known issue). Test data left in the local DB: 3 `e2e-cycle-*`
    challenges, published NIR-2026-000085, and NIR-2026-000084 stuck at UNDER_REVIEW.
+6. **"Innovation team" → "Team"** card heading in: evaluator page, admin evaluation page,
+   `innovation-detail.tsx` (the `/repository/[slug]` page that Preliminary/Authenticity reviewers
+   open from their queues, also the public page) and the submitter's own innovation page. It
+   applies to every submission, not just challenge ones. English-only hardcoded strings (no i18n
+   key); the prose sentence on `/submit` was left as is.
 
 **Next steps:** pushing to GitLab `development` no longer deploys anything. Someone with server
 access deploys by hand (SETUP.md), and the CI/CD variables in GitLab (SSH key, host, etc.) can be

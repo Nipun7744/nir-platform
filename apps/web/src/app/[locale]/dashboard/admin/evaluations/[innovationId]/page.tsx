@@ -560,7 +560,7 @@ export default function AdminInnovationEvaluationPage({ params }: { params: { in
 
           {innovation.team?.length > 0 && (
             <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
-              <h3 className="text-sm font-bold uppercase tracking-wide text-ink-500">Innovation team</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wide text-ink-500">Team</h3>
               <ul className="mt-3 space-y-2.5 text-sm">
                 {innovation.team.map((member: any) => (
                   <li key={member.id} className="flex items-center justify-between">
