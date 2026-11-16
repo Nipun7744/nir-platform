@@ -19,7 +19,18 @@
 4. **Evaluator view, challenge submissions:** `dashboard/evaluations/[innovationId]/page.tsx` hides
    the Innovation details and Support requested cards when `innovation.challengeId` is set (the
    page's existing `isChallengeSubmission` flag). General submissions and the admin evaluation page
-   are unchanged. Web `tsc` is clean; not checked in a browser.
+   are unchanged. Web `tsc` is clean; browser-checked in item 5.
+5. **Full-cycle test (local, API + browser):** admin creates a published challenge (custom label
+   "Send my idea") with an 8-field form (4 mapped text fields, number, select, `.png` file,
+   consent) → innovator uploads a file and submits (an incomplete submission gets 400 with 6 field
+   errors) → preliminary longlists → authenticity midlists → evaluator sees it via category
+   auto-match and shortlists (→ SELECTED) → admin `approval finalize` (→ APPROVED) → publish. The
+   public API hides `challengeResponses`; the idea shows in repository search; the activity log has
+   all 6 events. 19/19 checks passed. In the browser, the evaluator page showed no Innovation
+   details / Support requested cards for the challenge submission. Gotchas: form `acceptedFileTypes`
+   takes extensions (`.png`), and the status DTO is `{reviewStatus, note}`. The homepage popup still
+   opens over `/challenges/[slug]` (known issue). Test data left in the local DB: 3 `e2e-cycle-*`
+   challenges, published NIR-2026-000085, and NIR-2026-000084 stuck at UNDER_REVIEW.
 
 **Next steps:** pushing to GitLab `development` no longer deploys anything. Someone with server
 access deploys by hand (SETUP.md), and the CI/CD variables in GitLab (SSH key, host, etc.) can be
