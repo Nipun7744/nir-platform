@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Bricolage_Grotesque, Instrument_Sans, IBM_Plex_Mono, Hind_Siliguri } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
-import { getMessages, setRequestLocale } from 'next-intl/server';
+import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 import { Providers } from './providers';
@@ -41,15 +41,25 @@ export default async function LocaleLayout({
   setRequestLocale(locale);
 
   const messages = await getMessages();
+  const tCommon = await getTranslations({ locale, namespace: 'common' });
 
   return (
     <html lang={locale} className={`${display.variable} ${sans.variable} ${mono.variable} ${bangla.variable}`}>
       <body className={locale === 'bn' ? 'font-bangla' : 'font-sans'}>
         <NextIntlClientProvider messages={messages}>
           <Providers>
+            {/* WCAG 2.4.1 Bypass Blocks (2026-11-17): first Tab stop, visible only when focused. */}
+            <a
+              href="#main-content"
+              className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-brand-800 focus:shadow-card focus:outline-none focus:ring-2 focus:ring-nirgreen-deep focus:ring-offset-2"
+            >
+              {tCommon('skipToContent')}
+            </a>
             <div className="flex min-h-screen flex-col">
               <SiteHeader />
-              <main className="flex-1">{children}</main>
+              <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
+                {children}
+              </main>
               <SiteFooter />
             </div>
             <ChallengePopup />

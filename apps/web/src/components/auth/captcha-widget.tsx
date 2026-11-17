@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, RotateCw } from 'lucide-react';
 import type { CaptchaProvider } from '@/hooks/use-auth';
 
 /**
@@ -65,15 +65,32 @@ function loadProvider(provider: Provider, locale: string): Promise<WidgetApi> {
 export interface CaptchaHandle {
   /** Clear the current token and show a fresh challenge. */
   reset: () => void;
+  /** Move keyboard focus to the security-check group (used when it is the first error). */
+  focus: () => void;
 }
 
 interface Props {
   provider: CaptchaProvider;
   siteKey: string | null;
   onToken: (token: string | null) => void;
+  /** Validation message shown under the widget (e.g. "Complete the security check…"). */
+  error?: string | null;
+  /** id for the group; its error gets `${id}-error`. */
+  id?: string;
 }
 
-export const CaptchaWidget = forwardRef<CaptchaHandle, Props>(function CaptchaWidget({ provider, siteKey, onToken }, ref) {
+type CaptchaStatus = 'idle' | 'done' | 'expired' | 'failed';
+
+/**
+ * Accessibility (2026-11-17, WCAG 2.2 AA): the third-party widget sits in a labelled group
+ * ("Security check", 1.3.1 / 2.4.6) that can take focus when it is the first problem in a form
+ * (3.3.1); its outcome — completed, expired, failed — is announced through a polite live region
+ * (4.1.3); a load failure offers a "Try again" button instead of only "refresh the page"; and the
+ * provider widgets themselves are localised (bn/en). Turnstile is usually non-interactive and
+ * reCAPTCHA / hCaptcha offer audio / accessibility alternatives, which is what 3.3.8 asks of a
+ * CAPTCHA (see docs/WCAG-2.2-Accessibility-Report.md).
+ */
+export const CaptchaWidget = forwardRef<CaptchaHandle, Props>(function CaptchaWidget({ provider, siteKey, onToken, error, id = 'captcha' }, ref) {
   const t = useTranslations('auth');
   const locale = useLocale();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,11 +98,16 @@ export const CaptchaWidget = forwardRef<CaptchaHandle, Props>(function CaptchaWi
   const widgetIdRef = useRef<string | number | null>(null);
   const onTokenRef = useRef(onToken);
   onTokenRef.current = onToken;
+  const groupRef = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [status, setStatus] = useState<CaptchaStatus>('idle');
 
   useImperativeHandle(ref, () => ({
+    focus: () => groupRef.current?.focus(),
     reset: () => {
       onTokenRef.current(null);
+      setStatus('idle');
       if (apiRef.current && widgetIdRef.current !== null) {
         try {
           apiRef.current.reset(widgetIdRef.current);
@@ -110,9 +132,18 @@ export const CaptchaWidget = forwardRef<CaptchaHandle, Props>(function CaptchaWi
         apiRef.current = api;
         widgetIdRef.current = api.render(host, {
           sitekey: siteKey,
-          callback: (token: string) => onTokenRef.current(token),
-          'expired-callback': () => onTokenRef.current(null),
-          'error-callback': () => onTokenRef.current(null),
+          callback: (token: string) => {
+            onTokenRef.current(token);
+            setStatus('done');
+          },
+          'expired-callback': () => {
+            onTokenRef.current(null);
+            setStatus('expired');
+          },
+          'error-callback': () => {
+            onTokenRef.current(null);
+            setStatus('failed');
+          },
           ...(provider === 'turnstile' ? { language: locale === 'bn' ? 'bn' : 'en' } : {}),
         });
       })
@@ -133,18 +164,58 @@ export const CaptchaWidget = forwardRef<CaptchaHandle, Props>(function CaptchaWi
       host.remove();
       onTokenRef.current(null);
     };
-  }, [provider, siteKey, locale]);
+  }, [provider, siteKey, locale, attempt]);
 
   if (provider === 'none') return null;
 
+  const labelId = `${id}-label`;
+  const errorId = `${id}-error`;
+  const statusText =
+    status === 'done' ? t('captchaDone') : status === 'expired' ? t('captchaExpired') : status === 'failed' ? t('captchaFailed') : '';
+
   return (
-    <div>
+    <div
+      ref={groupRef}
+      id={id}
+      role="group"
+      tabIndex={-1}
+      aria-labelledby={labelId}
+      aria-describedby={error ? errorId : undefined}
+      className="focus-ring scroll-mt-36 rounded-lg"
+    >
+      <p className="mb-1.5 text-sm font-medium text-ink-700">
+        <span id={labelId}>{t('captchaLabel')}</span>
+        <span aria-hidden="true" className="text-red-700"> *</span>
+      </p>
       <div ref={containerRef} className="flex min-h-[65px] justify-center" />
-      {failed && (
-        <p className="mt-1 flex items-center gap-1.5 text-sm text-red-600">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {t('captchaLoadError')}
+      {/* Polite: completion / expiry is news, not an interruption. */}
+      <p role="status" className={status === 'expired' || status === 'failed' ? 'mt-1 text-sm text-red-700' : 'sr-only'}>
+        {statusText}
+      </p>
+      {error && (
+        <p id={errorId} className="mt-1.5 flex items-start gap-1.5 text-sm font-medium text-red-700">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>{error}</span>
         </p>
+      )}
+      {failed && (
+        <div role="alert" className="mt-1.5 space-y-2">
+          <p className="flex items-start gap-1.5 text-sm font-medium text-red-700">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            {t('captchaLoadError')}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setFailed(false);
+              setAttempt((a) => a + 1);
+            }}
+            className="focus-ring inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-ink-400 px-4 text-sm font-semibold text-ink-700 hover:bg-ink-50"
+          >
+            <RotateCw className="h-4 w-4" aria-hidden="true" />
+            {t('captchaRetry')}
+          </button>
+        </div>
       )}
     </div>
   );
