@@ -279,7 +279,8 @@ active), written twice.
   mobile, 21:9 from `lg`) → `lg:grid-cols-[minmax(0,1fr)_320px]` two-column body (both children
   `min-w-0`). Main column: an "On this page" chip nav (only when > 2 sections) and sections in a
   fixed order — Overview, The problem, Who can apply, Timeline (vertical list; past phases greyed),
-  Evaluation, Prizes (`prizeInfoEn` headline + `prizeDetails*`), Resources (icon + truncated
+  Evaluation, Prizes (`prizeInfoEn` headline + `prizeDetails*`), Attachments (labelled "Resources"
+  until 2026-11-17; key `challengeDetail.resources` = "Attachments" / "সংযুক্তি"; icon + truncated
   label links, new tab), FAQ (native `<details>` accordion), Additional information. **A section
   renders only when its data exists**, so old challenges just show Overview. Admin text is shown
   with `whitespace-pre-line` (line breaks kept, never HTML). Sidebar: sticky (`lg:top-36`) card with
@@ -287,6 +288,10 @@ active), written twice.
   Mobile: a fixed bottom "Submit your innovation" bar (only when `acceptingSubmissions`), so the
   page has `pb-32` below `lg`. Strings live in the new `challengeDetail` message namespace (EN+BN);
   Bn content columns fall back to En.
+- **Challenge submit page `/challenges/[slug]/submit` (2026-11-17).** No separate page heading:
+  the green box under "Back to challenge" is the page's `<h1>` and reads "Submission Form – {challenge
+  name}" / "জমাদান ফর্ম – {name}" (`challengeSubmit.formTitle`, trophy icon decorative). No organiser
+  line. On the success view the same box is a `<p>` because the success message is the `<h1>`.
 - **Admin challenge form — "Details page content" (2026-11-11).** `ChallengeFormFields` in
   `dashboard/admin/page.tsx` now ends with a collapsible `ChallengeDetailsFields` block (open by
   default once anything is filled): the five text sections, repeatable rows with Add/Remove for
@@ -325,6 +330,11 @@ active), written twice.
   decision, not an admin). Every other page that shows `reviewStatus` (moderation,
   preliminary/authenticity review queues, evaluations, admin evaluations) is reviewer/admin-facing
   and must keep showing the real internal stage name — don't apply this relabeling there.
+- **Who sees Edit on innovations (2026-11-17):** one helper, `lib/innovation-permissions.ts`
+  (`canEditInnovation`, `canSubmitForReview`), drives the list, manage and edit pages. Platform/System
+  admins can edit at any status (the edit page says "Edit innovation" and notes that published
+  changes go live immediately, status unchanged); everyone else keeps the DRAFT/REJECTED rule below.
+  Challenge submissions are never editable there; Delete stays draft-only.
 - **Submitter can edit or delete their own DRAFT (edit also reaches REJECTED) submission
   (2026-08-31, R-002)** — `dashboard/innovations/page.tsx` (list) and
   `dashboard/innovations/[id]/page.tsx` (manage page) both show Edit + Delete-draft actions,

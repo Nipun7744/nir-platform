@@ -6,7 +6,7 @@
 
 ---
 
-## 2026-11-17 (session 49) — "Attachments" label; conditional form fields
+## 2026-11-17 (session 49) — "Attachments" label; conditional form fields; admin edit; submit-page title
 
 1. **Admin → create/edit challenge:** the file/link fieldset legend "Resources — guidelines,
    templates (upload a file or paste an https:// link)" now reads "Attachments — guidelines,
@@ -89,6 +89,28 @@
 7. **Decisions on the landing-page open items:** (1) approved — hero search placeholder `#8494AC` →
    `#66768F` (3.08 → 4.61:1), the only visual change; (2) declined — the infinite decorative
    animations stay (2.2.2 remains not strictly met; documented in the report and ROADMAP).
+8. **Admins can edit published innovations.** "My innovations" only showed Edit for drafts, and the
+   API refused an owner's edit after submission even when the owner was an admin (it already let
+   admins edit *other people's*). Now `PLATFORM_ADMIN`/`SYSTEM_ADMIN` can edit any innovation at any
+   status (`InnovationsService.update`); web uses new `lib/innovation-permissions.ts`
+   (`canEditInnovation`, `canSubmitForReview`) on the list, manage page (Edit, attachments, team) and
+   edit page ("Edit innovation" + a note that published changes go live; status unchanged). "Ready
+   for review?" stays DRAFT/REJECTED-only; challenge submissions stay non-editable; Delete stays
+   draft-only. The update hook now refreshes every `['innovation', …]` query (public page is cached
+   by slug). Verified: API admin-own-PUBLISHED 200 / innovator-own-PUBLISHED 400; browser — 32 Edit
+   buttons for the admin, edit page opens and saves, manage page shows Edit without "Ready for review".
+9. **Challenge submit page: name shown once.** The heading was "Submit an innovation – {title}" and
+   the green banner repeated the title under a "Submitting to challenge" label plus the organiser.
+   Now the heading is just "Submit an innovation" / "উদ্ভাবন জমা দিন" and the banner shows only the
+   text "Submission Form – {challenge name}" / "জমাদান ফর্ম – {name}" (key `formTitle`; trophy icon
+   decorative). Then, on request, the "Submit an innovation" heading was removed entirely: the green
+   box is now the page's `<h1>` on the form view (a `<p>` on the success view, whose success message
+   is the `<h1>`). Removed the unused `banner` and `heading` keys (en/bn).
+10. **Challenge details page: "Resources" → "Attachments".** Only `challengeDetail.resources` changed
+    (en "Attachments", bn "সংযুক্তি"), which drives both the section heading and its in-page nav link;
+    the site-wide "Resources" nav item (`nav.resources`) is unchanged. Matches the admin form legend
+    ("Attachments — …", item 1). Verified in both languages.
+   Verified in the browser in both languages.
 
 ---
 

@@ -65,20 +65,23 @@ export default function ChallengeSubmitPage({ params }: { params: { slug: string
   const { challenge, fields } = data;
   const title = tx.title(challenge);
 
-  const banner = (
-    <div className="rounded-2xl border border-brand-300/60 bg-brand-50 px-5 py-4">
-      <p className="flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">
-        <Trophy className="h-4 w-4" /> {t('banner')}
-      </p>
-      <p className="mt-1 font-display text-lg font-bold text-ink-900">{title}</p>
-      <p className="text-sm text-ink-600">{tx.organizer(challenge)}</p>
-    </div>
-  );
+  // The green box is the page's only title: on the form view it is the <h1>; on the success view
+  // the success message is the <h1>, so the box is a plain paragraph there.
+  const banner = (asHeading: boolean) => {
+    const Tag = asHeading ? 'h1' : 'p';
+    return (
+      <div className="rounded-2xl border border-brand-300/60 bg-brand-50 px-5 py-4">
+        <Tag className="flex items-center gap-2 font-display text-lg font-bold text-ink-900">
+          <Trophy className="h-5 w-5 shrink-0 text-brand-700" aria-hidden="true" /> {t('formTitle', { title })}
+        </Tag>
+      </div>
+    );
+  };
 
   if (result) {
     return (
       <div className="container-page max-w-3xl py-14">
-        {banner}
+        {banner(false)}
         <div className="mt-6 rounded-2xl border border-ink-100 bg-white p-8 text-center shadow-card">
           <CheckCircle2 className="mx-auto h-12 w-12 text-brand-600" />
           <h1 className="mt-4 font-display text-2xl font-extrabold text-ink-900">{t('successTitle')}</h1>
@@ -122,8 +125,7 @@ export default function ChallengeSubmitPage({ params }: { params: { slug: string
       <Link href={`/challenges/${slug}`} className="focus-ring mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-800">
         <ArrowLeft className="h-4 w-4" /> {t('back')}
       </Link>
-      <h1 className="font-display text-3xl font-extrabold text-ink-900">{t('heading', { title })}</h1>
-      <div className="mt-5">{banner}</div>
+      {banner(true)}
 
       {!challenge.acceptingSubmissions ? (
         <div className="mt-6 flex items-start gap-3 rounded-2xl border border-ink-100 bg-white p-6 shadow-card">

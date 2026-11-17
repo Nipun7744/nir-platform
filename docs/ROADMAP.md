@@ -322,6 +322,14 @@
   on English content, sticky-header focus offset. Not a full conformance claim — open items below.
   Report: [WCAG-2.2-Landing-Page-Accessibility-Report.md](WCAG-2.2-Landing-Page-Accessibility-Report.md).
 
+- **(2026-11-17, session 49) Admins can edit published innovations** — Platform/System admins can
+  edit any innovation at any status (API + list/manage/edit pages); innovators unchanged. See
+  [API.md](API.md) `PATCH /innovations/:id` and [ROLES.md](ROLES.md).
+
+- **(2026-11-17, session 49) Challenge wording** — submit page shows one title, "Submission Form –
+  {challenge name}" (en + bn), with no separate heading; the details page section "Resources" is now
+  "Attachments" / "সংযুক্তি".
+
 ## Current work
 
 *(nothing in progress as of this update — the mobile-responsiveness sweep above is the most recent
