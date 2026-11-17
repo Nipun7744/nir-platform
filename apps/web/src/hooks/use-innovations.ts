@@ -21,7 +21,9 @@ export function useUpdateInnovation(id: string) {
     mutationFn: (input: Record<string, unknown>) => api.patch(`/innovations/${id}`, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-innovations'] });
-      queryClient.invalidateQueries({ queryKey: ['innovation', id] });
+      // Prefix match: also refreshes the public page's copy, which is cached by slug — matters now
+      // that admins can edit published innovations (2026-11-17).
+      queryClient.invalidateQueries({ queryKey: ['innovation'] });
     },
   });
 }

@@ -6,6 +6,8 @@ import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useMyInnovations, useDeleteInnovation } from '@/hooks/use-innovations';
 import { StagePill } from '@/components/ui/stage-pill';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useAuthStore } from '@/store/auth-store';
+import { canEditInnovation } from '@/lib/innovation-permissions';
 
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: 'bg-ink-50 text-ink-500',
@@ -39,6 +41,7 @@ export default function MyInnovationsPage() {
   const { data, isLoading } = useMyInnovations() as { data: any[]; isLoading: boolean };
   const deleteInnovation = useDeleteInnovation();
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; titleEn: string } | null>(null);
+  const roles = useAuthStore((s) => s.user?.roles);
 
   return (
     <div>
@@ -53,6 +56,8 @@ export default function MyInnovationsPage() {
         {isLoading && <p className="text-ink-400">Loading…</p>}
         {data?.map((innovation) => {
           const isDraft = innovation.reviewStatus === 'DRAFT';
+          // Drafts: owner edits; admins can also edit published / in-review items (2026-11-17).
+          const canEdit = canEditInnovation(innovation, roles);
           return (
             <div
               key={innovation.id}
@@ -70,14 +75,16 @@ export default function MyInnovationsPage() {
                   {submitterStatusLabel(innovation.reviewStatus)}
                 </span>
                 <StagePill stage={innovation.developmentStage} />
+                {canEdit && (
+                  <Link
+                    href={`/dashboard/innovations/${innovation.id}/edit`}
+                    className="focus-ring inline-flex items-center gap-1 rounded-full border border-ink-200 px-2.5 py-1 text-xs font-semibold text-ink-700 hover:border-brand-300 hover:text-brand-700"
+                  >
+                    <Pencil className="h-3 w-3" /> Edit
+                  </Link>
+                )}
                 {isDraft && (
                   <>
-                    <Link
-                      href={`/dashboard/innovations/${innovation.id}/edit`}
-                      className="focus-ring inline-flex items-center gap-1 rounded-full border border-ink-200 px-2.5 py-1 text-xs font-semibold text-ink-700 hover:border-brand-300 hover:text-brand-700"
-                    >
-                      <Pencil className="h-3 w-3" /> Edit
-                    </Link>
                     <button
                       type="button"
                       onClick={() => setConfirmDelete({ id: innovation.id, titleEn: innovation.titleEn })}

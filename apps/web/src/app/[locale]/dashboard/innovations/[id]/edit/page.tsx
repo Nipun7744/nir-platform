@@ -10,6 +10,7 @@ import { useCurrentUser } from '@/hooks/use-auth';
 import { useRequireAuth } from '@/hooks/use-require-auth';
 import { useMinistryCycles } from '@/hooks/use-ministries';
 import { ApiError } from '@/lib/api-client';
+import { canEditInnovation } from '@/lib/innovation-permissions';
 import { Role } from '@nir/shared';
 import { EMPTY_INNOVATION_FORM, InnovationFormFields, type InnovationFormState } from '@/components/submit/innovation-form-fields';
 
@@ -63,7 +64,10 @@ export default function EditInnovationPage({ params }: { params: { id: string } 
   if (isLoading) return <p className="text-ink-400">Loading…</p>;
   if (!innovation) return <p className="text-ink-400">Submission not found.</p>;
 
-  const canEdit = innovation.reviewStatus === 'DRAFT' || innovation.reviewStatus === 'REJECTED';
+  // Same rule as the detail page: owner while DRAFT / REJECTED, admins at any stage (2026-11-17).
+  const canEdit = canEditInnovation(innovation, authUser?.roles);
+  const isDraftLike = innovation.reviewStatus === 'DRAFT' || innovation.reviewStatus === 'REJECTED';
+  const isPublished = innovation.reviewStatus === 'PUBLISHED';
 
   if (!canEdit) {
     return (
@@ -101,9 +105,13 @@ export default function EditInnovationPage({ params }: { params: { id: string } 
       </Link>
 
       <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-brand-700">Innovation Registration & Submission</p>
-      <h1 className="mt-2 font-display text-3xl font-extrabold text-ink-900">Edit your draft</h1>
+      <h1 className="mt-2 font-display text-3xl font-extrabold text-ink-900">{isDraftLike ? 'Edit your draft' : 'Edit innovation'}</h1>
       <p className="mt-3 text-ink-600">
-        Update any field below and save — your submission stays in draft until you're ready to submit it for review.
+        {isDraftLike
+          ? "Update any field below and save — your submission stays in draft until you're ready to submit it for review."
+          : isPublished
+            ? 'This innovation is published — saved changes appear on its public page right away. Its status does not change.'
+            : `Editing as an administrator. The submission stays ${innovation.reviewStatus.replace(/_/g, ' ').toLowerCase()}; its status does not change.`}
       </p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-6 rounded-2xl border border-ink-100 bg-white p-6 shadow-card">
@@ -147,7 +155,7 @@ export default function EditInnovationPage({ params }: { params: { id: string } 
           </button>
         </div>
         <p className="text-xs text-ink-400">
-          This still saves as a draft. Photos, documents, and team members are managed from the submission page.
+          {isDraftLike ? 'This still saves as a draft. ' : ''}Photos, documents, and team members are managed from the submission page.
         </p>
       </form>
     </div>

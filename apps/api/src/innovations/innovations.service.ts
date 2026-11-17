@@ -342,7 +342,11 @@ export class InnovationsService {
 
   async update(id: string, dto: UpdateInnovationDto, userId: string, roles: Role[]) {
     const innovation = await this.assertOwnerOrAdmin(id, userId, roles);
-    if (!['DRAFT', 'REJECTED'].includes(innovation.reviewStatus) && innovation.submittedById === userId) {
+    // Owners may only edit a DRAFT or REJECTED submission. Platform/System admins may edit any
+    // innovation at any stage — including their own once published (2026-11-17); before this an
+    // admin could fix someone else's published innovation but not one they submitted themselves.
+    const isAdmin = roles.some((r) => r === Role.PLATFORM_ADMIN || r === Role.SYSTEM_ADMIN);
+    if (!isAdmin && !['DRAFT', 'REJECTED'].includes(innovation.reviewStatus) && innovation.submittedById === userId) {
       throw new BadRequestException('This innovation can no longer be edited once submitted for review');
     }
 

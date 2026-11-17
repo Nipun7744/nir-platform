@@ -15,6 +15,7 @@ import {
 } from '@/hooks/use-innovations';
 import { useHasRole } from '@/hooks/use-require-auth';
 import { useAuthStore } from '@/store/auth-store';
+import { canEditInnovation, canSubmitForReview } from '@/lib/innovation-permissions';
 import { ApiError } from '@/lib/api-client';
 import { FileUploadButton } from '@/components/ui/file-upload-button';
 import { StagePill } from '@/components/ui/stage-pill';
@@ -79,6 +80,7 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
   const publishDirect = usePublishInnovationDirect();
   const isAdmin = useHasRole(Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN);
   const currentUserId = useAuthStore((s) => s.user?.id);
+  const roles = useAuthStore((s) => s.user?.roles);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [memberName, setMemberName] = useState('');
   const [memberRole, setMemberRole] = useState('');
@@ -91,7 +93,10 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
   // Challenge submissions are answered through the challenge's own dynamic form, so the generic
   // innovation edit form doesn't apply to them (their answers are a fixed snapshot).
   const isChallengeSubmission = innovation.submissionChannel === SubmissionChannel.CHALLENGE;
-  const canEdit = !isChallengeSubmission && (innovation.reviewStatus === 'DRAFT' || innovation.reviewStatus === 'REJECTED');
+  // Content editing: owner while DRAFT / REJECTED; Platform/System admins at any stage, e.g. a
+  // published innovation (2026-11-17). Submitting for review stays DRAFT / REJECTED only.
+  const canEdit = !isChallengeSubmission && canEditInnovation(innovation, roles);
+  const canSubmit = canSubmitForReview(innovation);
   // Delete is stricter than edit — a draft nobody has looked at yet is safe to remove outright, but
   // a rejected submission already carries review history worth keeping (R-002).
   const canDelete = innovation.reviewStatus === 'DRAFT';
@@ -362,7 +367,7 @@ export default function ManageInnovationPage({ params }: { params: { id: string 
         </div>
       )}
 
-      {canEdit && !canPublishDirect && (
+      {canSubmit && !canPublishDirect && (
         <div className="mt-8 rounded-2xl border border-brand-200 bg-brand-50/50 p-5">
           <h2 className="font-display text-base font-bold text-ink-900">Ready for review?</h2>
           <p className="mt-1 text-sm text-ink-600">
