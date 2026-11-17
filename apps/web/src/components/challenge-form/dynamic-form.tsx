@@ -13,6 +13,7 @@ import {
   type ChallengeFormFieldDto,
   type FormValues,
   type UploadedFileValue,
+  visibleFieldKeys,
 } from './types';
 
 const inputCls = 'focus-ring w-full rounded-lg border border-ink-100 px-3 py-2.5 text-sm';
@@ -39,7 +40,9 @@ export function validateDynamicForm(
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   const loc = localizeField(locale);
+  const visible = visibleFieldKeys(fields, values);
   for (const f of fields) {
+    if (!visible.has(f.key)) continue; // hidden conditional field: never required
     const v = values[f.key];
     const label = loc(f).label;
     if (isConsentBox(f)) {
@@ -168,10 +171,14 @@ function FileField({
           />
         </label>
       )}
-      <p className="mt-1 text-xs text-ink-400">
-        {field.acceptedFileTypes.length ? `${t('accepted', { types: field.acceptedFileTypes.join(', ') })} ` : ''}
-        {multiple ? t('maxSizeMulti', { mb: maxMb, max }) : t('maxSize', { mb: maxMb })}
-      </p>
+      {/* The size limit isn't advertised up front (2026-11-17); the `tooLarge` error appears only if
+          a picked file exceeds it. Multi-file fields still state how many files are allowed. */}
+      {(field.acceptedFileTypes.length > 0 || multiple) && (
+        <p className="mt-1 text-xs text-ink-400">
+          {field.acceptedFileTypes.length ? `${t('accepted', { types: field.acceptedFileTypes.join(', ') })} ` : ''}
+          {multiple ? t('maxFilesHint', { max }) : ''}
+        </p>
+      )}
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );
@@ -294,12 +301,16 @@ export function DynamicForm({
 }) {
   const t = useTranslations('challenges.form');
   const loc = localizeField(useLocale());
+  const visible = visibleFieldKeys(fields, values);
   if (fields.length === 0) {
     return <p className="text-sm text-ink-400">{t('noFields')}</p>;
   }
   return (
     <div className="space-y-6">
       {fields.map((field) => {
+        // Conditional fields appear/disappear as the answer they depend on changes; what was typed
+        // into a hidden field stays in state (so switching back restores it) but is not submitted.
+        if (!visible.has(field.key)) return null;
         const id = `cf-${field.key}`;
         const error = errors[field.key];
         const text = loc(field);

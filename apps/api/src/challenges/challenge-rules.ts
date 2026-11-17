@@ -148,6 +148,12 @@ export interface FormFieldInput {
   maxFileSizeMb?: number | null;
   maxFiles?: number | null;
   mapsTo?: string | null;
+  /** Conditional display: the earlier choice field this one depends on, by its key… */
+  showIfFieldKey?: string | null;
+  /** …or by its position in this payload (0-based; wins over the key). Lets the builder point at a field that has no key yet. */
+  showIfFieldIndex?: number | null;
+  /** Options of that field that make this one appear. */
+  showIfValues?: string[];
 }
 
 export interface NormalizedFormField {
@@ -170,6 +176,8 @@ export interface NormalizedFormField {
   maxFileSizeMb: number | null;
   maxFiles: number | null;
   mapsTo: FieldMappingName | null;
+  showIfFieldKey: string | null;
+  showIfValues: string[];
   sortOrder: number;
 }
 
@@ -201,6 +209,8 @@ export function normalizeFormDefinition(fields: FormFieldInput[]): { fields: Nor
   const usedKeys = new Set<string>();
   const usedMappings = new Set<string>();
   const out: NormalizedFormField[] = [];
+  /** Normalized field per payload index (undefined where the field was rejected outright). */
+  const byIndex: (NormalizedFormField | undefined)[] = [];
 
   fields.forEach((f, index) => {
     const n = index + 1;
@@ -279,6 +289,37 @@ export function normalizeFormDefinition(fields: FormFieldInput[]): { fields: Nor
     // Placeholder is meaningless for file/choice fields — except a single consent checkbox (CHECKBOX
     // with no options), where it is the text shown next to the box. That text used to be dropped
     // here (fixed 2026-11-15).
+    // Conditional display: may only depend on a choice field ABOVE this one (which also rules out
+    // cycles), and only on that field's own options.
+    let showIfFieldKey: string | null = null;
+    let showIfValues: string[] = [];
+    const condKey = (f.showIfFieldKey ?? '').trim();
+    if (f.showIfFieldIndex != null || condKey) {
+      let ctrl: NormalizedFormField | undefined;
+      if (f.showIfFieldIndex != null) {
+        const ci = Number(f.showIfFieldIndex);
+        if (!Number.isInteger(ci) || ci < 0 || ci >= index) errors.push(`${where}: it can only depend on a field above it.`);
+        else ctrl = byIndex[ci]; // undefined = that field was itself rejected (already reported)
+      } else {
+        ctrl = out.find((o) => o.key === condKey);
+        if (!ctrl) errors.push(`${where}: it depends on "${condKey}", which is not a field above it.`);
+      }
+      if (ctrl) {
+        if (!CHOICE_TYPES.includes(ctrl.type) || ctrl.options.length === 0) {
+          errors.push(`${where}: it can only depend on a dropdown, radio-button or checkbox field with options ("${ctrl.label}" is not one).`);
+        } else {
+          const wanted = Array.from(new Set((f.showIfValues ?? []).map((v) => String(v).trim()).filter(Boolean)));
+          const bad = wanted.filter((v) => !ctrl!.options.includes(v));
+          if (!wanted.length) errors.push(`${where}: choose at least one option of "${ctrl.label}" that shows it.`);
+          else if (bad.length) errors.push(`${where}: ${bad.map((b) => `"${b}"`).join(', ')} is not an option of "${ctrl.label}".`);
+          else {
+            showIfFieldKey = ctrl.key;
+            showIfValues = ctrl.options.filter((o) => wanted.includes(o)); // admin's option order
+          }
+        }
+      }
+    }
+
     const isConsentBox = type === 'CHECKBOX' && options.length === 0;
     const keepPlaceholder = isConsentBox || !(FILE_TYPES.includes(type) || CHOICE_TYPES.includes(type));
     out.push({
@@ -300,8 +341,11 @@ export function normalizeFormDefinition(fields: FormFieldInput[]): { fields: Nor
       maxFileSizeMb,
       maxFiles,
       mapsTo,
+      showIfFieldKey,
+      showIfValues,
       sortOrder: index,
     });
+    byIndex[index] = out[out.length - 1];
   });
 
   return { fields: out, errors };
@@ -322,6 +366,17 @@ export interface FieldDefinition {
   maxFileSizeMb: number | null;
   maxFiles: number | null;
   mapsTo: string | null;
+  showIfFieldKey?: string | null;
+  showIfValues?: string[];
+}
+
+/**
+ * Whether a conditional field's trigger is met by the controlling field's answer: one of
+ * `showIfValues` chosen (a SELECT/RADIO string, or any overlap with a CHECKBOX list).
+ */
+export function conditionMet(controllerValue: unknown, showIfValues: string[]): boolean {
+  if (Array.isArray(controllerValue)) return controllerValue.some((v) => showIfValues.includes(v as string));
+  return typeof controllerValue === 'string' && showIfValues.includes(controllerValue);
 }
 
 export interface SubmittedFile {
@@ -391,6 +446,14 @@ export function validateResponses(
   const input = responses && typeof responses === 'object' && !Array.isArray(responses) ? responses : {};
 
   for (const field of fields) {
+    // Conditional field: skipped entirely (not required, answer dropped) unless the field it
+    // depends on was shown, answered validly, and has a triggering value. Fields are processed in
+    // form order and may only depend on earlier ones, so the controller is already decided here.
+    if (field.showIfFieldKey) {
+      const controller = entries.find((e) => e.key === field.showIfFieldKey);
+      if (!controller || !conditionMet(controller.value, field.showIfValues ?? [])) continue;
+    }
+
     const raw = input[field.key];
     const base = { fieldId: field.id, key: field.key, label: field.label, type: field.type };
     const fail = (msg: string) => {

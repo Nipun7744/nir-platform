@@ -609,7 +609,7 @@ function ChallengeDetailsFields({ form, setForm }: { form: ChallengeForm; setFor
 
         {/* Resources */}
         <fieldset>
-          <legend className="mb-1 text-xs font-medium text-ink-500">Resources — guidelines, templates (upload a file or paste an https:// link)</legend>
+          <legend className="mb-1 text-xs font-medium text-ink-500">Attachments — guidelines, templates (upload a file or paste an https:// link)</legend>
           <div className="space-y-2">
             {form.resources.map((r, i) => (
               <div key={i} className="flex flex-wrap gap-2 rounded-lg border border-ink-100 bg-white p-2">

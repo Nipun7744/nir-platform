@@ -315,8 +315,7 @@
       "addFiles": "Add files",
       "chooseFile": "Choose file",
       "accepted": "Accepted: {types}.",
-      "maxSize": "Max {mb} MB.",
-      "maxSizeMulti": "Max {mb} MB per file, up to {max} files.",
+      "maxFilesHint": "Up to {max} files.",
       "remove": "Remove {name}"
     },
     "responses": {

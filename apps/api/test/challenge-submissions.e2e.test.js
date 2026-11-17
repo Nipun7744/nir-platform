@@ -289,3 +289,51 @@ describe('challenge-based submission', () => {
     assert.equal(r.status, 409);
   });
 });
+
+describe('conditional form fields (2026-11-17)', () => {
+  test('admin configures conditions; the server enforces only the chosen option\'s fields', { skip: skip() }, async () => {
+    const bad = await call('PUT', `/challenges/${challenge.id}/form`, {
+      token: admin,
+      body: { fields: [{ label: 'Details', type: 'SHORT_TEXT', showIfFieldIndex: 1, showIfValues: ['A'] }, { label: 'Track', type: 'RADIO', options: ['A'] }] },
+    });
+    assert.equal(bad.status, 400);
+    assert.match(JSON.stringify(bad.body.message), /field above it/);
+
+    const saved = await call('PUT', `/challenges/${challenge.id}/form`, {
+      token: admin,
+      body: {
+        fields: [
+          { label: 'Idea title', type: 'SHORT_TEXT', required: true, mapsTo: 'TITLE' },
+          { label: 'Applicant type', type: 'SELECT', required: true, options: ['Individual', 'Organisation'] },
+          { label: 'National ID', type: 'SHORT_TEXT', required: true, showIfFieldIndex: 1, showIfValues: ['Individual'] },
+          { label: 'Organisation name', type: 'SHORT_TEXT', required: true, showIfFieldIndex: 1, showIfValues: ['Organisation'] },
+        ],
+      },
+    });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    const form = (await call('GET', `/challenges/${slug}/form`)).body.fields;
+    assert.deepEqual(form.map((f) => [f.key, f.showIfFieldKey, f.showIfValues]), [
+      ['idea_title', null, []],
+      ['applicant_type', null, []],
+      ['national_id', 'applicant_type', ['Individual']],
+      ['organisation_name', 'applicant_type', ['Organisation']],
+    ]);
+
+    // Organisation chosen: its field is required, the Individual-only field is not.
+    const missing = await call('POST', `/challenges/${slug}/submissions`, {
+      token: innovator,
+      body: { responses: { idea_title: 'Cond test', applicant_type: 'Organisation' } },
+    });
+    assert.equal(missing.status, 400);
+    assert.deepEqual(Object.keys(missing.body.fieldErrors), ['organisation_name']);
+
+    const ok = await call('POST', `/challenges/${slug}/submissions`, {
+      token: innovator,
+      body: { responses: { idea_title: 'Cond test', applicant_type: 'Organisation', organisation_name: 'a2i', national_id: 'stale' } },
+    });
+    assert.equal(ok.status, 201, JSON.stringify(ok.body));
+    createdInnovationIds.push(ok.body.id);
+    const row = await prisma.innovation.findUnique({ where: { id: ok.body.id } });
+    assert.deepEqual(row.challengeResponses.map((e) => e.key), ['idea_title', 'applicant_type', 'organisation_name']);
+  });
+});

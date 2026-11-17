@@ -1000,6 +1000,11 @@ model ChallengeFormField {
   maxFileSizeMb     Int? // FILE / MULTI_FILE, capped at the upload endpoint's 50 MB
   maxFiles          Int? // MULTI_FILE only
   mapsTo            InnovationFieldMapping?
+  // Conditional display (2026-11-17): when set, the field is shown — and validated/stored — only
+  // if the earlier choice field with this key has an answer in `showIfValues` (any overlap for a
+  // CHECKBOX list). Null = always shown.
+  showIfFieldKey    String?
+  showIfValues      String[]                @default([])
   sortOrder         Int                     @default(0)
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt

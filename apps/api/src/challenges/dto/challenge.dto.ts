@@ -14,6 +14,7 @@ import {
   IsString,
   Matches,
   MaxLength,
+  Min,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
@@ -142,6 +143,10 @@ export class FormFieldDto {
   @IsOptional() @IsInt() maxFileSizeMb?: number | null;
   @IsOptional() @IsInt() maxFiles?: number | null;
   @IsOptional() @IsIn([...FIELD_MAPPINGS, null]) mapsTo?: string | null;
+  /** Conditional display (see challenge-rules.ts): depend on an earlier choice field by key or by payload index. */
+  @IsOptional() @IsString() @MaxLength(60) showIfFieldKey?: string | null;
+  @IsOptional() @IsInt() @Min(0) showIfFieldIndex?: number | null;
+  @IsOptional() @IsArray() @ArrayMaxSize(MAX_OPTIONS) @IsString({ each: true }) @MaxLength(200, { each: true }) showIfValues?: string[];
 }
 
 export class SaveFormDto {

@@ -315,8 +315,7 @@
       "addFiles": "ফাইল যোগ করুন",
       "chooseFile": "ফাইল বাছাই করুন",
       "accepted": "গ্রহণযোগ্য: {types}।",
-      "maxSize": "সর্বোচ্চ {mb} MB।",
-      "maxSizeMulti": "প্রতি ফাইল সর্বোচ্চ {mb} MB, সর্বোচ্চ {max}টি ফাইল।",
+      "maxFilesHint": "সর্বোচ্চ {max}টি ফাইল।",
       "remove": "{name} সরান"
     },
     "responses": {

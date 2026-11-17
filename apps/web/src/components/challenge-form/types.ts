@@ -21,7 +21,37 @@ export interface ChallengeFormFieldDto {
   maxFileSizeMb?: number | null;
   maxFiles?: number | null;
   mapsTo?: InnovationFieldMapping | `${InnovationFieldMapping}` | null;
+  /** Conditional display: shown only when the earlier choice field with this key has one of `showIfValues`. */
+  showIfFieldKey?: string | null;
+  showIfValues?: string[];
   sortOrder?: number;
+}
+
+/**
+ * Keys of the fields currently shown, given the answers so far. Mirrors the server's
+ * validateResponses: a conditional field shows only when the field it depends on is itself shown
+ * and its answer (a string, or any item of a checkbox list) is one of `showIfValues`. Fields only
+ * depend on earlier ones, so one pass in form order settles chains.
+ */
+export function visibleFieldKeys(fields: ChallengeFormFieldDto[], values: FormValues): Set<string> {
+  const visible = new Set<string>();
+  for (const f of fields) {
+    if (f.showIfFieldKey) {
+      if (!visible.has(f.showIfFieldKey)) continue;
+      const v = values[f.showIfFieldKey];
+      const wanted = f.showIfValues ?? [];
+      const met = Array.isArray(v) ? v.some((x) => wanted.includes(x as string)) : typeof v === 'string' && wanted.includes(v);
+      if (!met) continue;
+    }
+    visible.add(f.key);
+  }
+  return visible;
+}
+
+/** The answers to send: drops anything typed into fields that are now hidden (the server ignores them anyway). */
+export function visibleValues(fields: ChallengeFormFieldDto[], values: FormValues): FormValues {
+  const visible = visibleFieldKeys(fields, values);
+  return Object.fromEntries(Object.entries(values).filter(([k]) => visible.has(k)));
 }
 
 export interface UploadedFileValue {

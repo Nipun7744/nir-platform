@@ -247,3 +247,73 @@ describe('validateResponses', () => {
     assert.match(validateResponses(f, { t: 'x'.repeat(501) }, lookup).errors.t, /at most 500/);
   });
 });
+
+describe('conditional fields (2026-11-17)', () => {
+  const sel = (o) => ({ label: o.label ?? o.key, type: 'SELECT', options: ['Option 1', 'Option 2'], ...o });
+  const txt = (o) => ({ label: o.label ?? o.key, type: 'SHORT_TEXT', ...o });
+
+  test('normalize resolves a dependency by payload index or by key, in option order', () => {
+    const { fields, errors } = normalizeFormDefinition([
+      sel({ key: 'track' }),
+      txt({ key: 'a', showIfFieldIndex: 0, showIfValues: ['Option 2', 'Option 1', 'Option 2'] }),
+      txt({ key: 'b', showIfFieldKey: 'track', showIfValues: ['Option 2'] }),
+      txt({ key: 'c' }),
+    ]);
+    assert.deepEqual(errors, []);
+    assert.equal(fields[1].showIfFieldKey, 'track');
+    assert.deepEqual(fields[1].showIfValues, ['Option 1', 'Option 2']);
+    assert.equal(fields[2].showIfFieldKey, 'track');
+    assert.equal(fields[3].showIfFieldKey, null);
+    assert.deepEqual(fields[3].showIfValues, []);
+  });
+
+  test('normalize resolves an index to a not-yet-keyed field (key generated from its label)', () => {
+    const { fields, errors } = normalizeFormDefinition([sel({ label: 'Which track' }), txt({ label: 'Details', showIfFieldIndex: 0, showIfValues: ['Option 1'] })]);
+    assert.deepEqual(errors, []);
+    assert.equal(fields[1].showIfFieldKey, 'which_track');
+  });
+
+  test('normalize rejects bad conditions', () => {
+    const errs = (fs) => normalizeFormDefinition(fs).errors.join(' | ');
+    assert.match(errs([txt({ key: 'a', showIfFieldIndex: 1, showIfValues: ['Option 1'] }), sel({ key: 'track' })]), /field above it/);
+    assert.match(errs([txt({ key: 'a', showIfFieldIndex: 0, showIfValues: ['x'] })]), /field above it/);
+    assert.match(errs([sel({ key: 'track' }), txt({ key: 'a', showIfFieldKey: 'nope', showIfValues: ['Option 1'] })]), /"nope", which is not a field above it/);
+    assert.match(errs([txt({ key: 't' }), txt({ key: 'a', showIfFieldIndex: 0, showIfValues: ['x'] })]), /dropdown, radio-button or checkbox/);
+    assert.match(errs([{ key: 'ok', label: 'OK', type: 'CHECKBOX', options: [] }, txt({ key: 'a', showIfFieldIndex: 0, showIfValues: ['x'] })]), /dropdown, radio-button or checkbox/);
+    assert.match(errs([sel({ key: 'track' }), txt({ key: 'a', showIfFieldIndex: 0, showIfValues: [] })]), /choose at least one option/);
+    assert.match(errs([sel({ key: 'track' }), txt({ key: 'a', showIfFieldIndex: 0, showIfValues: ['Option 9'] })]), /"Option 9" is not an option of "track"/);
+  });
+
+  const def = (o) => ({ id: o.key, label: o.key, required: false, options: [], acceptedFileTypes: [], maxFileSizeMb: null, maxFiles: null, mapsTo: null, showIfFieldKey: null, showIfValues: [], ...o });
+  const lookup = () => null;
+  const form = [
+    def({ key: 'track', type: 'RADIO', options: ['Option 1', 'Option 2'], required: true }),
+    def({ key: 'one', type: 'SHORT_TEXT', required: true, showIfFieldKey: 'track', showIfValues: ['Option 1'] }),
+    def({ key: 'two', type: 'NUMBER', required: true, showIfFieldKey: 'track', showIfValues: ['Option 2'] }),
+    def({ key: 'needs', type: 'CHECKBOX', options: ['Fund', 'Mentor'], showIfFieldKey: 'track', showIfValues: ['Option 2'] }),
+    def({ key: 'fund_amt', type: 'NUMBER', required: true, showIfFieldKey: 'needs', showIfValues: ['Fund'] }),
+  ];
+  const keys = (r) => r.entries.map((e) => e.key);
+
+  test('only the fields for the chosen option are required and stored', () => {
+    const r1 = validateResponses(form, { track: 'Option 1', one: 'hello', two: '5', fund_amt: '9' }, lookup);
+    assert.deepEqual(r1.errors, {});
+    assert.deepEqual(keys(r1), ['track', 'one']); // hidden answers dropped, never stored
+
+    const r2 = validateResponses(form, { track: 'Option 2', one: 'stale' }, lookup);
+    assert.deepEqual(Object.keys(r2.errors), ['two']);
+  });
+
+  test('conditions chain, and a checkbox list triggers on any overlap', () => {
+    const r = validateResponses(form, { track: 'Option 2', two: 3, needs: ['Mentor', 'Fund'] }, lookup);
+    assert.deepEqual(Object.keys(r.errors), ['fund_amt']);
+    const ok = validateResponses(form, { track: 'Option 2', two: 3, needs: ['Mentor'] }, lookup);
+    assert.deepEqual(ok.errors, {});
+    assert.deepEqual(keys(ok), ['track', 'two', 'needs']);
+  });
+
+  test('a dependent of an unanswered or invalid controller stays hidden', () => {
+    const r = validateResponses(form, { track: 'Option 3', one: '' }, lookup);
+    assert.deepEqual(Object.keys(r.errors), ['track']);
+  });
+});

@@ -8,6 +8,7 @@ import {
   ArrowUp,
   CheckCircle2,
   Eye,
+  GitBranch,
   GripVertical,
   Pencil,
   Plus,
@@ -40,8 +41,33 @@ const CHOICE = ['SELECT', 'RADIO', 'CHECKBOX'];
 const FILES = ['FILE', 'MULTI_FILE'];
 const TEXT = ['SHORT_TEXT', 'LONG_TEXT'];
 
-/** Local editing shape — `uid` keeps React keys / drag targets stable before a field has an id. */
-type BuilderField = ChallengeFormFieldDto & { uid: string };
+/**
+ * Local editing shape — `uid` keeps React keys / drag targets stable before a field has an id.
+ * `showIfUid` points a conditional field at the field it depends on (by uid, because a new field
+ * has no key until saved); it becomes `showIfFieldIndex` in the save payload.
+ */
+type BuilderField = ChallengeFormFieldDto & { uid: string; showIfUid?: string | null };
+
+const cleanOptions = (f: Pick<BuilderField, 'options'>) => f.options.map((o) => o.trim()).filter(Boolean);
+/** Fields another field can depend on: dropdown / radio / checkbox with at least one option. */
+const canControl = (f: BuilderField) => CHOICE.includes(f.type) && cleanOptions(f).length > 0;
+
+/** Why a field's condition can't be saved as-is, or null if it's fine / not conditional. */
+function conditionProblem(field: BuilderField, index: number, fields: BuilderField[]): string | null {
+  if (!field.showIfUid) return null;
+  const ci = fields.findIndex((f) => f.uid === field.showIfUid);
+  if (ci === -1) return 'The field it depends on was deleted — pick another or remove the condition.';
+  const ctrl = fields[ci];
+  const name = `"${ctrl.label || 'Untitled field'}"`;
+  if (ci > index) return `It depends on ${name}, which is now below it — move it back above.`;
+  if (!canControl(ctrl)) return `${name} is no longer a dropdown, radio-button or checkbox field with options.`;
+  const values = field.showIfValues ?? [];
+  if (!values.length) return `Choose which option(s) of ${name} show this field.`;
+  const opts = cleanOptions(ctrl);
+  const missing = values.filter((v) => !opts.includes(v));
+  if (missing.length) return `${missing.map((m) => `"${m}"`).join(', ')} is no longer an option of ${name}.`;
+  return null;
+}
 
 let uidCounter = 0;
 const nextUid = () => `f${Date.now().toString(36)}${(uidCounter++).toString(36)}`;
@@ -75,7 +101,7 @@ const STARTER_FIELDS: Omit<BuilderField, 'uid'>[] = [
 
 /** Strip builder-only state and blank optionals before sending to PUT /challenges/:id/form. */
 function toPayload(fields: BuilderField[]) {
-  return fields.map(({ uid, sortOrder, ...f }) => ({
+  return fields.map(({ uid, sortOrder, showIfUid, ...f }) => ({
     ...(f.id ? { id: f.id } : {}),
     ...(f.key ? { key: f.key } : {}),
     label: f.label,
@@ -96,6 +122,11 @@ function toPayload(fields: BuilderField[]) {
     maxFileSizeMb: FILES.includes(f.type) ? f.maxFileSizeMb ?? null : null,
     maxFiles: f.type === 'MULTI_FILE' ? f.maxFiles ?? null : null,
     mapsTo: TEXT.includes(f.type) ? f.mapsTo || null : null,
+    // By position, so a condition can point at a field that has no key yet; the server resolves
+    // it to that field's key and checks it is an earlier choice field.
+    ...(showIfUid && fields.some((x) => x.uid === showIfUid)
+      ? { showIfFieldIndex: fields.findIndex((x) => x.uid === showIfUid), showIfValues: f.showIfValues ?? [] }
+      : {}),
   }));
 }
 
@@ -103,10 +134,13 @@ function FieldEditor({
   field,
   onChange,
   usedMappings,
+  controllers,
 }: {
   field: BuilderField;
   onChange: (f: BuilderField) => void;
   usedMappings: string[];
+  /** Fields above this one that it may depend on. */
+  controllers: BuilderField[];
 }) {
   const set = <K extends keyof BuilderField>(k: K, v: BuilderField[K]) => onChange({ ...field, [k]: v });
   const id = (s: string) => `fb-${field.uid}-${s}`;
@@ -235,6 +269,7 @@ function FieldEditor({
           </select>
         </div>
       )}
+      <ConditionEditor field={field} controllers={controllers} onChange={onChange} id={id} />
       {/* Bangla (2026-11-15): shown on the Bangla site; blank = English is used. */}
       <details className="rounded-lg border border-ink-100 bg-ink-50/40 p-3 sm:col-span-2" open={Boolean(field.labelBn) || undefined}>
         <summary className="cursor-pointer text-xs font-semibold text-ink-700">
@@ -309,7 +344,9 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
   // Load (and reload after a save) from the server copy.
   useEffect(() => {
     if (!challenge) return;
-    setFields((challenge.formFields ?? []).map((f: ChallengeFormFieldDto) => ({ ...f, uid: f.id ?? nextUid() })));
+    const loaded: BuilderField[] = (challenge.formFields ?? []).map((f: ChallengeFormFieldDto) => ({ ...f, uid: f.id ?? nextUid() }));
+    const uidByKey = new Map(loaded.map((f) => [f.key, f.uid]));
+    setFields(loaded.map((f) => ({ ...f, showIfUid: f.showIfFieldKey ? uidByKey.get(f.showIfFieldKey) ?? null : null })));
     setDirty(false);
   }, [challenge]);
 
@@ -326,10 +363,15 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
     update(next);
   };
   const usedMappings = useMemo(() => fields.map((f) => f.mapsTo).filter(Boolean) as string[], [fields]);
-  const previewFields = useMemo(
-    () => toPayload(fields).map((f, i) => ({ ...f, key: f.key || `preview_${i}` })) as ChallengeFormFieldDto[],
-    [fields],
-  );
+  const previewFields = useMemo(() => {
+    const payload = toPayload(fields);
+    const keys = payload.map((f, i) => f.key || `preview_${i}`);
+    return payload.map((f, i) => ({
+      ...f,
+      key: keys[i],
+      showIfFieldKey: f.showIfFieldIndex != null ? keys[f.showIfFieldIndex] : null,
+    })) as ChallengeFormFieldDto[];
+  }, [fields]);
 
   const serverErrors =
     save.error instanceof ApiError
@@ -406,6 +448,8 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
           <ol className="mt-5 space-y-2" aria-label="Form fields — drag to reorder, or use the arrow buttons">
             {fields.map((field, index) => {
               const open = editingUid === field.uid;
+              const ctrl = field.showIfUid ? fields.find((f) => f.uid === field.showIfUid) : undefined;
+              const problem = conditionProblem(field, index, fields);
               return (
                 <li
                   key={field.uid}
@@ -438,6 +482,19 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
                         {FIELD_TYPE_LABELS[field.type]}
                         {field.mapsTo && ` · maps to ${MAPPING_LABELS[field.mapsTo]}`}
                       </p>
+                      {ctrl && !problem && (
+                        <p className="mt-0.5 flex items-center gap-1 text-xs text-brand-700">
+                          <GitBranch className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          <span className="truncate">
+                            Shown when “{ctrl.label || 'Untitled field'}” is {(field.showIfValues ?? []).map((v) => `“${v}”`).join(' or ')}
+                          </span>
+                        </p>
+                      )}
+                      {problem && (
+                        <p className="mt-0.5 flex items-start gap-1 text-xs font-medium text-amber-deep">
+                          <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden /> {problem}
+                        </p>
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center gap-0.5">
                       <button type="button" onClick={() => move(index, index - 1)} disabled={index === 0} aria-label={`Move ${field.label || 'field'} up`} className="focus-ring rounded p-1.5 text-ink-400 hover:text-ink-800 disabled:opacity-30">
@@ -456,7 +513,12 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
                   </div>
                   {open && (
                     <div className="mt-4 border-t border-ink-100 pt-4">
-                      <FieldEditor field={field} usedMappings={usedMappings} onChange={(f) => update(fields.map((x) => (x.uid === f.uid ? f : x)))} />
+                      <FieldEditor
+                        field={field}
+                        usedMappings={usedMappings}
+                        controllers={fields.slice(0, index).filter(canControl)}
+                        onChange={(f) => update(fields.map((x) => (x.uid === f.uid ? f : x)))}
+                      />
                     </div>
                   )}
                 </li>
@@ -519,12 +581,21 @@ export function ChallengeFormBuilder({ challengeId, onClose }: { challengeId: st
       <ConfirmDialog
         open={Boolean(confirmDelete)}
         title="Delete this field?"
-        description={`"${confirmDelete?.label || 'Untitled field'}" will be removed from the form when you save. Answers already submitted to it are kept.`}
+        description={`"${confirmDelete?.label || 'Untitled field'}" will be removed from the form when you save. Answers already submitted to it are kept.${
+          confirmDelete && fields.some((f) => f.showIfUid === confirmDelete.uid) ? ' Fields shown only for one of its answers will then always be shown.' : ''
+        }`}
         confirmLabel="Delete field"
         danger
         onCancel={() => setConfirmDelete(null)}
         onConfirm={() => {
-          if (confirmDelete) update(fields.filter((f) => f.uid !== confirmDelete.uid));
+          // Fields that depended on the deleted one become unconditional (always shown).
+          if (confirmDelete) {
+            update(
+              fields
+                .filter((f) => f.uid !== confirmDelete.uid)
+                .map((f) => (f.showIfUid === confirmDelete.uid ? { ...f, showIfUid: null, showIfValues: [] } : f)),
+            );
+          }
           if (editingUid === confirmDelete?.uid) setEditingUid(null);
           setConfirmDelete(null);
         }}
@@ -540,5 +611,90 @@ function OptionCount({ count }: { count: number }) {
     <span className={clsx('shrink-0 tabular-nums', over ? 'font-semibold text-red-600' : 'text-ink-400')}>
       {count} / {MAX_OPTIONS} options{over && ' — too many'}
     </span>
+  );
+}
+
+/**
+ * "Show this field only when…" — conditional display (2026-11-17). The field appears on the form
+ * only when an earlier dropdown / radio / checkbox field has one of the ticked options.
+ */
+function ConditionEditor({
+  field,
+  controllers,
+  onChange,
+  id,
+}: {
+  field: BuilderField;
+  controllers: BuilderField[];
+  onChange: (f: BuilderField) => void;
+  id: (s: string) => string;
+}) {
+  const on = Boolean(field.showIfUid);
+  const ctrl = controllers.find((c) => c.uid === field.showIfUid);
+  const values = field.showIfValues ?? [];
+  return (
+    <fieldset className="rounded-lg border border-ink-100 p-3 sm:col-span-2">
+      <legend className="px-1 text-xs font-semibold text-ink-700">Conditional display</legend>
+      <label className="flex items-center gap-2 text-sm font-medium text-ink-700">
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={!on && controllers.length === 0}
+          onChange={(e) =>
+            onChange({ ...field, showIfUid: e.target.checked ? controllers[0]?.uid ?? null : null, showIfValues: [] })
+          }
+          className="focus-ring h-4 w-4 rounded-sm border-2 border-ink-400 text-brand-600"
+        />
+        Show this field only for certain answers to an earlier question
+      </label>
+      {!on && controllers.length === 0 && (
+        <p className="mt-1 text-xs text-ink-400">
+          To use this, add a dropdown, radio-button or checkbox field with options above this field.
+        </p>
+      )}
+      {on && (
+        <div className="mt-3 grid gap-3">
+          <div>
+            <label htmlFor={id('showIf')} className="mb-1 block text-xs font-medium text-ink-500">Depends on</label>
+            <select
+              id={id('showIf')}
+              value={ctrl ? ctrl.uid : ''}
+              onChange={(e) => onChange({ ...field, showIfUid: e.target.value || null, showIfValues: [] })}
+              className={clsx(inputCls, 'bg-white')}
+            >
+              {!ctrl && <option value="">— Choose a field above —</option>}
+              {controllers.map((c) => (
+                <option key={c.uid} value={c.uid}>{c.label || 'Untitled field'} ({FIELD_TYPE_LABELS[c.type]})</option>
+              ))}
+            </select>
+          </div>
+          {ctrl && (
+            <fieldset>
+              <legend className="mb-1 text-xs font-medium text-ink-500">
+                Show it when the answer is{ctrl.type === 'CHECKBOX' ? ' (any of the ticked options is selected)' : ''}
+              </legend>
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:gap-x-5">
+                {cleanOptions(ctrl).map((o) => (
+                  <label key={o} className="flex items-center gap-2 text-sm text-ink-700">
+                    <input
+                      type="checkbox"
+                      checked={values.includes(o)}
+                      onChange={(e) =>
+                        onChange({ ...field, showIfValues: e.target.checked ? [...values, o] : values.filter((v) => v !== o) })
+                      }
+                      className="focus-ring h-4 w-4 rounded-sm border-2 border-ink-400 text-brand-600"
+                    />
+                    {o}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-ink-400">
+                While hidden, the field is not required and anything typed into it is not submitted.
+              </p>
+            </fieldset>
+          )}
+        </div>
+      )}
+    </fieldset>
   );
 }

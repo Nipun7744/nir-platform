@@ -10,7 +10,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { DynamicForm, validateDynamicForm } from '@/components/challenge-form/dynamic-form';
 import { useTranslations } from 'next-intl';
 import { useChallengeText } from '@/lib/challenge-i18n';
-import type { FormValues } from '@/components/challenge-form/types';
+import { visibleValues, type FormValues } from '@/components/challenge-form/types';
 
 interface SubmitResult {
   id: string;
@@ -105,7 +105,7 @@ export default function ChallengeSubmitPage({ params }: { params: { slug: string
       document.getElementById(`cf-${Object.keys(clientErrors)[0]}`)?.focus();
       return;
     }
-    submit.mutate(values);
+    submit.mutate(visibleValues(fields, values));
   };
 
   const generalError =
