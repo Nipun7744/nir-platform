@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MotionConfig } from 'framer-motion';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -13,5 +14,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }),
   );
 
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  // reducedMotion="user": framer-motion entrance animations (hero, popup, cards) are skipped for
+  // people who set "reduce motion" in their OS — CSS animations already respect it in globals.css.
+  // No change for everyone else.
+  return (
+    <QueryClientProvider client={client}>
+      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+    </QueryClientProvider>
+  );
 }

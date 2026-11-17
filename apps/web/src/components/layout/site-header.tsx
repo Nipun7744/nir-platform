@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/navigation';
@@ -34,6 +34,19 @@ export function SiteHeader() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const [open, setOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  // Escape closes the mobile menu and returns focus to its button (2.1.1 / 2.4.3).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
   // Admin-controlled (GET /settings/submission) — hidden when general submission is switched off.
   const generalSubmissionOpen = useGeneralSubmissionOpen();
   // Same ['challenges'] query the /challenges page uses, so it's shared from the cache.
@@ -70,7 +83,11 @@ export function SiteHeader() {
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-4">
-            <Link href={user ? '/dashboard' : '/sign-in'} className="font-medium text-white hover:underline">
+            {/* focus-visible only: identical at rest (WCAG 2.4.7). */}
+            <Link
+              href={user ? '/dashboard' : '/sign-in'}
+              className="rounded-sm font-medium text-white outline-none hover:underline focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-navy"
+            >
               {user ? t('nav.dashboard') : t('nav.signIn')}
             </Link>
             <LocaleSwitcher />
@@ -81,11 +98,12 @@ export function SiteHeader() {
       {/* Main nav */}
       <div className="border-b border-greenline bg-white">
         <div className="container-page flex min-h-[76px] items-center gap-8">
-          <Link href="/" className="focus-ring shrink-0 rounded-md" aria-label="National Innovation Repository — home">
-            <Image src="/brand/nir-logo.svg" alt="National Innovation Repository" width={180} height={60} priority className="h-14 w-auto" />
+          {/* The image alt is the link's name — one translated name instead of an English aria-label over it. */}
+          <Link href="/" className="focus-ring shrink-0 rounded-md" aria-current={pathname === '/' ? 'page' : undefined}>
+            <Image src="/brand/nir-logo.svg" alt={t('common.homeLink')} width={180} height={60} priority className="h-14 w-auto" />
           </Link>
 
-          <nav aria-label="Main" className="hidden flex-1 lg:block">
+          <nav aria-label={t('common.mainNav')} className="hidden flex-1 lg:block">
             <ul className="flex list-none gap-7 p-0">
               {navItems.map((item) => {
                 const active = pathname === item.href;
@@ -93,6 +111,7 @@ export function SiteHeader() {
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      aria-current={active ? 'page' : undefined}
                       className={clsx(
                         'focus-ring inline-flex items-center border-b-2 py-2 text-sm font-medium no-underline transition',
                         active ? 'border-nirgreen-deep text-nirgreen-dark' : 'border-transparent text-navy hover:border-nirgreen-deep hover:text-nirgreen-dark',
@@ -120,23 +139,26 @@ export function SiteHeader() {
           </div>
 
           <button
+            ref={menuButtonRef}
             type="button"
             className="focus-ring ml-auto rounded-md p-2 text-navy lg:hidden"
             onClick={() => setOpen((v) => !v)}
-            aria-label="Toggle menu"
+            aria-label={t('common.menu')}
             aria-expanded={open}
+            aria-controls="mobile-nav"
           >
-            {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {open ? <X className="h-6 w-6" aria-hidden /> : <Menu className="h-6 w-6" aria-hidden />}
           </button>
         </div>
 
         {open && (
-          <div className="border-t border-greenline bg-white lg:hidden">
+          <nav id="mobile-nav" aria-label={t('common.mainNav')} className="border-t border-greenline bg-white lg:hidden">
             <div className="container-page flex flex-col gap-1 py-3">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={pathname === item.href ? 'page' : undefined}
                   onClick={() => setOpen(false)}
                   className={clsx(
                     'focus-ring flex items-center rounded-md px-2 py-2.5 text-sm font-medium text-navy',
@@ -164,7 +186,7 @@ export function SiteHeader() {
               </Link>
               )}
             </div>
-          </div>
+          </nav>
         )}
       </div>
     </header>

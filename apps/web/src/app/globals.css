@@ -28,6 +28,14 @@ body {
   max-width: 1200px;
 }
 
+/* WCAG 2.4.11 Focus Not Obscured (2026-11-17): the header is sticky (≈118px on desktop), so when
+   keyboard focus moves to a control in <main>, the browser keeps 9rem clear above it instead of
+   scrolling it under the header. Only affects scroll-into-view; nothing changes at rest. Section
+   anchors (e.g. challenge details' scroll-mt-36) are not focusable controls, so they are untouched. */
+main :is(a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])) {
+  scroll-margin-top: 9rem;
+}
+
 .focus-ring {
   @apply outline-none focus-visible:ring-2 focus-visible:ring-nirgreen-deep focus-visible:ring-offset-2 focus-visible:ring-offset-white;
 }

@@ -25,20 +25,25 @@ export function CategoryGrid() {
           </Link>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        {/* A list (2026-11-17). The mobile-only hiding moved from the link to its <li> so hidden
+            chips leave no empty flex item behind — same layout as before. The bare count is read
+            as "12 innovations"; visually it is unchanged. */}
+        <ul className="flex flex-wrap gap-3">
           {categories?.map((category, index) => (
-            <Link
-              key={category.id}
-              href={`/repository?categoryId=${category.id}`}
-              className={`focus-ring items-center gap-2 rounded-full border border-greenline bg-white px-4 py-[9px] text-sm font-medium text-navy transition hover:border-nirgreen-deep hover:bg-mist ${
-                index < 6 ? 'inline-flex' : 'hidden sm:inline-flex'
-              }`}
-            >
-              {locale === 'bn' ? category.nameBn : category.nameEn}
-              <span className="font-mono text-xs text-nirgreen-deep">{countFor(category.id)}</span>
-            </Link>
+            <li key={category.id} className={index < 6 ? 'flex' : 'hidden sm:flex'}>
+              <Link
+                href={`/repository?categoryId=${category.id}`}
+                className="focus-ring inline-flex items-center gap-2 rounded-full border border-greenline bg-white px-4 py-[9px] text-sm font-medium text-navy transition hover:border-nirgreen-deep hover:bg-mist"
+              >
+                {locale === 'bn' ? category.nameBn : category.nameEn}
+                <span className="font-mono text-xs text-nirgreen-deep" aria-hidden="true">
+                  {countFor(category.id)}
+                </span>
+                <span className="sr-only">({t('countLabel', { count: countFor(category.id) })})</span>
+              </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     </section>
   );

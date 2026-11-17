@@ -8,6 +8,7 @@ import { InnovationCard } from '@/components/ui/innovation-card';
 export function FeaturedInnovations() {
   const t = useTranslations('home.featured');
   const { data, isLoading } = useFeaturedInnovations(3);
+  const tHome = useTranslations('home');
 
   return (
     <section className="bg-mist py-[88px]">
@@ -26,15 +27,23 @@ export function FeaturedInnovations() {
           </Link>
         </div>
 
-        <div className="grid gap-[26px] sm:grid-cols-2 lg:grid-cols-3">
+        {/* A list of cards (no visual change); placeholders are hidden from assistive tech and a
+            polite status says the cards are loading (2026-11-17). */}
+        <p role="status" className="sr-only">
+          {isLoading ? tHome('loadingFeatured') : ''}
+        </p>
+        <ul className="grid gap-[26px] sm:grid-cols-2 lg:grid-cols-3" aria-busy={isLoading || undefined}>
           {isLoading &&
             Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-80 animate-pulse rounded-[18px] bg-white/60" />
+              <li key={i} aria-hidden="true" className="h-80 animate-pulse rounded-[18px] bg-white/60" />
             ))}
           {data?.map((innovation, i) => (
-            <InnovationCard key={innovation.id} innovation={innovation} index={i} />
+            <li key={innovation.id} className="flex">
+              {/* min-w-0: as a flex item the card would otherwise grow past a narrow column (it was a grid item). */}
+              <InnovationCard innovation={innovation} index={i} className="min-w-0 flex-1" />
+            </li>
           ))}
-        </div>
+        </ul>
 
         <Link
           href="/repository"

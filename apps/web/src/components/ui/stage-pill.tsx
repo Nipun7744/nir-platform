@@ -27,6 +27,8 @@ export function StagePill({ stage, className }: { stage: string; className?: str
         STAGE_STYLES[stage] ?? 'bg-mist text-slate',
         className,
       )}
+      // The stage labels are English constants — mark them so on the Bangla site (WCAG 3.1.2).
+      lang="en"
     >
       {STAGE_LABELS[stage] ?? stage}
     </span>

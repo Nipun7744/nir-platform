@@ -26,9 +26,15 @@ export function AnimatedCounter({ value, durationMs = 1200 }: { value: number; d
     return () => cancelAnimationFrame(frame);
   }, [inView, value, durationMs]);
 
+  // Screen readers get the final value straight away (the animation starts at 0 and only runs once
+  // the number scrolls into view, so a screen reader reading ahead would otherwise hear "0").
+  // The animated digits are visual only. No visual change (WCAG 1.3.1 / 4.1.2, 2026-11-17).
   return (
-    <span ref={ref} className="tabular-nums">
-      {display.toLocaleString()}
+    <span className="tabular-nums">
+      <span ref={ref} aria-hidden="true">
+        {display.toLocaleString()}
+      </span>
+      <span className="sr-only">{value.toLocaleString()}</span>
     </span>
   );
 }

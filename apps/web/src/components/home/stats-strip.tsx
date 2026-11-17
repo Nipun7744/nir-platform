@@ -6,6 +6,7 @@ import { AnimatedCounter } from '@/components/ui/animated-counter';
 
 export function StatsStrip() {
   const t = useTranslations('home.stats');
+  const tHome = useTranslations('home');
   const { data } = usePublicStats();
 
   const items = [
@@ -17,10 +18,10 @@ export function StatsStrip() {
   ];
 
   return (
-    <section className="bg-navy text-white" aria-label="National innovation statistics">
+    <section className="bg-navy text-white" aria-label={tHome('statsLabel')}>
       <div className="container-page grid grid-cols-2 items-center gap-7 py-[26px] sm:grid-cols-3 lg:grid-cols-[auto_repeat(5,1fr)]">
         <div className="col-span-2 flex items-center gap-2.5 font-mono text-xs uppercase tracking-[0.12em] text-[#9DB3D6] sm:col-span-3 lg:col-span-1">
-          <span className="relative inline-block h-2 w-2 shrink-0 rounded-full bg-flagred">
+          <span className="relative inline-block h-2 w-2 shrink-0 rounded-full bg-flagred" aria-hidden="true">
             <span className="absolute -inset-1 animate-live-pulse rounded-full border-[1.5px] border-flagred" />
           </span>
           {t('label')}

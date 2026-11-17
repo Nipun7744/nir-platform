@@ -6,6 +6,7 @@ import { Link } from '@/i18n/navigation';
 import { useChallenges } from '@/hooks/use-content';
 import { pickPromotedChallenge } from '@/lib/challenge-dates';
 import { useChallengeText } from '@/lib/challenge-i18n';
+import { textLang } from '@/lib/text-lang';
 
 export function ChallengeBanner() {
   const t = useTranslations('home.challenge');
@@ -31,13 +32,18 @@ export function ChallengeBanner() {
       <div className="container-page grid items-center gap-12 lg:grid-cols-[1.2fr_0.8fr]">
         <div>
           <span className="inline-flex items-center gap-2 rounded-full bg-nirgreen-deep px-3 py-1 text-xs font-semibold uppercase tracking-[0.04em] text-white">
-            <span className="relative inline-block h-2 w-2 shrink-0 rounded-full bg-white">
+            <span className="relative inline-block h-2 w-2 shrink-0 rounded-full bg-white" aria-hidden="true">
               <span className="absolute -inset-1 animate-live-pulse rounded-full border-[1.5px] border-white" />
             </span>
             {t('openForApplications')}
           </span>
-          <h2 className="my-3.5 font-display text-[2.25rem] font-bold text-white">{tx.title(challenge)}</h2>
-          <p className="max-w-[56ch] text-[#B9C7DE]">{tx.description(challenge)}</p>
+          {/* lang: challenge text falls back to English when no Bangla was entered (WCAG 3.1.2). */}
+          <h2 className="my-3.5 font-display text-[2.25rem] font-bold text-white" lang={textLang(tx.title(challenge), tx.locale)}>
+            {tx.title(challenge)}
+          </h2>
+          <p className="max-w-[56ch] text-[#B9C7DE]" lang={textLang(tx.description(challenge), tx.locale)}>
+            {tx.description(challenge)}
+          </p>
 
           <div className="my-[26px] flex flex-wrap gap-9">
             {challenge.deadline && (
@@ -53,12 +59,16 @@ export function ChallengeBanner() {
             )}
             {prizeHeadline && (
               <div>
-                <b className="block font-mono text-sm text-white">{prizeHeadline}</b>
+                <b className="block font-mono text-sm text-white" lang={textLang(prizeHeadline, tx.locale)}>
+                  {prizeHeadline}
+                </b>
                 <span className="text-xs uppercase tracking-[0.08em] text-[#9DB3D6]">{t('prototypeGrant')}</span>
               </div>
             )}
             <div>
-              <b className="block font-mono text-sm text-white">{organizerHeadline}</b>
+              <b className="block font-mono text-sm text-white" lang={textLang(organizerHeadline, tx.locale)}>
+                {organizerHeadline}
+              </b>
               <span className="text-xs uppercase tracking-[0.08em] text-[#9DB3D6]">{t('organizer')}</span>
             </div>
           </div>

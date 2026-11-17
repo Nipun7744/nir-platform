@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
@@ -8,6 +8,7 @@ import { Link, usePathname } from '@/i18n/navigation';
 import { useChallenges } from '@/hooks/use-content';
 import { challengeTimeLeftMs, pickPromotedChallenge, splitDuration } from '@/lib/challenge-dates';
 import { useChallengeText } from '@/lib/challenge-i18n';
+import { textLang } from '@/lib/text-lang';
 
 const DISMISSED_KEY_PREFIX = 'nir-challenge-popup-dismissed:';
 
@@ -63,6 +64,8 @@ export function ChallengePopup() {
   const { data } = useChallenges();
   const challenge = pickPromotedChallenge(data);
   const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!challenge) return;
@@ -88,13 +91,43 @@ export function ChallengePopup() {
     setOpen(false);
   };
 
+  // Modal dialog keyboard behaviour (WCAG 2.1.1, 2.1.2, 2.4.3, 2.4.11 — 2026-11-17):
+  //  - on open, focus moves to the dialog panel itself (tabIndex=-1, no outline), so screen readers
+  //    announce it and Tab starts inside it — and no focus ring appears on screen;
+  //  - Tab / Shift+Tab cycle through the dialog's controls instead of reaching the page behind it;
+  //  - Escape closes it; on close, focus returns to whatever had it before.
   useEffect(() => {
     if (!show) return;
+    returnFocusRef.current = document.activeElement as HTMLElement | null;
+    const focusTimer = window.setTimeout(() => panelRef.current?.focus({ preventScroll: true }), 0);
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
+      if (e.key === 'Escape') {
+        close();
+        return;
+      }
+      if (e.key !== 'Tab' || !panelRef.current) return;
+      const focusables = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+      ).filter((el) => el.offsetParent !== null);
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === panelRef.current)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !panelRef.current.contains(active))) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener('keydown', onKeyDown);
+      const back = returnFocusRef.current;
+      if (back && back !== document.body && document.contains(back)) back.focus({ preventScroll: true });
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show]);
 
@@ -108,12 +141,17 @@ export function ChallengePopup() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           onClick={close}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="challenge-popup-title"
         >
+          {/* The dialog role sits on the panel (not the dimmed backdrop), named by its heading and
+              described by the teaser text. */}
           <motion.div
-            className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl2 bg-white shadow-soft"
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="challenge-popup-title"
+            aria-describedby="challenge-popup-desc"
+            tabIndex={-1}
+            className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl2 bg-white shadow-soft outline-none"
             initial={{ opacity: 0, y: 16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
@@ -126,7 +164,7 @@ export function ChallengePopup() {
               aria-label={t('close')}
               className="focus-ring absolute right-4 top-4 z-10 rounded-full bg-white/80 p-1.5 text-slate backdrop-blur transition hover:bg-mist hover:text-navy"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
 
             <div className="overflow-y-auto">
@@ -141,7 +179,7 @@ export function ChallengePopup() {
                 {/* "Open now" pill and the countdown share one row; they wrap only on narrow phones. */}
                 <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-2 rounded-full bg-nirgreen-deep px-3 py-1 text-xs font-semibold uppercase tracking-[0.04em] text-white">
-                  <span className="relative inline-block h-2 w-2 shrink-0 rounded-full bg-white">
+                  <span className="relative inline-block h-2 w-2 shrink-0 rounded-full bg-white" aria-hidden="true">
                     <span className="absolute -inset-1 animate-live-pulse rounded-full border-[1.5px] border-white" />
                   </span>
                   {t('eyebrow')}
@@ -149,11 +187,17 @@ export function ChallengePopup() {
                 <Countdown deadline={challenge.deadline} />
                 </div>
 
-                <h2 id="challenge-popup-title" className="my-3.5 font-display text-2xl font-bold text-navy">
+                <h2
+                  id="challenge-popup-title"
+                  className="my-3.5 font-display text-2xl font-bold text-navy"
+                  lang={textLang(tx.title(challenge), tx.locale)}
+                >
                   {tx.title(challenge)}
                 </h2>
                 {/* Teaser only — the full write-up lives on the details page ("View details"). */}
-                <p className="line-clamp-3 text-slate">{tx.description(challenge)}</p>
+                <p id="challenge-popup-desc" className="line-clamp-3 text-slate" lang={textLang(tx.description(challenge), tx.locale)}>
+                  {tx.description(challenge)}
+                </p>
 
                 <div className="my-6 flex flex-wrap gap-8">
                   {challenge.deadline && (

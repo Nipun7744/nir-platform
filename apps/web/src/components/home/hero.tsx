@@ -45,17 +45,26 @@ export function Hero() {
             {t('description')}
           </p>
 
+          {/* role="search" landmark + a translated name; the pill gets the shared focus ring only
+              while the input has keyboard focus (the input itself has no outline) — WCAG 1.3.1,
+              2.4.7, 4.1.2. Nothing changes at rest. */}
           <form
             onSubmit={onSearch}
-            className="flex max-w-[560px] items-center rounded-full border-[1.5px] border-navy bg-white py-1.5 pl-[22px] pr-1.5 shadow-card"
+            role="search"
+            aria-label={t('searchLabel')}
+            className="flex max-w-[560px] items-center rounded-full border-[1.5px] border-navy bg-white py-1.5 pl-[22px] pr-1.5 shadow-card has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-nirgreen-deep has-[input:focus-visible]:ring-offset-2"
           >
             <Search className="h-5 w-5 shrink-0 text-slate" aria-hidden />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               type="search"
+              name="q"
+              aria-label={t('searchLabel')}
+              // Placeholder #66768F = 4.61:1 on white (was #8494AC, 3.08:1) — WCAG 1.4.3, approved
+              // 2026-11-17 as the one deliberate visual change on the landing page.
               placeholder={t('searchPlaceholder')}
-              className="min-w-0 flex-1 bg-transparent px-3.5 py-2.5 text-base text-navy placeholder:text-[#8494AC] focus:outline-none"
+              className="min-w-0 flex-1 bg-transparent px-3.5 py-2.5 text-base text-navy placeholder:text-[#66768F] focus:outline-none"
             />
             <button
               type="submit"

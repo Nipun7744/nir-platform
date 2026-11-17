@@ -55,7 +55,8 @@
     "categories": {
       "eyebrow": "20 categories",
       "title": "Browse by category",
-      "cta": "See every category"
+      "cta": "See every category",
+      "countLabel": "{count, plural, one {# innovation} other {# innovations}}"
     },
     "challenge": {
       "openForApplications": "Open for applications",
@@ -90,7 +91,12 @@
     },
     "partners": {
       "eyebrow": "Ecosystem partners"
-    }
+    },
+    "searchLabel": "Search innovations, innovators and organizations",
+    "statsLabel": "National innovation statistics",
+    "quickLinksHeading": "Explore the repository",
+    "loadingFeatured": "Loading featured innovations…",
+    "pageTitle": "National Innovation Repository | Bangladesh"
   },
   "footer": {
     "tagline": "The National Innovation Repository documents, evaluates, and connects innovation across Bangladesh.",
@@ -259,7 +265,14 @@
     "submit": "Submit",
     "back": "Back",
     "language": "বাংলা",
-    "skipToContent": "Skip to main content"
+    "skipToContent": "Skip to main content",
+    "mainNav": "Main",
+    "homeLink": "National Innovation Repository — home",
+    "menu": "Menu",
+    "languageGroup": "Language",
+    "english": "English",
+    "bangla": "Bangla",
+    "footerNav": "Footer"
   },
   "challengeDetail": {
     "back": "Back to challenges",
