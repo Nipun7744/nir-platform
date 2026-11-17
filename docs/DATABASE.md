@@ -291,6 +291,11 @@ Applied so far (`apps/api/prisma/migrations/`, oldest first):
 25. `20261116042925_challenge_submit_button_label` — `Challenge.submitButtonLabelEn` /
     `submitButtonLabelBn` (nullable TEXT): the admin's custom label for the "submit to this
     challenge" button; NULL → the site's default ("Apply now" / "Submit Innovation"). Additive.
+26. `20261117053614_challenge_field_conditions` — conditional form fields:
+    `ChallengeFormField.showIfFieldKey` (nullable TEXT, the `key` of an earlier SELECT/RADIO/CHECKBOX
+    field of the same challenge) and `showIfValues TEXT[] DEFAULT []` (that field's options that show
+    this one). NULL = always shown. A key reference (not a FK) because the form is replaced
+    wholesale on every save and keys are the stable identifiers. Additive.
 
 Note migrations 9 and 11 (`add_due_diligence_reviewer`, `rename_due_diligence_to_authenticity_reviewer`):
 a "Due Diligence Reviewer" role was added then renamed to "Authenticity Reviewer" within the same

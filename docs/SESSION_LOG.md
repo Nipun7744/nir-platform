@@ -6,6 +6,92 @@
 
 ---
 
+## 2026-11-17 (session 49) — "Attachments" label; conditional form fields
+
+1. **Admin → create/edit challenge:** the file/link fieldset legend "Resources — guidelines,
+   templates (upload a file or paste an https:// link)" now reads "Attachments — guidelines,
+   templates (…)" (`apps/web/src/app/[locale]/dashboard/admin/page.tsx`). Label text only; the
+   underlying `resources` field/API shape is unchanged.
+2. **Conditional fields in challenge submission forms** (admin-configurable, no code changes per
+   challenge): any field can be set to "show only when <earlier dropdown/radio/checkbox> is
+   <option(s)>". Chains work (a conditional checkbox can itself control later fields).
+   - DB: migration `20261117053614_challenge_field_conditions` adds
+     `ChallengeFormField.showIfFieldKey` + `showIfValues` (additive).
+   - API (`challenge-rules.ts`): `normalizeFormDefinition` accepts `showIfFieldIndex` (or
+     `showIfFieldKey`) + `showIfValues`, resolves to the controller's key, and rejects conditions on
+     a later field / non-choice field / unknown option. `validateResponses` skips hidden fields
+     (not required, answer dropped). New exported `conditionMet()`. DTO gains the three fields.
+   - Web: `visibleFieldKeys()`/`visibleValues()` in `challenge-form/types.ts`; `DynamicForm` and
+     `validateDynamicForm` honour them; the submit page sends only visible answers; the form
+     builder has a "Conditional display" editor, row summaries, broken-condition warnings, and
+     clears conditions when their controller is deleted.
+   - **Decision:** a field may depend only on a field *above* it — no cycles, and one pass in form
+     order settles visibility on both client and server. Conditions point at the controller by
+     key (stored) / payload index (on save), not by FK, since the form is replaced on every save.
+   - Tests: 6 new unit tests in `challenge-rules.test.js` (46/46 pass), 1 new e2e test in
+     `challenge-submissions.e2e.test.js` (13/13 pass against the local API). Browser-checked on a
+     throwaway challenge (since deleted): fields appear/disappear on the submit page, chained
+     condition works, builder shows the condition and the "now below it" warning.
+   - **Next steps:** run `prisma migrate deploy` on the servers when this ships. Options shown
+     in the condition editor are the English ones (answers are stored in English, so that's what
+     conditions match on). Reviewer views are unchanged — hidden fields simply have no entry.
+3. **File fields no longer show "Max N MB."** under the picker (`challenge-form/dynamic-form.tsx`,
+   user request). The "“name” is larger than N MB." error still appears when a chosen file is over
+   the limit (checked before upload). Single-file fields now show only "Accepted: …" (or nothing if
+   any type is allowed); multi-file fields show "Accepted: … Up to N files.". i18n: `maxSize` /
+   `maxSizeMulti` replaced by `maxFilesHint` in `messages/en.json` + `bn.json`.
+4. **Full demo challenge + end-to-end test (kept, not cleaned up — user request).** New script
+   `apps/api/scripts/demo-full-challenge.js` (run from `apps/api`, API on :4000) creates/refreshes
+   the published, OPEN challenge `demo-smart-bangladesh-innovation-challenge-2026` ("Smart Bangladesh
+   Innovation Challenge 2026 (Demo)"): every details section in English + Bangla, generated banner,
+   5 timeline phases, 3 FAQs, 3 attachments (2 uploaded PDFs + a link), custom button label, first
+   category by `sortOrder`, `isFeatured: false` (so the real featured challenge's popup is
+   untouched). Its form has 20 fields covering all 11 types, 4 mapped fields, Bangla text/options,
+   and 7 conditional fields (incl. a chain: Support needed → Funding amount). The script then tests
+   public visibility, validation (empty / bad formats / conditional-required), two real submissions
+   on different branches, stored snapshots (hidden answers dropped), attachments, review queue,
+   response visibility, and admin monitoring. **Result: 28/29 on the first run**; the one failure
+   was the test, not the app — `innovator3@nir.gov.bd` also holds `EXPERT_EVALUATOR` (+
+   `INSTITUTIONAL_COORDINATOR`) in the local DB, so seeing responses is correct. The script now uses
+   innovator2 (innovator-only) for that check; re-checked separately: 404, no responses. Kept in the
+   local DB: the challenge and submissions **NIR-2026-000087** (innovator1) and **NIR-2026-000088**
+   (innovator2), both UNDER_REVIEW. Browser-checked the details page (EN) and the submit form (BN):
+   Bangla labels/options, custom button label, conditional fields, no size hint under file fields.
+   Re-running the script updates the challenge in place but adds two more submissions each time.
+5. **WCAG 2.2 AA — sign-in & registration (en + bn).** New `components/auth/auth-form.tsx`
+   (FormField / FormAlert / StatusMessage / validators / `useAuthErrorText`); rewrote
+   `sign-in/page.tsx` and `register/page.tsx` on it; `AuthCard` focus management + decorative logo;
+   accessible `PasswordInput` and `CaptchaWidget` (labelled group, live status, retry); new
+   `sign-in/layout.tsx` + `register/layout.tsx` (translated titles); site-wide skip link in
+   `[locale]/layout.tsx` (`<main id="main-content">`); 40 new `auth.*` strings + `common.skipToContent`
+   in en/bn. No API/DB changes. Automated checks 5 → 0 (sign-in) and 14 → 0 (register) in both
+   languages; 20 keyboard/end-to-end scenarios pass (two bugs found during testing and fixed:
+   server field errors wiped by CAPTCHA reset; focus lost after "Stay on this page"); API
+   `auth-security.e2e` 11/11 with console delivery. Testing used an API restarted with
+   `MAIL_TRANSPORT=console SMS_PROVIDER=console` (no real email/SMS); the normal API was restarted
+   afterwards. Local test accounts left: `a11y-test-1117@example.com`, `a11y-sms-1117@example.com`.
+   axe-core couldn't be loaded (CDN script injection not permitted), so a self-written in-page
+   checker was used. Report: `docs/WCAG-2.2-Accessibility-Report.md`. **Next:** real screen-reader
+   passes, header/footer audit, define the missing `ink-500` colour (ROADMAP known issues).
+6. **Landing page accessibility (WCAG 2.2 AA target, no visual change).** Header (aria-current,
+   translated labels, mobile menu aria-controls + Escape), locale switcher (aria-pressed), footer
+   (h2, named navs, focus rings, lang), popup (focus to panel, Tab trap, Escape, focus return, dialog
+   role on the panel), hero search (search landmark, label, keyboard focus ring — was invisible),
+   headings/lists/landmarks across home sections, `AnimatedCounter` real value for AT, spoken category
+   counts, `lang` on English DB content on /bn (new `lib/text-lang.ts`), localised home title,
+   `MotionConfig reducedMotion="user"`, `scroll-margin-top` for focusables in main; 14 new en/bn strings.
+   **Verification:** visual fingerprints (every visible text run + image) identical before/after in
+   en desktop/tablet/phone and bn desktop/phone (one regression found and fixed: `min-w-0` on wrapped
+   cards); popup/menu/search/language switch tested by keyboard; tsc clean. **Not claimed fully
+   conformant:** placeholder contrast 3.08:1 and infinite animations (2.2.2) left for a design decision;
+   no real screen reader / device testing; axe-core unavailable. Report:
+   `docs/WCAG-2.2-Landing-Page-Accessibility-Report.md`.
+7. **Decisions on the landing-page open items:** (1) approved — hero search placeholder `#8494AC` →
+   `#66768F` (3.08 → 4.61:1), the only visual change; (2) declined — the infinite decorative
+   animations stay (2.2.2 remains not strictly met; documented in the report and ROADMAP).
+
+---
+
 ## 2026-11-16 (session 48) — removed GitLab CI/CD; evaluator view trimmed for challenge submissions; full workflow test + fixes
 
 1. **Deleted** `.gitlab-ci.yml` (verify → SSH deploy → smoke, manual rollback), `deploy/deploy.sh`

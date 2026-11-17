@@ -307,6 +307,21 @@
   sign-in and OTP send. Production refuses to boot without an explicit choice for each integration.
   Prerequisites: [SETUP.md](SETUP.md#registration-otp--login-captcha--prerequisites-and-configuration).
 
+- **(2026-11-17, session 49) Conditional fields in challenge forms.** Admins set any form field to
+  appear only for chosen answers of an earlier dropdown / radio / checkbox field (chains allowed),
+  in the form builder — no code change per challenge. Enforced on the server too: hidden fields
+  are never required and their answers are dropped. Needs `prisma migrate deploy` on release.
+  See [API.md](API.md) (`PUT /challenges/:id/form`) and [DATABASE.md](DATABASE.md) migration 26.
+
+- **(2026-11-17, session 49) Sign-in & registration made WCAG 2.2 AA compliant** (en + bn): labels,
+  inline translated errors, focus management, contrast, target size, CAPTCHA/OTP accessibility,
+  skip link, page titles. Report: [WCAG-2.2-Accessibility-Report.md](WCAG-2.2-Accessibility-Report.md).
+
+- **(2026-11-17, session 49) Landing page WCAG 2.2 AA work (en + bn), no visual change** — popup focus
+  trap, search label + focus ring, headings/lists/landmarks, aria-current, translated labels, `lang`
+  on English content, sticky-header focus offset. Not a full conformance claim — open items below.
+  Report: [WCAG-2.2-Landing-Page-Accessibility-Report.md](WCAG-2.2-Landing-Page-Accessibility-Report.md).
+
 ## Current work
 
 *(nothing in progress as of this update — the mobile-responsiveness sweep above is the most recent
@@ -320,6 +335,19 @@ completed work)*
   picked up).
 
 ## Known issues
+
+- **Landing page — open WCAG items (2026-11-17):** hero flow lines / pulsing "live" dots / header
+  sparkle animate forever with no pause control (2.2.2 — they only stop under OS "reduce motion";
+  kept by decision). The search placeholder was fixed (`#66768F`, 4.61:1). Footer
+  Privacy/Terms/Accessibility look like links but aren't; footer "Register as an innovator" points to
+  `?role=mentor`. Real screen-reader and real-device passes still pending.
+
+- **`ink-500` / `ink-300` / `ink-200` are not defined in `tailwind.config.ts`** (found 2026-11-17),
+  yet `text-ink-500` etc. are used across the site — they generate no CSS, so that text inherits
+  its parent's colour. Fixed on the auth pages only. Define the steps (checking contrast) or replace
+  the classes. Also pending from the WCAG work: manual screen-reader passes (NVDA/JAWS/TalkBack/
+  VoiceOver) and an audit of the shared header/footer — see
+  [WCAG-2.2-Accessibility-Report.md §7](WCAG-2.2-Accessibility-Report.md#7-remaining-issues-and-recommendations).
 
 - **Any Expert Evaluator can evaluate any SHORTLISTED innovation (found 2026-11-16).**
   `POST /evaluations` checks the stage, but not whether the evaluator is assigned to the
@@ -360,7 +388,9 @@ completed work)*
   1,048,300-byte file is stored, 1,048,400 → 413), logged in or not. The open challenge `uich`
   tells applicants "Max 5 MB" / "Max 50 MB" and both fields show only "Upload failed" for a 2 MB
   file; the admin banner upload shows "Upload failed — try a smaller image…". "Upload failed" is
-  English on the Bangla site too (thrown in `lib/upload.ts`).
+  English on the Bangla site too (thrown in `lib/upload.ts`). (Since 2026-11-17 the challenge form
+  no longer prints "Max N MB" under file fields — the size message appears only when a picked file
+  is over the field's limit — but the 1 MiB proxy cutoff still applies until nginx is fixed.)
 - **The challenge popup opens on the challenge's own submit page (seen 2026-11-16)** —
   `challenge-popup.tsx` only hides on `/dashboard`, `/sign-in`, `/register`, so it covers
   `/challenges/<slug>/submit` (and the details page) until dismissed. Hide it under `/challenges/`.

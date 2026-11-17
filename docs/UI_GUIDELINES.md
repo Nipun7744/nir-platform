@@ -237,6 +237,31 @@ active), written twice.
   `submitButtonLabelEn/Bn` via `tx.submitLabel(challenge, fallback)` (`lib/challenge-i18n.ts`),
   falling back to the page's default string. Use it for any new CTA of this kind. Edited in the
   admin challenge form (English under "Apply URL", Bangla under বাংলা translations).
+- **Accessible auth forms (2026-11-17, WCAG 2.2 AA):** sign-in and registration use
+  `components/auth/auth-form.tsx` — `FormField` (label for + hint + inline error, wired with
+  aria-describedby/aria-invalid), `FormAlert` (role="alert"), `StatusMessage` (role="status"),
+  `authInputCls` (ink-400 border, 44px min height, `scroll-mt-36` so the 118px sticky header never
+  hides a focused field) and `useAuthErrorText()` (API error → en/bn text + field). Forms are
+  `noValidate` and explain problems on submit; submit buttons are never `disabled` (aria-disabled
+  while a request runs). `AuthCard focusHeading` moves focus to the new h1 when content swaps.
+  A site-wide "Skip to main content" link targets `<main id="main-content">`. Full details, criteria
+  and test results: [WCAG-2.2-Accessibility-Report.md](WCAG-2.2-Accessibility-Report.md).
+- **Landing-page accessibility (2026-11-17, no visual change):** see
+  [WCAG-2.2-Landing-Page-Accessibility-Report.md](WCAG-2.2-Landing-Page-Accessibility-Report.md).
+  Patterns to keep: `focus-ring` on every control (navy backgrounds: `focus-visible:ring-white
+  focus-visible:ring-offset-navy`); database text on `/bn` gets `lang={textLang(text, locale)}`
+  (`lib/text-lang.ts`); card grids are `ul/li` with `li.flex` + card `min-w-0 flex-1` so sizing is
+  unchanged; modals follow `challenge-popup.tsx` (focus the panel, trap Tab, Escape, restore focus);
+  `AnimatedCounter` exposes the final value to screen readers; `MotionConfig reducedMotion="user"`
+  is set globally in `providers.tsx`.
+- **Conditional form fields (2026-11-17):** each field in the form builder has a "Conditional
+  display" box — "Show this field only for certain answers to an earlier question", a "Depends on"
+  select (only dropdown/radio/checkbox fields with options *above* this one) and a tick list of that
+  field's options. Field rows show "Shown when "X" is "A" or "B"", or an amber warning when the
+  condition broke (controller moved below, retyped, option renamed). Deleting a controller makes its
+  dependents unconditional (the confirm dialog says so). `DynamicForm` simply doesn't render hidden
+  fields (`visibleFieldKeys()` in `challenge-form/types.ts`, mirroring the API); typed values are
+  kept in state so switching back restores them, but `visibleValues()` strips them on submit.
 - **Form builder options (2026-11-16):** up to 200 options per choice field (`MAX_OPTIONS`, same
   value as the API); the options box shows "N / 200 options" (red when over) and grows to 14 rows,
   then scrolls.
