@@ -383,7 +383,8 @@ since each was an explicit scope call:
     with no fields. Empty fields are hidden publicly; a challenge can't be saved
     while a field breaks its rules (checked in the form and again by the API). Placeholder / help
     text guide the admin only — they are never shown publicly. Timeline, attachments, FAQ and
-    contact stay structured lists. See
+    contact stay structured lists. The Contact box is likewise made only of admin-defined **contact
+    fields** (same builder, no sections; no fixed name / email / phone). See
     [DATABASE.md](DATABASE.md#component-4--communication--cms) and
     [UI_GUIDELINES.md](UI_GUIDELINES.md#reusable-patterns).
   - **Who sees the answers:** `challengeResponses` is returned only to the submitter and to

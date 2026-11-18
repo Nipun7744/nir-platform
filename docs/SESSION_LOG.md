@@ -95,6 +95,34 @@ default fields.
   doing.
 - Optional ideas: duplicate a field; copy fields from another challenge.
 
+**Follow-up (shipped in 920e59d):** dates now use full month names everywhere: `month: 'short'` →
+`'long'` in 13 web files (challenge pages, banner, popup, news, admin lists, outreach). The month
+names come from the browser's locale data, not the message files. Banner and popup were checked in
+en and bn.
+
+**Follow-up: dynamic contact fields (shipped in 920e59d).** "Contact for questions" in
+the admin challenge form is now fully dynamic. Admins create every contact field (e.g. Name,
+Email, Phone, WhatsApp, office hours) with the same editor and rules as the details fields, but
+with no Section setting. It starts empty.
+- **Decision (user):** first built as extra fields under the fixed Name / Email / Phone inputs; the
+  user asked to drop the three fixed inputs ("make this clean").
+- **DB:** migration `20261118120000_challenge_contact_fields` adds `Challenge.contactFields`, turns
+  each filled `contactName`/`contactEmail`/`contactPhone` into a field (EMAIL/PHONE type only when
+  the value passes that rule, else SHORT_TEXT), then drops the three columns.
+  - It was rewritten after a first, additive-only local run. Locally it was dry-run on a temp copy
+    (all migrated values pass the field rules) and the same result was applied (3 challenges had
+    contact data). The checksum was updated, and the old values were backed up to the session
+    scratchpad.
+- **API:** DTO and `toContactFields` (validate, then drop sections; 400 "Contact fields: …");
+  public reads strip the set-up, as for details fields.
+- **Editor:** gained `showSection` / `addLabel` props. Create/Save count issues from both lists.
+- **Public page:** the Contact card shows only contact fields, and only when one is filled.
+- **Demo:** the demo script and local demo challenge have Name, Email, Phone, WhatsApp and office
+  hours as contact fields.
+- **Tests:** one new e2e test case (`challenge-detail-fields.e2e.test.js`, now 7).
+- **Browser:** public Contact card checked in en and bn; admin Create shows an empty "Contact for
+  questions" with "Add contact field"; set-up has no Section setting.
+
 **Shipped:** code commit b3e553a plus this docs commit, pushed to GitHub `master` and GitLab `development` (cherry-picked onto the team's branch). Servers still need a DB backup, then `prisma migrate deploy`.
 
 **Files:**

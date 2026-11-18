@@ -5,6 +5,10 @@
 
 ## Completed
 
+- **Dynamic contact fields (2026-11-18, session 53)** — "Contact for questions" is fully admin-defined
+  (label, type, placeholder, help text, options, validation; en + bn; starts empty), shown in the
+  public Contact card. The fixed name/email/phone columns were migrated into it and dropped
+  (migration 30, `contactFields`). e2e test added.
 - **Configurable challenge details fields (2026-11-18, session 53)** — Platform admin → Challenges →
   Create / Edit: each challenge has its own list of details-page fields with section, label, input
   type (11 types), placeholder, help text, options and validation rules in English + Bangla;

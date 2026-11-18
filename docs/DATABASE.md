@@ -237,9 +237,14 @@ saving and by the admin form), not in the schema. Replaced the five fixed text p
 are **no default fields**: a new challenge starts with an empty list and the admin creates every
 field.
 
+**Contact fields (migration 30, 2026-11-18)** — `Challenge.contactFields` (JSONB, nullable): the
+details page's whole Contact box, every field admin-defined. Same item shape and rules as
+`detailFields`; the API drops `sectionEn/Bn` (flat list). Replaced `contactName`/`contactEmail`/
+`contactPhone`.
+
 **Challenge details-page content (migration 22, 2026-11-11)** — all nullable, each one shown as a
 section on `/challenges/[slug]` only when set: `contactName`/`contactEmail`/
-`contactPhone`, and three `Json` lists — `timelinePhases` `[{label, date?: 'YYYY-MM-DD',
+`contactPhone` (moved into `contactFields` and dropped by migration 30), and three `Json` lists — `timelinePhases` `[{label, date?: 'YYYY-MM-DD',
 description?}]`, `faqs` `[{question, answer}]`, `resources` `[{label, url}]`. The lists are
 JSON rather than child tables because they are small, ordered, edited as a whole from one admin
 form and never queried individually; their shape is enforced by the DTOs, not the schema. The
@@ -341,6 +346,11 @@ Applied so far (`apps/api/prisma/migrations/`, oldest first):
     `prizeDetailsEn/Bn`, `additionalInfoEn/Bn`. **Not purely additive** — data moves, then columns
     go; take a DB backup before `prisma migrate deploy` on a server. Hand-written SQL (Prisma can't
     express the data copy).
+30. `20261118120000_challenge_contact_fields` — adds `Challenge.contactFields JSONB`; for each
+    challenge, every filled old contact column becomes a field — `name` ("Name"/"নাম", SHORT_TEXT),
+    `email` ("Email"/"ইমেইল", EMAIL if it looks like one, else SHORT_TEXT), `phone` ("Phone"/"ফোন",
+    PHONE if it matches the phone rule, else SHORT_TEXT) — then **drops** `contactName`,
+    `contactEmail`, `contactPhone`. Not purely additive: back up first. Hand-written SQL.
 
 Note migrations 9 and 11 (`add_due_diligence_reviewer`, `rename_due_diligence_to_authenticity_reviewer`):
 a "Due Diligence Reviewer" role was added then renamed to "Authenticity Reviewer" within the same

@@ -393,12 +393,18 @@ list; omitting it leaves it unchanged. `GET /challenges/admin` returns the full 
 (`GET /challenges`, `GET /challenges/:slug`, `GET /challenges/:slug/form`) return only fields that
 have a value, without `placeholder*`, `helpText*` and `validation`.
 
+**Contact fields — `contactFields` (2026-11-18)** — the whole Contact box: same item shape, types,
+limits and rules as `detailFields` (e.g. Name, Email, Phone, WhatsApp, office hours, address — all
+admin-defined; the fixed `contactName`/`contactEmail`/`contactPhone` were removed). Any `sectionEn`/`sectionBn` sent is dropped (one flat list). 400 messages
+start with `"Contact fields: "`. Same replace/omit semantics, and public reads return only filled
+fields without placeholder / help / validation.
+
 **Other details-page fields (2026-11-11)** — accepted by both `POST /challenges` and
 `PATCH /challenges/:id` (shared `ChallengeDetailsDto` base class), all optional, returned as-is on
 every challenge read (the five fixed text pairs `problemStatementEn/Bn`, `eligibilityEn/Bn`,
 `evaluationCriteriaEn/Bn`, `prizeDetailsEn/Bn`, `additionalInfoEn/Bn` were **removed 2026-11-18** —
-their content now lives in `detailFields`): `contactName` (≤ 120),
-`contactEmail` (must be an email, `''` clears), `contactPhone` (≤ 40), `timelinePhases` (≤ 20 ×
+their content now lives in `detailFields`; `contactName`, `contactEmail`, `contactPhone` were removed
+the same day — now `contactFields`): `timelinePhases` (≤ 20 ×
 `{label ≤ 120, date?: ISO date or '', description? ≤ 500}`), `faqs` (≤ 30 × `{question ≤ 300,
 answer ≤ 3000}`), `resources` (≤ 20 × `{label ≤ 200, url}` — **`url` must start with `http://`,
 `https://` or `/uploads/`**, 400 otherwise, because it is rendered as a link). Blank text is stored
@@ -526,6 +532,10 @@ email/SMS (currently mocked — see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#impo
 
 Track breaking or notable API changes here as they land (newest first):
 
+- **2026-11-18** — Challenge `contactFields` (the Contact box, all admin-defined, same shape as
+  `detailFields`). **Breaking:** `contactName`, `contactEmail`, `contactPhone` are no longer accepted
+  or returned. Migration `20261118120000_challenge_contact_fields` moves their values into
+  `contactFields`.
 - **2026-11-18** — Configurable challenge details fields: `POST /challenges` / `PATCH /challenges/:id`
   accept `detailFields` and every challenge read returns it (public reads: filled fields only, no
   admin set-up keys). **Breaking:** `problemStatementEn/Bn`, `eligibilityEn/Bn`,

@@ -322,6 +322,12 @@ active), written twice.
   problems…" note while any field has an issue — issues come from `validateDetailFields` in
   `@nir/shared`, the same function the API runs. Reuse this pattern (shared validator + inline
   issues per item + disabled submit) for other admin list editors.
+- **Admin challenge form — contact fields (2026-11-18).** "Contact for questions" is only the
+  `ChallengeDetailFieldsEditor` with `showSection={false}` and `addLabel="Add contact field"` (every
+  set-up option except Section); no fixed Name / Email / Phone inputs — it starts empty. Its
+  issues also disable Create / Save. Public page: the sidebar Contact card appears only when a
+  contact field is filled, listing each as small uppercase label + value rendered by type (same
+  renderer as the details fields; phone/email/URL are links).
 - **Admin challenge form — "Details page content" (2026-11-11).** `ChallengeFormFields` in
   `dashboard/admin/page.tsx` now ends with a collapsible `ChallengeDetailsFields` block (open by
   default once anything is filled; titled "Timeline, attachments, FAQ, contact & Bangla basics"
@@ -330,6 +336,10 @@ active), written twice.
   fields, and a nested "বাংলা translations" block (`titleBn`, `descriptionBn`, Bn sections).
   `challengeToForm()` / `challengeFormToPayload()` map API ⇄ form; half-filled list rows are
   dropped on save rather than failing validation.
+- **Dates always use full month names (2026-11-18).** Every `toLocaleDateString` call on the site
+  uses `month: 'long'` ("10 November 2026", "১০ নভেম্বর, ২০২৬"), never `'short'`. The month names
+  come from the browser's built-in locale data (not from en.json/bn.json); use `month: 'long'` in
+  any new date display.
 - **Challenge timeline display** — `Challenge.startDate` is optional; every public display
   (banner, popup, `/challenges` list, `/challenges/[slug]` detail) shows `startDate – deadline` as
   a range when `startDate` is set, and falls back to the pre-existing single-`deadline` display
