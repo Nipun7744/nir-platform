@@ -5,6 +5,13 @@
 
 ## Completed
 
+- **Configurable challenge details fields (2026-11-18, session 53)** — Platform admin → Challenges →
+  Create / Edit: each challenge has its own list of details-page fields with section, label, input
+  type (11 types), placeholder, help text, options and validation rules in English + Bangla;
+  add / reorder / retype / remove; new challenges start with **no fields** (created dynamically);
+  inline validation shared with the API. The five fixed sections
+  became fields (content migrated). Public page groups fields by section. Tests:
+  `challenge-detail-fields.test.js` (8 unit), `challenge-detail-fields.e2e.test.js` (6).
 - **Admin participant export + bulk email/SMS (2026-11-18, session 52)** — `/dashboard/admin/outreach`:
   per-challenge participant list (de-duplicated), .xlsx export (en/bn headings, Bangla data,
   Bangladesh-time dates), bulk email/SMS with placeholders, recipient review, admin OTP
@@ -357,6 +364,10 @@ completed work)*
 
 ## Known issues
 
+- **Migration 29 drops the old challenge section columns (2026-11-18)** — run it on a server only
+  after a DB backup; any external client still sending `problemStatementEn` etc. has those values
+  silently ignored. Only old sections that had text were
+  carried over as fields.
 - **Bulk SMS is unavailable on the live Teletalk config (2026-11-18)** until
   `SMS_TELETALK_BULK_SMS_CLASS` (and maybe `_BULK_SMS_ID`) are obtained from Teletalk/a2i — the
   OTP class rejects >70 bytes. Bulk SMS was tested only with `SMS_PROVIDER=console`; check the
@@ -561,6 +572,12 @@ completed work)*
 
 ## Technical debt
 
+- **Admin-entered regex in details-field validation (2026-11-18)** — the pattern rule runs an
+  admin-written regular expression on the server (whole-value match, ≤ 200 chars, values ≤ 10 000
+  chars). Admins are trusted, but a catastrophic pattern could stall a request; if non-admin roles
+  ever edit challenges, add a safe-regex check or a time budget.
+- **The details-field editor's admin UI is English-only (2026-11-18)** like the rest of Platform
+  admin; field content and set-up are bilingual.
 - **Registration OTP / CAPTCHA follow-ups (2026-11-12):** (a) procure real CAPTCHA keys (SMTP and SMS are done:
   a2i Google Workspace and Teletalk Bulk SMS, see SETUP.md) and set all of them on every deployed
   environment. Confirm the server can reach `bulksms1.teletalk.com.bd:8091` (outbound HTTP; the

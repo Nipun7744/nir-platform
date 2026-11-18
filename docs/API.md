@@ -373,10 +373,31 @@ and optional `labelBn`/`descriptionBn` (timeline), `questionBn`/`answerBn` (FAQ)
 | DELETE | `/challenges/:id` | 204. **409 if the challenge has any submissions** (unpublish/deactivate instead). Writes `CHALLENGE_DELETED` | `PLATFORM_ADMIN` |
 | PUT | `/challenges/:id/form` | Form builder save — replaces the whole form. Body `{ fields: FormFieldDto[] }` in display order (`id?`, `key?`, `label`, `labelBn?`, `description?`, `descriptionBn?`, `type`, `required?`, `placeholder?`, `placeholderBn?`, `helpText?`, `helpTextBn?`, `options?`, `optionsBn?` (index-aligned; kept paired when blank options are dropped), `acceptedFileTypes?`, `maxFileSizeMb?`, `maxFiles?`, `mapsTo?`, and since 2026-11-17 the conditional-display trio `showIfFieldIndex?` (0-based position in this payload — lets a condition point at a field that has no key yet) **or** `showIfFieldKey?`, plus `showIfValues?`; stored as `showIfFieldKey` + `showIfValues`, returned on every form read). A consent checkbox (CHECKBOX, no options) keeps its `placeholder`/`placeholderBn` as the box text (it was discarded before 2026-11-15). Keys are kept when sent, generated from the label otherwise. 400 with `message: string[]` of human-readable problems (missing label/options, bad key, duplicate key/mapping, unsupported file type, size > 50 MB, mapping on a non-text field, > 60 fields; a condition that points at a field not above it, at a field that is not a dropdown/radio/checkbox with options, with no `showIfValues`, or with a value that is not one of that field's options; more than 200 `options`/`optionsBn` per field (`MAX_OPTIONS`, was 100 before 2026-11-16)). Ids are kept only if they already belonged to this challenge. Returns the same shape as `GET /challenges/admin/:id`. Writes `CHALLENGE_FORM_UPDATED` | `PLATFORM_ADMIN` |
 
-**Details-page fields (2026-11-11)** — accepted by both `POST /challenges` and
+**Configurable details fields — `detailFields` (2026-11-18)** — accepted by `POST /challenges` and
+`PATCH /challenges/:id`: an ordered array (≤ 50) of the challenge's own details-page fields, each
+`{ key?, sectionEn?, sectionBn?, labelEn, labelBn?, type, placeholderEn?, placeholderBn?, helpTextEn?,
+helpTextBn?, options?: [{en, bn?}], validation?: {required?, minLength?, maxLength?, min?, max?,
+pattern?, patternMessageEn?, patternMessageBn?}, value?, valueBn? }`. `type` ∈ `SHORT_TEXT`,
+`LONG_TEXT`, `NUMBER`, `EMAIL`, `PHONE`, `URL`, `DATE` (`YYYY-MM-DD`), `SELECT`, `RADIO`,
+`CHECKBOX` (value = string[] of English options), `FILE` (value = `http(s)://…` or `/uploads/…`).
+`valueBn` only for the two text types; `min`/`max` = number range (NUMBER) or how many boxes may be
+ticked (CHECKBOX); `pattern` (≤ 200 chars, whole-value match on the English value) only for
+SHORT_TEXT/LONG_TEXT/PHONE. The service runs `normalizeDetailFields` (trims, rebuilds each object key
+by key, drops settings that don't fit the type, generates missing/duplicate `key`s from `labelEn`
+— existing keys are kept) then `validateDetailFields` from `@nir/shared` — the same rules the admin
+form shows inline — and answers **400** `"Challenge details fields: <up to 5 problems>"` on any
+set-up or value problem (missing English label, choice field without options, duplicate option or
+label within a section, min > max, invalid regex, required value empty, value not an option, bad
+number/email/phone/URL/date/file link, length/range/pattern broken). Sending the array replaces the
+list; omitting it leaves it unchanged. `GET /challenges/admin` returns the full list; **public reads**
+(`GET /challenges`, `GET /challenges/:slug`, `GET /challenges/:slug/form`) return only fields that
+have a value, without `placeholder*`, `helpText*` and `validation`.
+
+**Other details-page fields (2026-11-11)** — accepted by both `POST /challenges` and
 `PATCH /challenges/:id` (shared `ChallengeDetailsDto` base class), all optional, returned as-is on
-every challenge read: `problemStatementEn/Bn`, `eligibilityEn/Bn`, `evaluationCriteriaEn/Bn`,
-`prizeDetailsEn/Bn`, `additionalInfoEn/Bn` (≤ 10 000 chars each), `contactName` (≤ 120),
+every challenge read (the five fixed text pairs `problemStatementEn/Bn`, `eligibilityEn/Bn`,
+`evaluationCriteriaEn/Bn`, `prizeDetailsEn/Bn`, `additionalInfoEn/Bn` were **removed 2026-11-18** —
+their content now lives in `detailFields`): `contactName` (≤ 120),
 `contactEmail` (must be an email, `''` clears), `contactPhone` (≤ 40), `timelinePhases` (≤ 20 ×
 `{label ≤ 120, date?: ISO date or '', description? ≤ 500}`), `faqs` (≤ 30 × `{question ≤ 300,
 answer ≤ 3000}`), `resources` (≤ 20 × `{label ≤ 200, url}` — **`url` must start with `http://`,
@@ -505,6 +526,13 @@ email/SMS (currently mocked — see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#impo
 
 Track breaking or notable API changes here as they land (newest first):
 
+- **2026-11-18** — Configurable challenge details fields: `POST /challenges` / `PATCH /challenges/:id`
+  accept `detailFields` and every challenge read returns it (public reads: filled fields only, no
+  admin set-up keys). **Breaking:** `problemStatementEn/Bn`, `eligibilityEn/Bn`,
+  `evaluationCriteriaEn/Bn`, `prizeDetailsEn/Bn`, `additionalInfoEn/Bn` are no longer accepted or
+  returned (unknown keys are stripped by the ValidationPipe, so old clients' values are silently
+  ignored). Migration `20261118100000_challenge_detail_fields` moves their content into
+  `detailFields`.
 - **2026-11-18** — Admin participant export + bulk email/SMS: new `/admin/outreach/*` routes
   (admin-only, additive). Migration `20261118042607_bulk_messaging` (enums `MessageChannel`,
   `BulkMessageStatus`, `BulkRecipientStatus`, `OtpPurpose.BULK_MESSAGE_CONFIRM`; tables

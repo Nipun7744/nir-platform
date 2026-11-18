@@ -287,9 +287,16 @@ active), written twice.
 - **Challenge details page (`app/[locale]/challenges/[slug]/page.tsx`, redesigned 2026-11-11)** —
   NIR flat palette; header (status/featured/days-left pills, title, organizer) → banner (16:9 on
   mobile, 21:9 from `lg`) → `lg:grid-cols-[minmax(0,1fr)_320px]` two-column body (both children
-  `min-w-0`). Main column: an "On this page" chip nav (only when > 2 sections) and sections in a
-  fixed order — Overview, The problem, Who can apply, Timeline (vertical list; past phases greyed),
-  Evaluation, Prizes (`prizeInfoEn` headline + `prizeDetails*`), Attachments (labelled "Resources"
+  `min-w-0`). Main column: an "On this page" chip nav (only when > 2 sections) and sections in
+  this order (since 2026-11-18) — Overview, then the challenge's **configurable details fields** in
+  the admin's order, then Timeline (vertical list; past phases greyed), Attachments, FAQ. Details
+  fields: fields sharing a section name form one section (h2 = section, each field's label as h3);
+  a field without a section is its own section headed by its label; ids `d-<key>`; values render by
+  type (text → pre-line prose; number → locale digits; date → locale date; email/phone → mailto/tel;
+  URL → external link; file → document card; dropdown/radio → option text; checkboxes → ticked
+  list), with Bangla option/label/text when given. The old in-body prize headline chip is gone (the
+  sidebar still shows `prizeInfo`). Before 2026-11-18 the order was fixed — Overview, The problem,
+  Who can apply, Timeline, Evaluation, Prizes (`prizeInfoEn` headline + `prizeDetails*`), Attachments (labelled "Resources"
   until 2026-11-17; key `challengeDetail.resources` = "Attachments" / "সংযুক্তি"; icon + truncated
   label links, new tab), FAQ (native `<details>` accordion), Additional information. **A section
   renders only when its data exists**, so old challenges just show Overview. Admin text is shown
@@ -302,9 +309,23 @@ active), written twice.
   the green box under "Back to challenge" is the page's `<h1>` and reads "Submission Form – {challenge
   name}" / "জমাদান ফর্ম – {name}" (`challengeSubmit.formTitle`, trophy icon decorative). No organiser
   line. On the success view the same box is a `<p>` because the success message is the `<h1>`.
+- **Admin challenge form — "Challenge details fields" (2026-11-18).**
+  `components/admin/challenge-detail-fields-editor.tsx`, shown in Create and Edit challenge. One
+  card per field: header (number, label, type chip, section chip, Bangla label chip; ↑/↓, **Set up**,
+  delete), the value input(s) for its type (text types: English + বাংলা side by side from `lg`;
+  admin placeholder/help text applied), and red inline issues. **Set up** opens the field's
+  settings: Section / level (en, bn), Field label (en *, bn), Input type, Required, Placeholder,
+  Help text, Options (rows of en + bn, add/remove), Validation rules for the type (length, value
+  range, number of choices, regex + message en/bn). Changing type keeps the value only between text
+  types or dropdown ↔ radio. "Add field" opens a new field's set-up. A new challenge starts with
+  an empty list ("No fields yet — use “Add field” to create the first one."). Create/Save are disabled with a "Fix N
+  problems…" note while any field has an issue — issues come from `validateDetailFields` in
+  `@nir/shared`, the same function the API runs. Reuse this pattern (shared validator + inline
+  issues per item + disabled submit) for other admin list editors.
 - **Admin challenge form — "Details page content" (2026-11-11).** `ChallengeFormFields` in
   `dashboard/admin/page.tsx` now ends with a collapsible `ChallengeDetailsFields` block (open by
-  default once anything is filled): the five text sections, repeatable rows with Add/Remove for
+  default once anything is filled; titled "Timeline, attachments, FAQ, contact & Bangla basics"
+  since its five text sections moved to the details fields editor on 2026-11-18): repeatable rows with Add/Remove for
   timeline phases, resources (each with its own Upload button → `/uploads/...`) and FAQ, contact
   fields, and a nested "বাংলা translations" block (`titleBn`, `descriptionBn`, Bn sections).
   `challengeToForm()` / `challengeFormToPayload()` map API ⇄ form; half-filled list rows are

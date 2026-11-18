@@ -166,6 +166,12 @@ since each was an explicit scope call:
   approvals, audit log) works on challenge submissions with zero changes. The dynamic form's
   answers are snapshotted (label/type copied per answer) rather than referencing
   `ChallengeFormField` rows, so editing or deleting form fields can never alter past submissions.
+- **Challenge details fields are a per-challenge JSON list, not a shared template** (2026-11-18,
+  user's choice). Each challenge defines its own fields (no global catalogue and no default
+  fields — a new challenge starts empty and the admin creates every field, also the user's choice). Stored as JSON on
+  `Challenge` (not a table like `ChallengeFormField`) because the set-up and the content are saved
+  together from one form and never queried per field. One rule module in `@nir/shared` is used by
+  both the API and the admin form, so inline errors and server 400s always agree.
 - **Dynamic form definitions live in a relational table (`ChallengeFormField`), answers in JSON**
   — the definition benefits from per-field rows (ordering, unique keys per challenge, FK cascade),
   while answers are read-mostly, per-submission, and must be immutable snapshots.
@@ -367,7 +373,17 @@ since each was an explicit scope call:
     `innovationType` is always `PRODUCT` (required column, not collected by challenge forms).
   - **Challenge details page (2026-11-11):** the popup is a short teaser; the full challenge
     information (problem, eligibility, timeline, criteria, prizes, resources, FAQ, contact) lives
-    on `/challenges/:slug`, every section optional and hidden when empty. See
+    on `/challenges/:slug`, every section optional and hidden when empty.
+  - **Configurable details fields (2026-11-18):** the text sections of the details page are no
+    longer fixed — each challenge has its own field list that Platform admins build in the
+    Create/Edit challenge form: section (groups fields under one heading), label, input type (short
+    / long text, number, email, phone, URL, date, dropdown, radio, checkboxes, file), placeholder,
+    help text, options and validation rules (required, length, range, number of choices, regex), all
+    in English and Bangla, plus the value itself (English + Bangla for text). New challenges start
+    with no fields. Empty fields are hidden publicly; a challenge can't be saved
+    while a field breaks its rules (checked in the form and again by the API). Placeholder / help
+    text guide the admin only — they are never shown publicly. Timeline, attachments, FAQ and
+    contact stay structured lists. See
     [DATABASE.md](DATABASE.md#component-4--communication--cms) and
     [UI_GUIDELINES.md](UI_GUIDELINES.md#reusable-patterns).
   - **Who sees the answers:** `challengeResponses` is returned only to the submitter and to

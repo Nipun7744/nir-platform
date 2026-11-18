@@ -332,6 +332,10 @@ token has been accepted, the login is saved.
 
 **Deploying from GitLab:** a server running GitLab code must run `prisma migrate deploy` whenever a
 merge adds migrations — e.g. `20261104084951_add_created_by_admin_flag` (session 40).
+**Back up the database first for `20261118100000_challenge_detail_fields` (session 53):** it copies
+the old challenge section columns into `Challenge.detailFields` and then drops them. Also rebuild
+`@nir/shared` (`npm run build:shared`, part of `npm run build`) — the API and web now import the
+details-field rules from it at runtime.
 
 ## Production Deployment
 

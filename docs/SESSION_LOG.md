@@ -6,6 +6,112 @@
 
 ---
 
+## 2026-11-18 (session 53) — Configurable challenge details fields
+
+**What:** Platform admin → Challenges → Create / Edit challenge: the challenge details fields are
+now fully configurable per challenge. Admins add, reorder, retype and remove fields and set each
+one's **section / level**, **label**, **input type**, **placeholder**, **help text**, **options** and
+**validation rules** in English and Bangla, then fill in its value on the same card.
+
+Earlier in the session: on the Bangla challenge details page the timeline heading
+`challengeDetail.timeline` changed from সময়রেখা to সময়সীমা (`apps/web/messages/bn.json`). The
+user also edited some message strings by hand: topbar org name, and "Objective"/উদ্দেশ্য and
+মূল্যায়ন পদ্ধতি for two section titles. Their section-title wording was carried into the new
+default fields.
+
+**Decisions (asked the user):**
+- **Per-challenge fields**, not a shared template. Each challenge owns its list.
+- **No default fields** (user follow-up: "no need of top 5, make it clean"). A new challenge
+  starts with an empty list and every field is created by the admin. The first version prefilled
+  the five old sections and had a "Restore standard sections" button; both were removed.
+- **Convert the five fixed sections into fields and migrate their content.** Objective, Who can
+  apply, How submissions are evaluated, Prizes & support and Additional information become
+  ordinary editable fields. Timeline, attachments, FAQ and contact stay structured lists.
+
+**Changes:**
+
+1. **Shared rules** — `packages/shared/src/challenge-detail-fields.ts` (exported from `@nir/shared`):
+   - Types and constants: 11 input types and limits (no default field list).
+   - `normalizeDetailFields` (trim, rebuild key by key, drop settings that don't fit the type,
+     generate unique keys), `validateDetailFields` (set-up and value checks) and
+     `publicDetailFields`.
+   - Both the API and the admin form use this module, so their errors always match.
+2. **DB** — migration `20261118100000_challenge_detail_fields` (hand-written):
+   - Adds `Challenge.detailFields JSONB`.
+   - For each challenge, turns every old section **that has text** into a field. Empty sections
+     are not carried over; a challenge with none gets `NULL`.
+   - The migration was rewritten after the first local run (it no longer adds empty sections or
+     placeholders). It was dry-run on a temporary copy of the backed-up columns, the local DB was
+     cleaned to match, and the stored checksum was updated.
+   - Drops the 10 old columns.
+   - Applied locally to 10 challenges. Content checked after migrating, and a pre-migration
+     backup of the old columns was saved to the session scratchpad.
+3. **API** — `challenge.dto.ts`: `detailFields?: unknown[]` (≤ 50) replaces the 10 text fields.
+   `challenges.service.ts`:
+   - Saving runs `toDetailFields` (normalize, then validate, then a 400 listing up to 5 problems).
+   - Public reads go through `withPublicDetails`: filled fields only, without placeholder, help
+     text or validation.
+4. **Web, admin side:**
+   - New `components/admin/challenge-detail-fields-editor.tsx`.
+   - `dashboard/admin/page.tsx`: "Challenge details fields" panel in Create and Edit.
+     `emptyChallengeForm()` starts with the defaults, and Create/Save are disabled while there are
+     issues (`IssueNote`).
+   - The old fixed textareas and their Bangla copies are removed.
+   - The remaining collapsible is renamed "Timeline, attachments, FAQ, contact & Bangla basics".
+5. **Web, public side:**
+   - `challenges/[slug]/page.tsx` renders the fields after Overview, grouped by section, each
+     rendered by its type and in the visitor's language.
+   - Timeline, Attachments and FAQ follow the fields.
+   - The prize headline chip was removed from the body; the sidebar still shows it.
+   - Removed the now-unused `challengeDetail.problemStatement/eligibility/evaluationCriteria/prizes/
+     additionalInfo` keys (en + bn). `ChallengeDto.detailFields` added in `use-content.ts`.
+6. **Demo** — `scripts/demo-full-challenge.js` now sends `detailFields`: the five sections plus an
+   "At a glance / এক নজরে" group (checkboxes, number, dropdown). The local demo challenge was
+   patched to match.
+
+**Tests:**
+- New `test/challenge-detail-fields.test.js` (8 unit tests) and
+  `test/challenge-detail-fields.e2e.test.js` (6), both added to the npm scripts.
+- Full suites pass: `npm test` 64/64 and `npm run test:e2e` 62/62 (API in console mail/SMS mode).
+- Web `tsc --noEmit` is clean.
+- Browser checks:
+  - The Create form starts empty ("No fields yet…"), at desktop and ~500 px wide; no horizontal
+    scroll.
+  - Add field, set-up, dropdown options in en/bn, required: inline errors appear and clear, and
+    Create stays disabled until they're fixed.
+  - Edit loads the demo's 8 fields.
+  - Public demo page in en and bn: grouped "At a glance" section, ticked list, number, option text.
+
+**Bugs found and fixed during the session:**
+- Blank Bangla option text was stored as `bn: undefined`; it is now omitted.
+- The editor's section heading id was duplicated when Create and Edit were both open; it now uses
+  `useId`.
+
+**Next steps:**
+- **Deploying:** back up the server DB before `prisma migrate deploy` (this migration drops
+  columns). Deploy API and web together: an old web build shows no detail sections against the
+  new API, and the new web build shows none against the old API.
+- Checked the editor at about 500 px wide; a 375 px pass of the public sections is still worth
+  doing.
+- Optional ideas: duplicate a field; copy fields from another challenge.
+
+**Shipped:** code commit b3e553a plus this docs commit, pushed to GitHub `master` and GitLab `development` (cherry-picked onto the team's branch). Servers still need a DB backup, then `prisma migrate deploy`.
+
+**Files:**
+- `packages/shared/src/{challenge-detail-fields.ts,index.ts}`
+- `apps/api/prisma/{schema.prisma,migrations/20261118100000_challenge_detail_fields/}`
+- `apps/api/src/challenges/{challenges.service.ts,dto/challenge.dto.ts}`
+- `apps/api/scripts/demo-full-challenge.js`
+- `apps/api/test/challenge-detail-fields{,.e2e}.test.js`
+- `apps/api/package.json`
+- `apps/web/src/components/admin/challenge-detail-fields-editor.tsx`
+- `apps/web/src/app/[locale]/{dashboard/admin/page.tsx,challenges/[slug]/page.tsx}`
+- `apps/web/src/hooks/use-content.ts`
+- `apps/web/messages/{en,bn}.json`
+- `docs/{API,DATABASE,PROJECT_CONTEXT,UI_GUIDELINES,ROADMAP,SETUP,SESSION_LOG}.md`
+
+---
+
 ## 2026-11-18 (session 52) — Admin: challenge participant export (.xlsx) + bulk email/SMS
 
 **What:** new admin page **Participants & messaging** (`/dashboard/admin/outreach`) for Platform +

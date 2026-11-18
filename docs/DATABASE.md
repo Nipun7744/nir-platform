@@ -225,16 +225,28 @@ shown publicly; `deadline` doubles as "end date"; `bannerImageUrl: String?` — 
 `[challengeId, key]`, ordered by `sortOrder`; `options`/`acceptedFileTypes` are `String[]`;
 `maxFileSizeMb`/`maxFiles`/`mapsTo` nullable), `Partner`.
 
+**Configurable details fields (migration 29, 2026-11-18)** — `Challenge.detailFields` (JSONB,
+nullable): the challenge's own ordered list of details-page fields, each carrying its set-up
+(`key`, `sectionEn/Bn`, `labelEn/Bn`, `type`, `placeholderEn/Bn`, `helpTextEn/Bn`, `options
+[{en, bn?}]`, `validation {required, minLength, maxLength, min, max, pattern, patternMessageEn/Bn}`)
+and its content (`value` — string, or string[] for CHECKBOX; `valueBn` for text types). JSON on the
+challenge rather than a child table, like the timeline/FAQ lists: per-challenge, small (≤ 50),
+ordered, always edited and saved as a whole from one admin form, never queried individually.
+Shape and rules live in `packages/shared/src/challenge-detail-fields.ts` (used by the API before
+saving and by the admin form), not in the schema. Replaced the five fixed text pairs below. There
+are **no default fields**: a new challenge starts with an empty list and the admin creates every
+field.
+
 **Challenge details-page content (migration 22, 2026-11-11)** — all nullable, each one shown as a
-section on `/challenges/[slug]` only when set: bilingual text pairs `problemStatementEn/Bn`,
-`eligibilityEn/Bn`, `evaluationCriteriaEn/Bn`, `prizeDetailsEn/Bn`, `additionalInfoEn/Bn` (the
-Bangla site falls back to En when the Bn column is empty), `contactName`/`contactEmail`/
+section on `/challenges/[slug]` only when set: `contactName`/`contactEmail`/
 `contactPhone`, and three `Json` lists — `timelinePhases` `[{label, date?: 'YYYY-MM-DD',
 description?}]`, `faqs` `[{question, answer}]`, `resources` `[{label, url}]`. The lists are
 JSON rather than child tables because they are small, ordered, edited as a whole from one admin
 form and never queried individually; their shape is enforced by the DTOs, not the schema. The
-service stores blank text as `NULL`. `prizeInfoEn` stays the one-line prize headline; `prizeDetails*`
-is the longer breakdown.
+service stores blank text as `NULL`. `prizeInfoEn` stays the one-line prize headline (sidebar).
+Migration 22 also added the bilingual text pairs `problemStatement`, `eligibility`,
+`evaluationCriteria`, `prizeDetails`, `additionalInfo` (`En`/`Bn`); migration 29 moved them into
+`detailFields` and dropped them.
 
 `Challenge.categoryId` is still a plain string (no FK) — validated in `ChallengesService` instead,
 to avoid a migration failing on any legacy row with a stale id. It is required (service-level) for
@@ -320,6 +332,15 @@ Applied so far (`apps/api/prisma/migrations/`, oldest first):
 28. `20261118042607_bulk_messaging` — enums `MessageChannel`, `BulkMessageStatus`,
     `BulkRecipientStatus`; `OtpPurpose` + `BULK_MESSAGE_CONFIRM`; tables `BulkMessage`,
     `BulkMessageRecipient` (admin bulk email/SMS, 2026-11-18). Additive.
+29. `20261118100000_challenge_detail_fields` — configurable challenge details fields: adds
+    `Challenge.detailFields JSONB`; for each existing challenge, every old section **that has
+    text** becomes a LONG_TEXT field (keys `objective`, `eligibility`, `evaluation_criteria`,
+    `prize_details`, `additional_info`; en + bn labels "Objective", "Who can apply", "How
+    submissions are evaluated", "Prizes & support", "Additional information"; trimmed text) — empty
+    sections are not carried over, and a challenge with none gets `NULL`. Then it **drops** `problemStatementEn/Bn`, `eligibilityEn/Bn`, `evaluationCriteriaEn/Bn`,
+    `prizeDetailsEn/Bn`, `additionalInfoEn/Bn`. **Not purely additive** — data moves, then columns
+    go; take a DB backup before `prisma migrate deploy` on a server. Hand-written SQL (Prisma can't
+    express the data copy).
 
 Note migrations 9 and 11 (`add_due_diligence_reviewer`, `rename_due_diligence_to_authenticity_reviewer`):
 a "Due Diligence Reviewer" role was added then renamed to "Authenticity Reviewer" within the same
