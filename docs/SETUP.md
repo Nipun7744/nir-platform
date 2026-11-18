@@ -122,7 +122,19 @@ general submission switch, and **cleans all of it up afterwards** (DB rows via P
 is restored to its original value). The review e2e suite (`review-workflow.e2e.test.js`) checks that a Preliminary
 Reviewer can longlist and reject, the stage and category guards, and a user holding both reviewer
 roles. It creates throwaway reviewers and innovations directly in the DB and deletes them. The auth e2e suite (`auth-security.e2e.test.js`) covers login
-CAPTCHA and registration OTP; it registers two throwaway users and deletes them afterwards. Both
+CAPTCHA and registration OTP; it registers two throwaway users and deletes them afterwards. The
+password-reset suite (`password-reset.e2e.test.js`, 2026-11-18) creates a throwaway user in the DB
+and runs forgot → wrong/expired/locked code → resend → validation errors → reset → old sessions
+revoked → sign-in, by email and SMS, then deletes it. It needs console mail/SMS like the auth
+suite (it skips the sending cases otherwise) and uses up most of the 10/min `password/forgot`
+throttle, so leave a minute before re-running it. The outreach suite (`outreach.e2e.test.js`,
+2026-11-18) seeds a throwaway challenge with 5 users (duplicate submitter, Bangla user, invalid
+email/phone, inactive account, draft-only) and covers access control, the .xlsx export (parsed
+with exceljs), preview, admin OTP, idempotent send, duplicate guard, SMS, history and audit; it
+waits ~60 s once for the send throttle, so it takes ~75 s. Needs console mail/SMS (skips
+otherwise). To eyeball the OTP emails without sending
+anything: `npm run build && node scripts/preview-otp-emails.js` (from `apps/api`) writes HTML
+previews to `.logs/email-preview/`. Both
 skip themselves if the API isn't reachable. The uploaded test PDF stays in `apps/api/uploads/`
 (git-ignored).
 
@@ -203,6 +215,8 @@ SMS option on the register page; then set `SMS_PROVIDER=console`).
 | `SMS_PROVIDER` | `console` (dev) / **required** (prod) | `teletalk` \| `http` \| `console` |
 | `SMS_TELETALK_USER`, `SMS_TELETALK_USER_ID` (numeric), `SMS_TELETALK_PASSWORD` | — | Required for `teletalk`. The password is only ever sent as its md5, as Teletalk's API expects. |
 | `SMS_TELETALK_URL`, `_SERVERNAME`, `_SMS_CLASS` (`OTP`), `_SMS_ID` (`44`), `_CHARSET` (`ASCII\|ASCII\|UTF-8\|ASCII`), `_VALIDITY` (`1440`) | Teletalk's sample values | Optional overrides. URL default `http://bulksms1.teletalk.com.bd:8091/jlinktbls.php`. |
+| `SMS_TELETALK_BULK_SMS_CLASS`, `SMS_TELETALK_BULK_SMS_ID` | unset / `SMS_TELETALK_SMS_ID` | Teletalk class/id for **admin bulk SMS** (2026-11-18). The `OTP` class rejects messages over 70 bytes, so ask Teletalk/a2i for a general (non-OTP) class; until it is set, bulk SMS is shown as unavailable in the admin panel. |
+| `BULK_EMAIL_PER_MINUTE` / `BULK_SMS_PER_MINUTE` / `BULK_BATCH_SIZE` / `BULK_MAX_RECIPIENTS` | 60 / 120 / 25 / 2000 | Admin bulk messaging pace and caps. Keep email pace and daily volume under the SMTP account's limit (Google Workspace ≈ 2 000/day). |
 | `SMS_HTTP_URL`, `SMS_HTTP_METHOD`, `SMS_HTTP_BODY`, `SMS_HTTP_CONTENT_TYPE`, `SMS_HTTP_HEADERS` (JSON), `SMS_HTTP_SUCCESS_PATTERN` (regex) | — | Generic gateway client (`http`); see below. |
 | `TRUST_PROXY` | unset | See above. |
 

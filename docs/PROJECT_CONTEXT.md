@@ -118,6 +118,22 @@ since each was an explicit scope call:
   aggregators all differ). In production the API **refuses to start** unless each integration is
   chosen explicitly, so security controls can't silently go missing. Prerequisites and config are
   in [SETUP.md](SETUP.md#registration-otp--login-captcha--prerequisites-and-configuration).
+- **Admin bulk messaging is OTP-confirmed, snapshotted and paced in-process (2026-11-18).** A
+  send needs a fresh code to the admin's own email/phone; recipients are frozen at send time;
+  delivery is an in-process worker (no queue infrastructure — fine for one API instance and the
+  ~2 000/day Gmail cap), resumable after a restart. Duplicate sends are blocked three ways:
+  client request key (idempotent replays), 24 h identical-content guard (explicit override), one
+  running send per challenge+channel. Bulk SMS needs a non-OTP Teletalk class
+  (`SMS_TELETALK_BULK_SMS_CLASS`) — the OTP class rejects >70 bytes — and is disabled until set.
+- **All OTP emails share one branded HTML template (2026-11-18)** — `messaging/templates/otp-email.ts`,
+  copy per `OtpPurpose` in en + bn, logo as an inline CID image. SMS stays plain text. Details in
+  [UI_GUIDELINES.md](UI_GUIDELINES.md#otp-email-template-2026-11-18).
+- **Forgot password reuses the registration OTP machinery (2026-11-18).** Same `OtpService`
+  (purpose `PASSWORD_RESET`), same CAPTCHA, same limits; no separate reset-link/email-token
+  system. After the code is verified the client gets a stateless 10-minute JWT (separate signing
+  key from access tokens, invalidated by the password change itself). The flow tells the user
+  plainly when no account has that email/number, because registration already discloses that.
+  Details in [API.md](API.md).
 - **File uploads go to local disk** (`apps/api/uploads`, Docker volume `api_uploads`), not object
   storage. Fine for a single-instance deployment; not for horizontal scaling.
 - **Search is `ILIKE`-based**, not Postgres full-text (`tsvector`/GIN). Adequate at seed-data
@@ -128,7 +144,7 @@ since each was an explicit scope call:
   - NID/Birth Registration & BIN verification — `apps/api/src/common/services/identity-verification.service.ts` (format-validates and accepts).
   - SMS/Email delivery of **notifications** — `apps/api/src/notifications/notifications.service.ts` (logs and marks sent).
     *Real* transports now exist (2026-11-12, `apps/api/src/messaging/`: `MailService` over SMTP,
-    `SmsService` over Teletalk Bulk SMS (the a2i account) or a configurable HTTP gateway) but are used only for registration OTPs so far.
+    `SmsService` over Teletalk Bulk SMS (the a2i account) or a configurable HTTP gateway) but are used only for registration and password-reset OTPs so far.
     Wiring `NotificationsService.deliver()` to them is open work (it would also need the
     recipient's address/phone, which `deliver()` doesn't receive today) — see [ROADMAP.md](ROADMAP.md).
   - SSO (Google/Apple/Microsoft) — not wired; the placeholder buttons are hidden on sign-in and
@@ -158,12 +174,24 @@ since each was an explicit scope call:
 
 - 14 roles exist in the `Role` enum (see [ROLES.md](ROLES.md)); a user can hold multiple roles
   simultaneously (`Role[]` on `User`).
+- Challenge **participants** (admin export + bulk messages, 2026-11-18) are the distinct users who
+  submitted a non-draft innovation to the challenge; a person with several submissions counts
+  once. Bulk messages skip inactive accounts and missing/invalid emails or BD mobiles (shown to
+  the admin with reasons before sending), go to at most `BULK_MAX_RECIPIENTS` (2 000) per send,
+  and personalise `{{name}}`, `{{challenge}}` (Bangla title for Bangla-locale participants),
+  `{{irn}}`.
 - Registration (2026-11-12) is two steps: (1) form + CAPTCHA → `POST /auth/otp/send` emails or texts
   a 6-digit code to the chosen address (phone becomes required if SMS is chosen); (2) enter the
   code → `POST /auth/register`. Codes last 5 min, allow 5 wrong attempts, resend after 60 s, and
   are capped at 5 per address per hour (all env-tunable). An address that already has an account
   is refused at step 1. Phones are stored normalized as `+8801XXXXXXXXX`.
 - Sign-in requires a solved CAPTCHA on **every** attempt, checked before the password.
+- Forgot password (2026-11-18, `/forgot-password`, linked from sign-in): (1) choose email or SMS,
+  enter the registered address/number + CAPTCHA → code (same 5-min / 60-s resend / 5-per-hour /
+  5-attempt limits as registration); (2) enter the code; (3) new password (min 8, max 128, typed
+  twice, must differ from the current one) within 10 minutes. Success signs the account out on
+  every device (all refresh tokens revoked) and the user signs in again. Inactive accounts can't
+  reset. Resetting by a channel marks that email/phone as verified.
 - Self-registration always grants `INNOVATION_SUBMITTER`; a registrant may additionally opt into
   exactly one of `INVESTOR`, `MENTOR`, or `MINISTRY_FOCAL_POINT` at signup, or add one later from
   their dashboard overview page. The sign-up form shows role-specific optional fields once a role

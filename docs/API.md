@@ -11,7 +11,8 @@
   transformOptions: { enableImplicitConversion: true } })`.
 - Global guards, in order (`APP_GUARD` in `app.module.ts`): `JwtAuthGuard` → `RolesGuard` →
   `ThrottlerGuard` (120 req/min, `ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }])`; tighter
-  per-route `@Throttle` on `auth/login`, `auth/register` (20/min) and `auth/otp/send` (10/min)).
+  per-route `@Throttle` on `auth/login`, `auth/register`, `auth/password/verify-code` (20/min) and
+  `auth/otp/send`, `auth/password/forgot`, `auth/password/reset` (10/min)).
   Limits are per client IP, which is only correct behind a proxy if `TRUST_PROXY` is set
   (`main.ts` → Express `trust proxy`; see [SETUP.md](SETUP.md#infrastructure-prerequisites)).
 - Static file serving: `/uploads/*` via `ServeStaticModule`, rooted at `UPLOAD_DIR` (default
@@ -61,6 +62,9 @@ to the client once and never persisted in plaintext.
 | GET | `/auth/security-config` | CAPTCHA provider + public site key and OTP settings for the sign-in/register pages (2026-11-12) | `@Public()` |
 | POST | `/auth/otp/send` | Registration step 1: email/SMS a one-time code (2026-11-12). CAPTCHA required. Throttle 10/min/IP | `@Public()` |
 | POST | `/auth/register` | Self-register (step 2; requires the OTP). Throttle 20/min/IP | `@Public()` |
+| POST | `/auth/password/forgot` | Forgot password step 1: email/SMS a reset code to a **registered, active** account (2026-11-18). CAPTCHA required. Throttle 10/min/IP | `@Public()` |
+| POST | `/auth/password/verify-code` | Forgot password step 2: check the code → 10-minute single-use `resetToken`. Throttle 20/min/IP | `@Public()` |
+| POST | `/auth/password/reset` | Forgot password step 3: set the new password; revokes all refresh tokens. Throttle 10/min/IP | `@Public()` |
 | POST | `/auth/login` | Email/password login → token pair. **CAPTCHA required on every attempt** (2026-11-12). Throttle 20/min/IP | `@Public()` |
 | POST | `/auth/refresh` | Rotate refresh token → new pair | `@Public()` |
 | POST | `/auth/logout` | Revoke a refresh token (idempotent) | `@Public()` |
@@ -129,6 +133,39 @@ to the client once and never persisted in plaintext.
   `{ id, email, fullName, roles, locale }` (no password hash, no phone).
 - **`refresh`/`logout`** both operate on the raw refresh token by its SHA-256 hash; `refresh`
   always rotates (revokes the used token, issues a new pair).
+- **Forgot password (2026-11-18)** — three public calls, all in `AuthService`, reusing
+  `OtpService` with `purpose: PASSWORD_RESET` (so the same TTL / resend cooldown / hourly cap /
+  5-attempt lock apply, counted separately from registration codes for the same address):
+  1. **`POST /auth/password/forgot`** — body is the registration `SendOtpDto` (`channel`, `email`
+     or `phone`, `locale?`, `captchaToken?`). Order: CAPTCHA → channel enabled (400) → account
+     lookup: email **case-insensitive**, phone in any stored spelling (`+880…`/`880…`/`01…`) →
+     **404** "No account is registered with this email address." / "…with this mobile number."
+     → inactive account **403** "This account is not active, …" → `OtpService.send`. Response and
+     429s are identical to `/auth/otp/send` (`{ channel, sentTo (masked), expiresInSeconds,
+     resendInSeconds }`). The SMS says "password reset code" (Bangla SMS stays the generic `NIR কোড` text — Teletalk's
+     70-byte limit); the email is the shared branded OTP template with password-reset copy (see
+     UI_GUIDELINES.md § OTP email template).
+  2. **`POST /auth/password/verify-code`** — `VerifyResetCodeDto`: `channel`, `email`/`phone`, `code`
+     (6 digits). Same lookup errors as step 1, then `OtpService.verifyAndConsume` (same 400 texts
+     as registration: "Incorrect verification code. N attempts left.", "Too many incorrect
+     attempts…", "…expired or was not requested…"). → `{ resetToken, expiresInSeconds: 600 }`.
+  3. **`POST /auth/password/reset`** — `ResetPasswordDto`: `resetToken`, `password` (8–128),
+     `confirmPassword`. 400 "Your password reset session has expired or was already used. Please
+     start again." for a bad/expired/reused token; 400 "Passwords do not match."; 400 "Your new
+     password must be different from your current password."; 403 if the account was deactivated
+     meanwhile. On success: argon2 hash stored, **every refresh token of the user revoked**, the
+     verified channel's `emailVerifiedAt`/`phoneVerifiedAt` set if it was null, audit
+     `PASSWORD_RESET` → `{ success: true, message }`. No session is returned — the user signs in.
+  - **Reset token design:** a JWT `{ sub, typ: 'password-reset', ch, pwv }` signed with a key
+    *derived* from `JWT_ACCESS_SECRET` (HMAC with a fixed label), so it can never pass
+    `JwtStrategy` as an access token and an access token can't be used here. `pwv` is a
+    fingerprint of the password hash at issue time — once the password changes the token is dead
+    (single use without a DB table). The update is also conditional on the old hash, so two
+    concurrent submits can't both succeed.
+  - **Decision — say when no account matches** rather than a generic "if an account exists…":
+    registration's `/auth/otp/send` already answers 409 for registered addresses behind the same
+    CAPTCHA, so hiding it here would cost the user a clear error and protect nothing. If
+    registration is ever made non-enumerating, change both together.
 
 ## Endpoint reference by module
 
@@ -352,6 +389,45 @@ as `null`; list items are trimmed; sending a list replaces it (`[]` empties it).
 |---|---|---|---|
 | GET | `/submissions` | Submission monitoring across both channels. `SubmissionFilterDto`: `channel` (`GENERAL`\|`CHALLENGE`), `challengeId`, `reviewStatus`, `q` (submitter name/email, title, NIR code — case-insensitive), `fromDate`/`toDate` (on `submittedAt`, `toDate` inclusive), `includeDrafts` (`'true'`; drafts excluded by default), `page`, `pageSize` (≤ 100). Returns `{ items, total, page, pageSize, totalPages }`; each item has `submissionChannel`, `challenge`, `category` and a hand-joined `submittedBy: {id, fullName, email}` | `PLATFORM_ADMIN, SYSTEM_ADMIN` |
 
+### Outreach — participant export & bulk messaging (`/admin/outreach`, 2026-11-18)
+
+Class guard `@Roles(PLATFORM_ADMIN, SYSTEM_ADMIN)` on every route (403 for anyone else, 401 when
+signed out). **Participants** of a challenge = the distinct users who submitted a non-DRAFT
+innovation to it (`Innovation.challengeId` + `submittedById`); several submissions → one
+participant. Team members without their own submission are not participants. Code:
+`apps/api/src/outreach/`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/admin/outreach/config` | `{ channels: {EMAIL: true, SMS: <bulk SMS configured>}, placeholders: ['name','challenge','irn'], limits, rate, otp: { channels (where the signed-in admin can receive a code), targets (masked), ttlSeconds, resendSeconds } }` |
+| GET | `/admin/outreach/challenges` | All challenges (newest first) with `participantCount` (unique, non-draft) |
+| GET | `/admin/outreach/challenges/:id/participants` | `?q&page&pageSize(≤100)` — search on name/email/mobile/IRN. `{ challenge, total, totalParticipants, totalSubmissions, page, pageSize, totalPages, items: [{userId, fullName, email, phone, irn, locale, isActive, submissionCount, lastSubmittedAt}] }` |
+| GET | `/admin/outreach/challenges/:id/participants/export` | `?lang=en\|bn` (column headings). Streams an **.xlsx** (`Content-Disposition: attachment; filename="nir-participants-<slug>-<YYYY-MM-DD>.xlsx"`, exposed to the browser via CORS `exposedHeaders`). Sheets: *Participants* (one row per user: SL, name, email, mobile as text, IRN, designation, institution, language, email/mobile verified, account status, registered, submission count, NIR codes, titles, latest status, first/last submitted), *Submissions* (one row per innovation, en + bn titles), *Export info*. Dates are real Excel dates in **Bangladesh time**. Audit `CHALLENGE_PARTICIPANTS_EXPORTED`. Throttle 10/min |
+| POST | `/admin/outreach/messages/preview` | `ComposeMessageDto` `{ challengeId, channel: EMAIL\|SMS, subject (EMAIL, ≤200), body (≤10 000; SMS ≤480) }` → `{ totalParticipants, recipientCount, skippedCount, skipped: [{name, address, reason}], overLimit, maxRecipients, sample: {recipientName, locale, subject, body, sms: {encoding, units, segments}}, duplicateOf }`. 400 on unknown `{{placeholder}}`, missing subject, SMS too long / over 8 parts, or SMS not configured. Throttle 30/min |
+| POST | `/admin/outreach/messages/otp` | `{ otpChannel?: EMAIL\|SMS, locale? }` — sends a 6-digit code (`OtpPurpose.BULK_MESSAGE_CONFIRM`) to the **signed-in admin's own** account email / mobile. Same OTP limits as registration. Audit `BULK_MESSAGE_OTP_SENT`. Throttle 5/min |
+| POST | `/admin/outreach/messages` | `SendBulkMessageDto` = compose fields + `otpChannel`, `otpCode`, `requestKey` (client UUID, 16–64 chars), `allowRepeat?`. Returns the job summary (201) with `replayed`. Throttle 5/min |
+| GET | `/admin/outreach/messages` | Communication log `?challengeId&page&pageSize`: newest first, each `{ id, channel, challengeId, challengeTitleEn, subject, body, status, totalRecipients, sentCount, failedCount, skippedCount, pendingCount, createdAt, startedAt, completedAt, createdBy: {id, fullName, email} }` |
+| GET | `/admin/outreach/messages/:id` | `{ message, recipients: paged [{id, name, address, status, error, sentAt}] }`, `?status&page&pageSize(≤200)`; SKIPPED/FAILED first |
+
+- **Send order** (`BulkMessagesService.send`): content checks → a known `requestKey` returns the
+  existing job (`replayed: true`, no second send, code not needed) → 409 if a send to the same
+  challenge + channel is still QUEUED/SENDING → 409 `{ duplicateOf }` if identical content
+  (sha256 of channel+subject+body) went to this challenge in the last 24 h, unless `allowRepeat`
+  (audit `BULK_MESSAGE_BLOCKED_DUPLICATE`) → 400 if nobody is deliverable or > `BULK_MAX_RECIPIENTS`
+  → **admin OTP verified and consumed last** (so a refused send doesn't burn the code) → recipients
+  snapshotted (deliverable = PENDING; inactive account / missing / invalid email / invalid BD
+  mobile / duplicate address = SKIPPED with the reason) → audit `BULK_MESSAGE_QUEUED`.
+- **Delivery**: an in-process worker sends one job at a time, `BULK_BATCH_SIZE` recipients per DB
+  batch, paced to `BULK_EMAIL_PER_MINUTE` / `BULK_SMS_PER_MINUTE`; stops a run after 10 failures in
+  a row (the rest marked FAILED "Not attempted…"). Final status COMPLETED / COMPLETED_WITH_ERRORS /
+  FAILED, audit `BULK_MESSAGE_FINISHED`. Jobs interrupted by a restart resume on boot (only PENDING
+  recipients). Single API instance assumed (see ROADMAP).
+- **Placeholders** `{{name}}`, `{{challenge}}` (titleBn for Bangla-locale participants when set),
+  `{{irn}}` — case-insensitive, spaces allowed inside the braces. Emails use the shared branded
+  layout (`outreach/bulk-email.ts`), footer in the recipient's language; SMS go through
+  `SmsService.send(…, 'bulk')` — on Teletalk that needs `SMS_TELETALK_BULK_SMS_CLASS`, otherwise
+  `config.channels.SMS` is false and SMS sends are refused.
+
 ### Settings (`/settings`)
 
 | Method | Path | Purpose | Guard |
@@ -428,6 +504,17 @@ email/SMS (currently mocked — see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#impo
 ## API changes
 
 Track breaking or notable API changes here as they land (newest first):
+
+- **2026-11-18** — Admin participant export + bulk email/SMS: new `/admin/outreach/*` routes
+  (admin-only, additive). Migration `20261118042607_bulk_messaging` (enums `MessageChannel`,
+  `BulkMessageStatus`, `BulkRecipientStatus`, `OtpPurpose.BULK_MESSAGE_CONFIRM`; tables
+  `BulkMessage`, `BulkMessageRecipient`). CORS now exposes `Content-Disposition`. New dependency
+  `exceljs` (apps/api).
+
+- **2026-11-18** — Forgot password: new `POST /auth/password/forgot`, `/auth/password/verify-code`,
+  `/auth/password/reset` (all `@Public()`, additive). New `OtpPurpose.PASSWORD_RESET` — migration
+  `20261118032340_password_reset_otp` must be deployed (`prisma migrate deploy`) before this API
+  version runs. No changes to existing endpoints.
 
 - **2026-11-12** — Registration OTP + login CAPTCHA. **Breaking:** `POST /auth/register` now
   requires `otpChannel` + `otpCode` from a prior `POST /auth/otp/send` (new). `POST /auth/login`

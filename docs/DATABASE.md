@@ -29,6 +29,9 @@
 | Enum | Values |
 |---|---|
 | `Role` | 14 values — see [ROLES.md](ROLES.md) |
+| `MessageChannel` | EMAIL, SMS — bulk messages (2026-11-18) |
+| `BulkMessageStatus` | QUEUED, SENDING, COMPLETED, COMPLETED_WITH_ERRORS, FAILED |
+| `BulkRecipientStatus` | PENDING, SENT, FAILED, SKIPPED |
 | `ReviewStatus` | DRAFT, UNDER_REVIEW, AUTHENTICITY_REVIEW, SHORTLISTED, SELECTED, APPROVED, REJECTED, PUBLISHED, UNPUBLISHED, ARCHIVED — `APPROVED` (added 2026-08-12) is the Admin's approval decision and is deliberately distinct from `PUBLISHED`; `UNPUBLISHED` (added 2026-08-17, migration `20260817054146_add_unpublished_review_status`) is the Admin Repository Management module's takedown state — a `PUBLISHED` innovation moved here is immediately excluded from the public repository but keeps its `publishedAt` history and can be moved back to `PUBLISHED` (re-publish sets a fresh `publishedAt`); see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#business-rules) |
 | `ReviewStage` | PRELIMINARY_REVIEW, AUTHENTICITY_REVIEW |
 | `DevelopmentStage` | IDEA, PROTOTYPE_DEVELOPED, PILOT_IMPLEMENTED, COMMERCIALIZED, SCALED, DISCONTINUED |
@@ -74,7 +77,10 @@ you change one, change both.
   typed, so lookups by phone must try the `+880…`/`880…`/`01…` spellings (see
   `AuthService.phoneTaken`).
 - **`OtpCode`** (2026-11-12) — one-time passcodes sent **before** an account exists, so it has no
-  `userId`/FK. Fields: `purpose` (`OtpPurpose`: `REGISTRATION`), `channel` (`OtpChannel`:
+  `userId`/FK. Fields: `purpose` (`OtpPurpose`: `REGISTRATION`, `PASSWORD_RESET` (2026-11-18 —
+  forgot-password codes; `target` is then the address of an existing account),
+  `BULK_MESSAGE_CONFIRM` (2026-11-18 — an admin confirming a bulk send; `target` = the admin's own
+  email/phone)), `channel` (`OtpChannel`:
   `EMAIL`/`SMS`), `target` (lower-cased email or E.164 phone), `codeHash` (HMAC-SHA256 of
   `target:code`, keyed by `OTP_SECRET` or `JWT_ACCESS_SECRET`; the code itself is never stored),
   `attempts`, `expiresAt`, `consumedAt?` (also set on older codes when a newer one is sent),
@@ -96,6 +102,18 @@ you change one, change both.
   with `{from, to}` booleans — archiving an innovation reuses the pre-existing
   `INNOVATION_STATUS_CHANGED` action (no new action name needed, since `ARCHIVED` was already a
   valid `reviewStatus` transition target before this module).
+
+- **`BulkMessage`** (2026-11-18) — one admin bulk email/SMS to a challenge's participants:
+  `channel`, `challengeId?` (FK, **SetNull** on challenge delete) + `challengeTitleEn` snapshot,
+  `subject?`, `body` (placeholders unrendered), `contentHash` (sha256 channel+subject+body, for the
+  24 h repeat guard), `requestKey` (**unique**, client-generated idempotency key), `status`, counts
+  (`totalRecipients` incl. skipped, `sentCount`, `failedCount`, `skippedCount`), `createdById` →
+  `User` (back-relation `User.bulkMessagesSent`), `createdAt`/`startedAt`/`completedAt`. Indexes
+  `[challengeId, channel, createdAt]`, `[status]`, `[createdAt]`.
+- **`BulkMessageRecipient`** — the recipient snapshot taken at send time (cascade-deleted with its
+  message): `userId?` (plain id), `name`, `address` (normalized email / E.164 mobile; raw value for
+  SKIPPED), `locale`, `status`, `error?` (skip/failure reason), `sentAt?`. **Unique
+  `[bulkMessageId, userId]`** — one row per participant per message, the DB-level duplicate guard.
 
 ### Reference data (admin-managed lookups)
 
@@ -296,6 +314,12 @@ Applied so far (`apps/api/prisma/migrations/`, oldest first):
     field of the same challenge) and `showIfValues TEXT[] DEFAULT []` (that field's options that show
     this one). NULL = always shown. A key reference (not a FK) because the form is replaced
     wholesale on every save and keys are the stable identifiers. Additive.
+27. `20261118032340_password_reset_otp` — `ALTER TYPE "OtpPurpose" ADD VALUE 'PASSWORD_RESET'`
+    (forgot password, 2026-11-18). Additive; no new table — the reset token after code
+    verification is a stateless JWT (see API.md § Forgot password).
+28. `20261118042607_bulk_messaging` — enums `MessageChannel`, `BulkMessageStatus`,
+    `BulkRecipientStatus`; `OtpPurpose` + `BULK_MESSAGE_CONFIRM`; tables `BulkMessage`,
+    `BulkMessageRecipient` (admin bulk email/SMS, 2026-11-18). Additive.
 
 Note migrations 9 and 11 (`add_due_diligence_reviewer`, `rename_due_diligence_to_authenticity_reviewer`):
 a "Due Diligence Reviewer" role was added then renamed to "Authenticity Reviewer" within the same

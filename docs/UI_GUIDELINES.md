@@ -244,6 +244,16 @@ active), written twice.
   hides a focused field) and `useAuthErrorText()` (API error → en/bn text + field). Forms are
   `noValidate` and explain problems on submit; submit buttons are never `disabled` (aria-disabled
   while a request runs). `AuthCard focusHeading` moves focus to the new h1 when content swaps.
+  **Keep API-reported field errors in their own state** (`serverFieldErrors` on register,
+  `serverErrors` on forgot-password), cleared only when that field is edited: the CAPTCHA widget
+  re-solves after every `reset()` and fires `onToken`, so if server errors share state with the
+  client re-validation they vanish a moment after appearing (bug hit and fixed 2026-11-18).
+- **Forgot password page (2026-11-18)** — `app/[locale]/forgot-password/page.tsx`, one `AuthCard`
+  whose content swaps through four steps (request → code → new password → done), built only from
+  the auth-form pieces above plus the registration page's channel radio cards and code input. The
+  entry point is a right-aligned "Forgot password?" link directly under the sign-in password
+  field (after it in tab order). Strings are `auth.forgot*`/`reset*`/`newPassword*` etc. in both
+  message files. Hidden from the challenge popup like the other auth routes.
   A site-wide "Skip to main content" link targets `<main id="main-content">`. Full details, criteria
   and test results: [WCAG-2.2-Accessibility-Report.md](WCAG-2.2-Accessibility-Report.md).
 - **Landing-page accessibility (2026-11-17, no visual change):** see
@@ -578,6 +588,73 @@ active), written twice.
   Bangladesh" text already conveys the same information to screen readers), sized `h-5 w-5
   shrink-0 sm:h-6 sm:w-6` inside a `flex min-w-0 items-center gap-2` row ahead of the existing
   `truncate` text span.
+
+## OTP email template (2026-11-18)
+
+Every one-time code sent **by email** (registration/account verification, password reset, and any
+future `OtpPurpose`) uses one branded HTML template:
+`apps/api/src/messaging/templates/otp-email.ts` → `renderOtpEmail({ purpose, code, minutes, locale })`
+returns `{ subject, text, html, attachments }`, called only from `OtpService.deliver()`. SMS texts
+are separate and unchanged. **Since 2026-11-18 the shell (strip, logo, heading, footer) lives in
+`templates/branded-layout.ts` (`renderBrandedEmail`)** and is shared with admin bulk emails
+(`outreach/bulk-email.ts`) — any new HTML email should use it, not copy it.
+
+- **Reuse, don't copy.** Per-purpose wording lives in `PURPOSE_COPY`, typed
+  `Record<OtpPurpose, { en, bn }>`: adding an `OtpPurpose` value fails the build until it has
+  eyebrow / heading / intro / code label / "if this wasn't you" text in both languages. Shared text
+  (security notice, footer, expiry line) is in `COMMON`. Language follows the `locale` the client
+  sends with the OTP request (the site's current language).
+- **Look:** NIR flat palette (navy `#13243F`, green `#00A86B`/`#007A4E`, amber `#F7B733`, mist
+  `#F2F6F4`); the logo's green/amber/red underline as a 6px top strip; logo; green eyebrow + navy
+  heading; the code in a mist box with a 2px green border, monospace 36px with wide letter-spacing;
+  amber-edged "keep this code private" notice; navy footer with site name, tagline, "automated
+  message, don't reply", © year + a2i/ICT Division + address. Fonts: Instrument Sans / Hind Siliguri
+  (Google Fonts link for clients that load it) falling back to Segoe UI/Arial and Nirmala UI/Vrinda.
+- **Email-client rules followed (keep them when editing):** table layout + inline styles only;
+  600px container that is fluid below that (one media query only tightens padding/code size, the
+  layout works without it); MSO ghost table + Arial override for Outlook; no CSS gradients, no
+  background images, no SVG; `color-scheme: light`; layout tables have `role="presentation"`;
+  `lang` set; hidden preheader; code always ASCII digits (minutes/year in Bangla digits on bn).
+- **Logo** is attached as an inline CID image (`cid:nir-logo@nir`), because Gmail/Outlook block SVG
+  and `data:` URIs and the app has no public image URL in every environment. It's embedded as
+  base64 in `templates/nir-logo.ts` (6 KB PNG, 540×180 shown at 180×60). **After a logo change,
+  regenerate it** from `apps/web/public/brand/nir-logo.svg` with sharp (`density: 288`,
+  `resize({ width: 540 })`, flatten on white, PNG) and paste the base64 into that file.
+- **Preview:** `cd apps/api && npm run build && node scripts/preview-otp-emails.js` writes every
+  purpose × language to `.logs/email-preview/` (logo inlined as data: for the browser).
+- **Tested 2026-11-18:** browser previews at 600+/375/320px; real sends via the a2i SMTP account to a
+  Google Workspace inbox (Gmail web) — all four landed in Inbox, logo shown inline with no attachment
+  chip, en + bn render correctly. **Not yet checked:** Outlook desktop, Apple Mail, Gmail/Outlook
+  mobile apps (see ROADMAP Known issues). Gmail picks its own preview snippet for the English emails
+  (body text rather than the preheader); harmless since the code is in the subject.
+
+## Admin "Participants & messaging" page (2026-11-18)
+
+`app/[locale]/dashboard/admin/outreach/page.tsx` + `components/admin/outreach/*`
+(`outreach-ui.tsx` shared card/pill/pager/error mapping, `participants-panel.tsx`, `composer.tsx`,
+`history-panel.tsx`); hooks in `hooks/use-outreach.ts`; strings in `messages/*.json` → `outreach.*`
+(125 keys, en + bn). Nav: "Participants & messaging" (Megaphone) for `ADMIN_ROLES`.
+
+- **First fully translated admin page.** The rest of the dashboard is still hard-coded English; the
+  shared `Pagination` and `ConfirmDialog` have English text, so this page uses its own translated
+  `Pager` and an in-page confirmation step instead. Server texts without a mapping (skip reasons,
+  delivery errors) are shown as-is with `lang="en"` on the Bangla site.
+- Selected challenge is kept in `?challengeId=` (reload/share-safe, via `history.replaceState`).
+- Composer flow: compose (placeholder chips insert at the caret; SMS shows parts/encoding) →
+  **Review recipients** (server preview: count headline, expandable skipped list with reasons,
+  sample for the first recipient, amber duplicate warning + explicit "send again anyway") →
+  **Confirm with a verification code** (code to the admin's own email/phone, resend countdown,
+  wrong code selects the field) → queued notice. The request key is generated per reviewed
+  message, so double submits are harmless.
+- History polls every 3 s only while a send is QUEUED/SENDING (progress bar); rows expand to a
+  per-recipient table (filter by status).
+- Downloads with auth: `apiDownload(path, fallbackName)` in `lib/api-client.ts` (Blob + object URL;
+  token never in a URL). Reading the filename needs the API's CORS `exposedHeaders`.
+- **Gotcha found here:** an `sr-only` (absolutely positioned) label inside a table that sits in an
+  `overflow-x-auto` wrapper escapes the wrapper and makes the whole page scroll sideways on phones
+  unless the wrapper is `relative`. Make horizontal scroll wrappers `relative overflow-x-auto`.
+- Don't declare components inside another component's body and render them as `<Inner />` — they
+  remount on every render and drop keyboard focus; call them as functions or hoist them.
 
 ## State & data-fetching conventions (relevant to UI work)
 

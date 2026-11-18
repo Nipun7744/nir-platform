@@ -17,6 +17,19 @@ in [DATABASE.md](DATABASE.md#migrations)). Two of the 12 SRS classes need no `Ro
 **Public Viewer** (no account — unauthenticated access) and **Stakeholder/Partner** (no
 SRS-defined actions beyond public browsing).
 
+Account-recovery routes (`POST /auth/password/forgot|verify-code|reset`, 2026-11-18) are
+`@Public()` like the rest of `/auth`: possession of the account's email/phone (via the OTP) is the
+authorization, not a role. They work for any **active** account regardless of its roles
+(admins included); inactive accounts get 403.
+
+**Participants & messaging** (`/admin/outreach/*`, `/dashboard/admin/outreach`, 2026-11-18) —
+`PLATFORM_ADMIN` and `SYSTEM_ADMIN` only (class-level `@Roles` on the controller; nav item uses
+`ADMIN_ROLES`; the page also shows "admins only" to anyone else). Exporting participant data and
+sending bulk email/SMS additionally require, for each send, a one-time code delivered to the
+acting admin's own email/mobile. Everything is audit-logged (`CHALLENGE_PARTICIPANTS_EXPORTED`,
+`BULK_MESSAGE_OTP_SENT`, `BULK_MESSAGE_QUEUED`, `BULK_MESSAGE_BLOCKED_DUPLICATE`,
+`BULK_MESSAGE_FINISHED`).
+
 ## Role matrix
 
 | Role | Demo account | Dashboard route | Primary API guard groups | Notes |

@@ -6,6 +6,119 @@
 
 ---
 
+## 2026-11-18 (session 52) — Admin: challenge participant export (.xlsx) + bulk email/SMS
+
+**What:** new admin page **Participants & messaging** (`/dashboard/admin/outreach`) for Platform +
+System admins: choose a challenge → see its participants → download Excel → send a bulk email or
+SMS (placeholders, recipient review, admin OTP confirmation) → communication log.
+
+1. **DB** — migration `20261118042607_bulk_messaging`: `BulkMessage`, `BulkMessageRecipient`, enums
+   `MessageChannel`/`BulkMessageStatus`/`BulkRecipientStatus`, `OtpPurpose.BULK_MESSAGE_CONFIRM`.
+2. **API** — new `apps/api/src/outreach/` (`OutreachModule`: controller, `ParticipantsService` incl.
+   the exceljs workbook, `BulkMessagesService` incl. the paced worker, pure `message-template.ts`,
+   `bulk-email.ts`, DTOs). `messaging/templates/branded-layout.ts` extracted from the OTP email so
+   bulk emails share it; `otp-email.ts` rebuilt on it (+ copy for the new purpose).
+   `SmsService.send(to, text, 'otp'|'bulk')` + `bulkAvailable`, new env `SMS_TELETALK_BULK_SMS_CLASS`/
+   `_ID`; env `BULK_*`. `AuthModule` exports `OtpService`. CORS exposes `Content-Disposition`.
+   New dependency `exceljs` 4.4.0.
+3. **Web** — page + `components/admin/outreach/*`, `hooks/use-outreach.ts`, `apiDownload()` in
+   `lib/api-client.ts`, nav item, `outreach.*` strings (en + bn).
+4. **Tests** — `test/outreach-rules.test.js` (10 unit) added to `npm test`; `test/outreach.e2e.test.js`
+   (11) added to `npm run test:e2e`. Browser walk-through on a throwaway challenge (deleted after):
+   participant list + dedupe, real .xlsx download opened and checked, validation, review,
+   wrong/right admin code, live progress, delivered history + recipient detail, Bangla UI + Bangla
+   SMS review, 375 px layout.
+
+**Decisions:** participants = distinct non-draft submitters (team members without their own
+submission excluded); PLATFORM_ADMIN + SYSTEM_ADMIN (same as submission monitoring); admin OTP
+goes to the admin's own account email/phone and is checked *after* all guards; triple duplicate
+protection (request key, 24 h same-content guard with explicit override, one running send per
+challenge+channel) plus a unique (message, user) row; in-process paced worker (resumes after
+restart); inactive accounts and invalid addresses are skipped and shown, never silently dropped;
+Excel dates written in Bangladesh time; bulk SMS disabled on Teletalk until a non-OTP class is set.
+
+**Bugs found and fixed during testing:** filename lost on download (CORS didn't expose
+`Content-Disposition`); Excel dates were UTC; the export box squeezed the participant table; a
+nested component remounted and lost focus; wrong code wasn't selected for retyping; an `sr-only`
+header label made the whole page scroll sideways on phones (`relative` on scroll wrappers).
+
+**Shipped:** sessions 50–52 committed together (code + docs) and pushed to GitHub `master` and GitLab
+`development` on 2026-11-18. The two `docs/WCAG-2.2-*` reports were found deleted in the working
+tree (not by this session) and were left out of the commit.
+
+**Next steps:** get the Teletalk non-OTP class for bulk SMS; `prisma migrate deploy` on servers
+(migrations 27 + 28); consider a "retry failed recipients" action and an opt-out list (ROADMAP).
+
+---
+
+## 2026-11-18 (session 51) — Branded HTML template for every OTP email (en + bn)
+
+1. **New** `apps/api/src/messaging/templates/otp-email.ts` — `renderOtpEmail({ purpose, code,
+   minutes, locale })` → subject, plain text, HTML, inline-logo attachment. Copy per `OtpPurpose`
+   (REGISTRATION = "Account verification / Verify your email address", PASSWORD_RESET = "Password
+   reset / Reset your password") in English and Bangla; one layout. **New**
+   `templates/nir-logo.ts` (logo PNG as base64, generated from the SVG with sharp).
+2. `messaging/mail.service.ts`: `OutgoingMail.attachments` (`MailAttachment`, supports `cid`).
+3. `auth/otp.service.ts`: the email branch of `deliver()` now just calls `renderOtpEmail`; the two
+   inline HTML snippets are gone. **SMS unchanged.**
+4. **New** `apps/api/scripts/preview-otp-emails.js` — writes all variants to `.logs/email-preview/`.
+
+**Tests:** auth-security e2e 11/11, password-reset e2e 14/14, unit 46/46 (API in console mode).
+Browser previews at desktop, 375px and 320px. Real sends: 4 `[TEST]` emails (both purposes × en/bn,
+dummy code) through the a2i SMTP account to the developer's Google Workspace inbox, with the user's
+OK — all in Inbox, layout/logo/Bangla correct in Gmail web, logo not shown as an attachment.
+
+**Decisions:** logo as CID inline image (Gmail/Outlook block SVG and data: URIs; no reliable public
+asset URL across environments); copy typed by `OtpPurpose` so a new purpose can't ship without
+en+bn email text; no links in the email (nothing to click needed for an OTP, and fewer phishing
+lookalikes).
+
+**Next steps:** check the `[TEST]` emails in Outlook desktop, Apple Mail and the phone mail apps
+(ROADMAP Known issues). If the logo ever changes, regenerate `nir-logo.ts` (UI_GUIDELINES.md).
+
+---
+
+## 2026-11-18 (session 50) — Forgot password (email/SMS OTP), en + bn
+
+Started 09:15 by running the project (API via `tsc` + `node dist/main.js` per SETUP.md, web via
+`npm run dev`), then implemented forgot password end to end. Finished ~09:45.
+
+1. **API** (`apps/api/src/auth/`):
+   - Migration `20261118032340_password_reset_otp`: `OtpPurpose` gains `PASSWORD_RESET`.
+   - `otp.service.ts`: `deliver()` takes the purpose — reset emails/SMS say "password reset code"
+     (en SMS 58 bytes; bn SMS unchanged because of Teletalk's 70-byte limit).
+   - `auth.service.ts`: `findResetAccount` (case-insensitive email / any stored phone spelling;
+     404 if none, 403 if inactive), `sendPasswordResetOtp`, `verifyPasswordResetOtp` (→ 10-min
+     reset JWT), `resetPassword` (confirm match, must differ from current, argon2, revoke all
+     refresh tokens, mark channel verified, audit `PASSWORD_RESET`).
+   - `auth.controller.ts`: `POST /auth/password/forgot` (10/min), `/verify-code` (20/min),
+     `/reset` (10/min). New `dto/password-reset.dto.ts`; step 1 reuses `SendOtpDto`.
+2. **Web**: new `app/[locale]/forgot-password/{page,layout}.tsx` (4-step AuthCard flow);
+   "Forgot password?" link under the sign-in password field; `useForgotPassword`,
+   `useVerifyResetCode`, `useResetPassword` (clears the local session on success) in
+   `hooks/use-auth.ts`; new error mappings in `useAuthErrorText`; 34 new `auth.*` strings in
+   `messages/en.json` + `bn.json`; `/forgot-password` added to the challenge popup's hidden routes.
+3. **Tests**: new `apps/api/test/password-reset.e2e.test.js` (14 tests, all pass) and added to
+   `npm run test:e2e`. Regression: `auth-security.e2e` 11/11, unit tests 46/46. Browser
+   walk-through (en) with a throwaway user, since deleted: empty field, unknown email, code sent,
+   wrong code ("4 attempts left"), correct code, short + mismatched passwords, same-as-current
+   password, success screen, sign-in with the new password. Bangla page checked visually.
+
+**Decisions:** reuse `OtpService` rather than a reset-link system; stateless reset token
+(derived signing key so it can't act as an access token; password-hash fingerprint makes it
+single-use); explicit "no account registered" errors, consistent with registration; reset revokes
+every session; no auto sign-in after reset.
+
+**Bug fixed during the work:** server field errors on the new page vanished a moment after
+showing, because the CAPTCHA re-solve after `reset()` re-ran client validation into the same
+state. Fixed by keeping server errors separate (pattern noted in UI_GUIDELINES.md).
+
+**Next steps:** run `prisma migrate deploy` on servers when this ships (migration 27). Follow-ups
+are in ROADMAP.md › Technical debt › "Forgot password follow-ups" (no password-changed
+notification yet, no signed-in change-password screen, email-case inconsistency with login).
+
+---
+
 ## 2026-11-17 (session 49) — "Attachments" label; conditional form fields; admin edit; submit-page title
 
 1. **Admin → create/edit challenge:** the file/link fieldset legend "Resources — guidelines,

@@ -5,6 +5,19 @@
 
 ## Completed
 
+- **Admin participant export + bulk email/SMS (2026-11-18, session 52)** — `/dashboard/admin/outreach`:
+  per-challenge participant list (de-duplicated), .xlsx export (en/bn headings, Bangla data,
+  Bangladesh-time dates), bulk email/SMS with placeholders, recipient review, admin OTP
+  confirmation, duplicate/idempotency guards, paced background delivery, communication log,
+  audit trail. en + bn UI. Tests: `outreach-rules.test.js` (10 unit), `outreach.e2e.test.js` (11).
+- **Branded OTP email template (2026-11-18, session 51)** — one responsive, en/bn HTML template for
+  every email OTP (registration verification, password reset), purpose-specific copy, logo as
+  inline CID image; SMS unchanged. Previewed at desktop/375/320px and received in Gmail (Google
+  Workspace). See UI_GUIDELINES.md § OTP email template.
+- **Forgot password (2026-11-18, session 50)** — "Forgot password?" on sign-in → reset by
+  email or SMS OTP (reusing `OtpService`, CAPTCHA, limits) → new password + confirmation →
+  all sessions revoked. en + bn, same auth-form components/accessibility patterns. API e2e suite
+  `password-reset.e2e.test.js` (14 tests) + browser walk-through. See API.md § Forgot password.
 - **Full end-to-end workflow test (2026-11-16)** — new applicant registered through the UI
   (email OTP) → challenge submission through the UI → preliminary → authenticity → expert
   evaluation → admin approval → publish. Data checked intact at every stage and visibility checked
@@ -344,6 +357,17 @@ completed work)*
 
 ## Known issues
 
+- **Bulk SMS is unavailable on the live Teletalk config (2026-11-18)** until
+  `SMS_TELETALK_BULK_SMS_CLASS` (and maybe `_BULK_SMS_ID`) are obtained from Teletalk/a2i — the
+  OTP class rejects >70 bytes. Bulk SMS was tested only with `SMS_PROVIDER=console`; check the
+  first real bulk SMS (cost: 1 credit per part per recipient).
+- **Bulk messaging assumes one API instance (2026-11-18):** the worker is in-process. Running two
+  API replicas could deliver one job twice. Move to a DB-claimed or queue-based worker before
+  scaling out. No "retry failed recipients" action yet, and no unsubscribe/opt-out handling.
+- **OTP email not yet checked in Outlook desktop, Apple Mail or mobile mail apps (2026-11-18).**
+  Built to the usual compatibility rules (tables, inline CSS, MSO fallbacks) and verified in Gmail
+  web only. Open one of the `[TEST]` emails sent to the developer inbox on those clients, or use a
+  rendering service (Litmus / Email on Acid), before relying on it.
 - **Landing page — open WCAG items (2026-11-17):** hero flow lines / pulsing "live" dots / header
   sparkle animate forever with no pause control (2.2.2 — they only stop under OS "reduce motion";
   kept by decision). The search placeholder was fixed (`#66768F`, 4.61:1). Footer
@@ -547,8 +571,18 @@ completed work)*
   mock; route it through `MailService`/`SmsService`. (d) The sign-in/register UI was browser-checked
   locally with Turnstile *test* keys only; check it again with the real site key on staging (the
   domain must be allow-listed in the CAPTCHA dashboard). (e) Login is still case-sensitive on email
-  (pre-existing), while OTP targets are lower-cased; harmless today, but worth unifying. (f) The
+  (pre-existing), while OTP targets are lower-cased; forgot password (2026-11-18) matches the email
+  case-insensitively, so someone registered as `Name@x.com` can reset by typing `name@x.com` but
+  must still sign in with the original casing. Worth unifying (lower-case on login + a one-off
+  data check for case-only duplicates). (f) The
   per-IP throttles depend on `TRUST_PROXY` being set correctly behind a proxy.
+
+- **Forgot password follow-ups (2026-11-18):** (a) the reset endpoints say whether an
+  email/number is registered (deliberate, matches registration — revisit both together if
+  account enumeration becomes a concern); (b) no "your password was changed" notification email/SMS
+  is sent yet — add one once `NotificationsService` delivers for real; (c) there is still no
+  signed-in "change password" screen (`PATCH /users/me` doesn't take a password); (d) the Bangla
+  reset SMS is the generic `NIR কোড` text (70-byte Teletalk limit), so it doesn't say "reset".
 
 - **JWT stored in localStorage, not httpOnly cookies** — accepted tradeoff for this phase, but
   flagged (README, [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#important-decisions)) as needing a
