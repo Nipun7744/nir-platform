@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import type { ChallengeDetailField } from '@nir/shared';
 import { api } from '@/lib/api-client';
 
 export interface PublicStats {
@@ -70,17 +71,11 @@ export interface ChallengeDto {
   submitButtonLabelBn?: string | null;
   titleBn?: string | null;
   descriptionBn?: string | null;
-  // Details-page sections (2026-11-11) — all optional; Bn falls back to En.
-  problemStatementEn?: string | null;
-  problemStatementBn?: string | null;
-  eligibilityEn?: string | null;
-  eligibilityBn?: string | null;
-  evaluationCriteriaEn?: string | null;
-  evaluationCriteriaBn?: string | null;
-  prizeDetailsEn?: string | null;
-  prizeDetailsBn?: string | null;
-  additionalInfoEn?: string | null;
-  additionalInfoBn?: string | null;
+  /**
+   * Configurable details-page fields (2026-11-18), set up per challenge by admins. Public reads
+   * carry only the filled fields, without placeholder / help text / validation rules.
+   */
+  detailFields?: ChallengeDetailField[] | null;
   contactName?: string | null;
   contactEmail?: string | null;
   contactPhone?: string | null;

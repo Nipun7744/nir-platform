@@ -19,6 +19,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ChallengeStatus, ReviewStatus } from '@prisma/client';
+import { DETAIL_LIMITS } from '@nir/shared';
 import { FIELD_MAPPINGS, FORM_FIELD_TYPES, MAX_FIELDS, MAX_OPTIONS } from '../challenge-rules';
 
 // ---------------------------------------------------------------- details-page sections (2026-11-11)
@@ -49,20 +50,14 @@ export class ChallengeResourceDto {
   url!: string;
 }
 
-const LONG_TEXT = 10000;
-
 /** Details-page fields shared by create and update — all optional; '' clears a value. */
 class ChallengeDetailsDto {
-  @IsOptional() @IsString() @MaxLength(LONG_TEXT) problemStatementEn?: string;
-  @IsOptional() @IsString() @MaxLength(LONG_TEXT) problemStatementBn?: string;
-  @IsOptional() @IsString() @MaxLength(LONG_TEXT) eligibilityEn?: string;
-  @IsOptional() @IsString() @MaxLength(LONG_TEXT) eligibilityBn?: string;
-  @IsOptional() @IsString() @MaxLength(LONG_TEXT) evaluationCriteriaEn?: string;
-  @IsOptional() @IsString() @MaxLength(LONG_TEXT) evaluationCriteriaBn?: string;
-  @IsOptional() @IsString() @MaxLength(LONG_TEXT) prizeDetailsEn?: string;
-  @IsOptional() @IsString() @MaxLength(LONG_TEXT) prizeDetailsBn?: string;
-  @IsOptional() @IsString() @MaxLength(LONG_TEXT) additionalInfoEn?: string;
-  @IsOptional() @IsString() @MaxLength(LONG_TEXT) additionalInfoBn?: string;
+  /**
+   * Configurable details-page fields (2026-11-18). Each item's shape and rules are checked by
+   * normalizeDetailFields / validateDetailFields from @nir/shared in ChallengesService — not here —
+   * so the API and the admin form apply the exact same rules.
+   */
+  @IsOptional() @IsArray() @ArrayMaxSize(DETAIL_LIMITS.maxFields) detailFields?: unknown[];
   @IsOptional() @IsString() @MaxLength(120) contactName?: string;
   @IsOptional() @IsString() @MaxLength(300) organizingAgencyBn?: string;
   @IsOptional() @IsString() @MaxLength(300) prizeInfoBn?: string;

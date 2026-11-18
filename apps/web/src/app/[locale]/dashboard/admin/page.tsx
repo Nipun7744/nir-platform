@@ -1,10 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Inbox, ListChecks, Star } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
 import { ApiError } from '@/lib/api-client';
 import { ChallengeFormBuilder } from '@/components/admin/challenge-form-builder';
+import {
+  ChallengeDetailFieldsEditor,
+  detailFieldIssues,
+  detailFieldsPayload,
+  withUids,
+  type EditorDetailField,
+} from '@/components/admin/challenge-detail-fields-editor';
 import { Role, ROLE_LABELS, ChallengeStatus } from '@nir/shared';
 import {
   useAdminUsers, useUpdateUserRoles, useUpdateEvaluatorProfile, useUpdatePreliminaryReviewerProfile, useUpdateAuthenticityReviewerProfile, useToggleUserStatus, useCreateCategory, useToggleCategory,
@@ -439,9 +446,7 @@ type ResourceInput = { label: string; labelBn: string; url: string };
 /** Optional details-page text fields (2026-11-11) — shown on /challenges/[slug] only when filled. */
 const DETAIL_TEXT_KEYS = [
   'titleBn', 'descriptionBn', 'organizingAgencyBn', 'prizeInfoBn',
-  'problemStatementEn', 'problemStatementBn', 'eligibilityEn', 'eligibilityBn',
-  'evaluationCriteriaEn', 'evaluationCriteriaBn', 'prizeDetailsEn', 'prizeDetailsBn',
-  'additionalInfoEn', 'additionalInfoBn', 'contactName', 'contactEmail', 'contactPhone',
+  'contactName', 'contactEmail', 'contactPhone',
   'submitButtonLabelEn', 'submitButtonLabelBn',
 ] as const;
 type DetailTextKey = (typeof DETAIL_TEXT_KEYS)[number];
@@ -450,13 +455,17 @@ type ChallengeForm = {
   slug: string; titleEn: string; organizingAgency: string; categoryId: string; descriptionEn: string;
   startDate: string; deadline: string; bannerImageUrl: string; prizeInfoEn: string; applyUrl: string;
   timelinePhases: TimelinePhaseInput[]; faqs: FaqInput[]; resources: ResourceInput[];
+  /** Configurable details fields (2026-11-18) — see components/admin/challenge-detail-fields-editor. */
+  detailFields: EditorDetailField[];
 } & Record<DetailTextKey, string>;
 
-const EMPTY_CHALLENGE_FORM: ChallengeForm = {
+/** A fresh, empty create form (details fields start empty — the admin creates each one). */
+const emptyChallengeForm = (): ChallengeForm => ({
   slug: '', titleEn: '', organizingAgency: '', categoryId: '', descriptionEn: '', startDate: '', deadline: '', bannerImageUrl: '', prizeInfoEn: '', applyUrl: '',
   ...(Object.fromEntries(DETAIL_TEXT_KEYS.map((k) => [k, ''])) as Record<DetailTextKey, string>),
   timelinePhases: [], faqs: [], resources: [],
-};
+  detailFields: [],
+});
 
 /** Existing challenge → edit form state (nullable strings become '', missing lists become []). */
 function challengeToForm(c: any): ChallengeForm {
@@ -477,6 +486,7 @@ function challengeToForm(c: any): ChallengeForm {
     })),
     faqs: (c.faqs ?? []).map((f: any) => ({ question: f.question ?? '', questionBn: f.questionBn ?? '', answer: f.answer ?? '', answerBn: f.answerBn ?? '' })),
     resources: (c.resources ?? []).map((r: any) => ({ label: r.label ?? '', labelBn: r.labelBn ?? '', url: r.url ?? '' })),
+    detailFields: withUids(c.detailFields),
   };
 }
 
@@ -491,6 +501,7 @@ function challengeFormToPayload(form: ChallengeForm) {
     timelinePhases: form.timelinePhases.filter((p) => p.label.trim()).map(compact),
     faqs: form.faqs.filter((f) => f.question.trim() && f.answer.trim()).map(compact),
     resources: form.resources.filter((r) => r.label.trim() && r.url.trim()).map(compact),
+    detailFields: detailFieldsPayload(form.detailFields),
   };
 }
 
@@ -500,6 +511,7 @@ function formatChallengeDate(value?: string) {
 
 function ChallengeFormFields({ form, setForm }: { form: ChallengeForm; setForm: (form: ChallengeForm) => void }) {
   const { data: categories } = useCategories();
+  const detailsHeadingId = useId();
   return (
     <>
     <div className="grid gap-3 sm:grid-cols-2">
@@ -546,18 +558,18 @@ function ChallengeFormFields({ form, setForm }: { form: ChallengeForm; setForm: 
         />
       </label>
     </div>
+    <section aria-labelledby={detailsHeadingId} className="mt-4 rounded-xl border border-ink-100 bg-ink-50/40 p-4">
+      <h3 id={detailsHeadingId} className="text-sm font-semibold text-ink-800">Challenge details fields</h3>
+      <p className="mb-3 mt-0.5 text-xs text-ink-500">
+        The sections of the public challenge page, created by you. <b>Add field</b>, then set its section, label, input type, placeholder,
+        help text, options and validation (English and বাংলা); reorder or remove fields any time. Empty fields are hidden on the site.
+      </p>
+      <ChallengeDetailFieldsEditor fields={form.detailFields} onChange={(detailFields) => setForm({ ...form, detailFields })} />
+    </section>
     <ChallengeDetailsFields form={form} setForm={setForm} />
     </>
   );
 }
-
-const DETAIL_SECTIONS: { en: DetailTextKey; bn: DetailTextKey; label: string; hint: string }[] = [
-  { en: 'problemStatementEn', bn: 'problemStatementBn', label: 'The problem', hint: 'Background and the problem innovators should solve' },
-  { en: 'eligibilityEn', bn: 'eligibilityBn', label: 'Who can apply', hint: 'Eligibility — e.g. one item per line' },
-  { en: 'evaluationCriteriaEn', bn: 'evaluationCriteriaBn', label: 'Evaluation criteria', hint: 'How submissions will be judged' },
-  { en: 'prizeDetailsEn', bn: 'prizeDetailsBn', label: 'Prizes & support (details)', hint: 'Prize breakdown, mentoring, pilots… (the short “Prize info” above is the headline)' },
-  { en: 'additionalInfoEn', bn: 'additionalInfoBn', label: 'Additional information', hint: 'Anything else' },
-];
 
 const smallBtn = 'focus-ring rounded-lg border border-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-700 hover:border-ink-300';
 const removeBtn = 'focus-ring self-start rounded-lg px-2 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50';
@@ -570,23 +582,15 @@ function ChallengeDetailsFields({ form, setForm }: { form: ChallengeForm; setFor
     set({ [key]: form[key].map((row, j) => (j === i ? { ...row, ...patch } : row)) } as Partial<ChallengeForm>);
   const removeAt = (key: 'timelinePhases' | 'faqs' | 'resources', i: number) =>
     set({ [key]: (form[key] as unknown[]).filter((_, j) => j !== i) } as Partial<ChallengeForm>);
-  const filled =
-    DETAIL_SECTIONS.some((s) => form[s.en]) || form.timelinePhases.length + form.faqs.length + form.resources.length > 0 || Boolean(form.contactEmail);
+  const filled = form.timelinePhases.length + form.faqs.length + form.resources.length > 0 || Boolean(form.contactEmail);
 
   return (
     <details className="mt-4 rounded-xl border border-ink-100 bg-ink-50/40 p-4" open={filled || undefined}>
       <summary className="cursor-pointer text-sm font-semibold text-ink-800">
-        Details page content <span className="font-normal text-ink-500">— optional; each section appears on the public challenge page only when filled</span>
+        Timeline, attachments, FAQ, contact &amp; Bangla basics <span className="font-normal text-ink-500">— optional; each appears on the public challenge page only when filled</span>
       </summary>
 
       <div className="mt-4 space-y-4">
-        {DETAIL_SECTIONS.map((s) => (
-          <label key={s.en} className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-500">{s.label}</span>
-            <textarea rows={3} placeholder={s.hint} value={form[s.en]} onChange={(e) => set({ [s.en]: e.target.value } as Partial<ChallengeForm>)} className={`${inputCls} w-full`} />
-          </label>
-        ))}
-
         {/* Timeline */}
         <fieldset>
           <legend className="mb-1 text-xs font-medium text-ink-500">Timeline phases (e.g. Submission → Shortlist → Pitch → Award)</legend>
@@ -683,15 +687,21 @@ function ChallengeDetailsFields({ form, setForm }: { form: ChallengeForm; setFor
             <input placeholder="Prize info (Bangla)" value={form.prizeInfoBn} onChange={(e) => set({ prizeInfoBn: e.target.value })} className={`${inputCls} w-full`} />
             <input maxLength={40} placeholder="Submission button label (Bangla)" value={form.submitButtonLabelBn} onChange={(e) => set({ submitButtonLabelBn: e.target.value })} className={`${inputCls} w-full`} />
             <p className="text-xs text-ink-500">
-              Timeline phases, resources and FAQs have their own Bangla boxes above. Each submission-form field has a বাংলা section in the form builder.
+              Challenge details fields, timeline phases, resources and FAQs have their own Bangla boxes above. Each submission-form field has a বাংলা section in the form builder.
             </p>
-            {DETAIL_SECTIONS.map((s) => (
-              <textarea key={s.bn} rows={2} placeholder={`${s.label} (Bangla)`} value={form[s.bn]} onChange={(e) => set({ [s.bn]: e.target.value } as Partial<ChallengeForm>)} className={`${inputCls} w-full`} />
-            ))}
           </div>
         </details>
       </div>
     </details>
+  );
+}
+
+/** Why Create / Save is disabled: problems in the challenge details fields (shown on each field). */
+function IssueNote({ count }: { count: number }) {
+  return (
+    <p role="status" className="mt-2 text-xs font-medium text-red-700">
+      Fix {count} problem{count === 1 ? '' : 's'} in the challenge details fields (marked in red) to continue.
+    </p>
   );
 }
 
@@ -719,9 +729,11 @@ function ChallengesTab() {
   const createChallenge = useCreateChallenge();
   const updateChallenge = useUpdateChallenge();
   const deleteChallenge = useDeleteChallenge();
-  const [form, setForm] = useState(EMPTY_CHALLENGE_FORM);
+  const [form, setForm] = useState(emptyChallengeForm);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState(EMPTY_CHALLENGE_FORM);
+  const [editForm, setEditForm] = useState(emptyChallengeForm);
+  const createIssues = detailFieldIssues(form.detailFields).length;
+  const editIssues = editingId ? detailFieldIssues(editForm.detailFields).length : 0;
   const [builderId, setBuilderId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
 
@@ -749,15 +761,16 @@ function ChallengesTab() {
           <ChallengeFormFields form={form} setForm={setForm} />
         </div>
         <AddButton
-          disabled={!form.slug || !form.titleEn || !form.organizingAgency || !form.descriptionEn || createChallenge.isPending}
+          disabled={!form.slug || !form.titleEn || !form.organizingAgency || !form.descriptionEn || createIssues > 0 || createChallenge.isPending}
           onClick={() =>
             createChallenge.mutate(
               { ...challengeFormToPayload(form), categoryId: form.categoryId || undefined, isPublished: false },
-              { onSuccess: () => setForm(EMPTY_CHALLENGE_FORM) },
+              { onSuccess: () => setForm(emptyChallengeForm()) },
             )
           }
           label="Create challenge"
         />
+        {createIssues > 0 && <IssueNote count={createIssues} />}
         {createChallenge.isError && (
           <p className="mt-2 text-xs text-red-600">{createChallenge.error instanceof ApiError ? createChallenge.error.message : 'Could not create the challenge'}</p>
         )}
@@ -771,7 +784,7 @@ function ChallengesTab() {
               <ChallengeFormFields form={editForm} setForm={setEditForm} />
               <div className="mt-3 flex gap-2">
                 <button
-                  disabled={updateChallenge.isPending}
+                  disabled={updateChallenge.isPending || editIssues > 0}
                   onClick={() =>
                     updateChallenge.mutate(
                       { id: c.id, ...challengeFormToPayload(editForm) },
@@ -786,6 +799,7 @@ function ChallengesTab() {
                   Cancel
                 </button>
               </div>
+              {editIssues > 0 && <IssueNote count={editIssues} />}
               {rowError && rowError.id === c.id && <p className="mt-2 text-xs text-red-600">{rowError.message}</p>}
             </div>
           ) : (

@@ -1011,18 +1011,14 @@ model Challenge {
   // Label of the "submit to this challenge" button (2026-11-16); NULL → the site's default label.
   submitButtonLabelEn String?
   submitButtonLabelBn String?
-  // Public details page sections (2026-11-11) — all optional; a section is hidden when empty.
-  // Bn columns fall back to En on the Bangla site when unset.
-  problemStatementEn   String?
-  problemStatementBn   String?
-  eligibilityEn        String?
-  eligibilityBn        String?
-  evaluationCriteriaEn String?
-  evaluationCriteriaBn String?
-  prizeDetailsEn       String?
-  prizeDetailsBn       String?
-  additionalInfoEn     String?
-  additionalInfoBn     String?
+  // Configurable details-page fields (2026-11-18) — an ordered JSON list, one entry per field the
+  // admin defined for this challenge: {key, sectionEn?, sectionBn?, labelEn, labelBn?, type,
+  // placeholderEn/Bn?, helpTextEn/Bn?, options?: [{en, bn?}], validation?: {required, minLength,
+  // maxLength, min, max, pattern, patternMessageEn/Bn}, value?, valueBn?}. Shape and rules live in
+  // @nir/shared (challenge-detail-fields.ts); the API normalizes + validates before saving.
+  // Replaced the fixed problemStatement/eligibility/evaluationCriteria/prizeDetails/additionalInfo
+  // En/Bn columns, whose content the migration moved into this list.
+  detailFields         Json?
   contactName          String?
   contactEmail         String?
   contactPhone         String?

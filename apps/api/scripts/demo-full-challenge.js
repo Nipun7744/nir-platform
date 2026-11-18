@@ -131,28 +131,63 @@ const DETAILS = {
     'A nationwide call for citizen-centric innovations that make public services faster, cheaper and easier to reach — in agriculture, health, education and climate resilience. Shortlisted teams receive seed funding, mentoring and a government pilot site.',
   descriptionBn:
     'নাগরিককেন্দ্রিক উদ্ভাবনের জন্য দেশব্যাপী আহ্বান — কৃষি, স্বাস্থ্য, শিক্ষা ও জলবায়ু সহনশীলতায় সরকারি সেবা দ্রুত, সাশ্রয়ী ও সহজলভ্য করতে। নির্বাচিত দলগুলো পাবে প্রাথমিক অর্থায়ন, মেন্টরিং এবং সরকারি পাইলট সাইট।',
-  problemStatementEn:
-    'Many public services still require several in-person visits, paper forms and long waits. Rural citizens, women and people with disabilities are hit hardest. We are looking for practical, low-cost solutions that can be piloted within six months.',
-  problemStatementBn:
-    'অনেক সরকারি সেবায় এখনও একাধিকবার সশরীরে যাওয়া, কাগজের ফরম এবং দীর্ঘ অপেক্ষা লাগে। গ্রামের নাগরিক, নারী ও প্রতিবন্ধী ব্যক্তিরা সবচেয়ে বেশি ভোগেন। আমরা ছয় মাসের মধ্যে পাইলট করা যায় এমন বাস্তবসম্মত, স্বল্প-খরচের সমাধান খুঁজছি।',
-  eligibilityEn:
-    '• Bangladeshi citizens aged 18+, applying alone or as a team of up to 5\n• Registered organisations (startups, NGOs, academic institutions)\n• Government officials may apply with their office’s consent',
-  eligibilityBn:
-    '• ১৮ বছর বা তার বেশি বয়সী বাংলাদেশি নাগরিক, একক বা সর্বোচ্চ ৫ জনের দল\n• নিবন্ধিত প্রতিষ্ঠান (স্টার্টআপ, এনজিও, শিক্ষা প্রতিষ্ঠান)\n• সরকারি কর্মকর্তারা নিজ দপ্তরের সম্মতিতে আবেদন করতে পারবেন',
-  evaluationCriteriaEn:
-    '1. Impact on citizens (30%)\n2. Feasibility and cost (25%)\n3. Innovation / originality (20%)\n4. Scalability across districts (15%)\n5. Team capacity (10%)',
-  evaluationCriteriaBn:
-    '১. নাগরিকের উপর প্রভাব (৩০%)\n২. বাস্তবায়নযোগ্যতা ও ব্যয় (২৫%)\n৩. উদ্ভাবনী মৌলিকত্ব (২০%)\n৪. জেলাব্যাপী সম্প্রসারণযোগ্যতা (১৫%)\n৫. দলের সক্ষমতা (১০%)',
   prizeInfoEn: 'BDT 50 lakh total prize pool',
   prizeInfoBn: 'মোট ৫০ লক্ষ টাকার পুরস্কার',
-  prizeDetailsEn:
-    'Winner: BDT 20 lakh + 6-month government pilot\nRunner-up: BDT 15 lakh\nThird place: BDT 10 lakh\nSpecial award (women-led team): BDT 5 lakh',
-  prizeDetailsBn:
-    'বিজয়ী: ২০ লক্ষ টাকা + ৬ মাসের সরকারি পাইলট\nদ্বিতীয়: ১৫ লক্ষ টাকা\nতৃতীয়: ১০ লক্ষ টাকা\nবিশেষ পুরস্কার (নারী নেতৃত্বাধীন দল): ৫ লক্ষ টাকা',
-  additionalInfoEn:
-    'Intellectual property stays with the applicant. Shortlisted applicants will be invited to a two-day bootcamp in Dhaka (travel covered).',
-  additionalInfoBn:
-    'মেধাস্বত্ব আবেদনকারীর কাছেই থাকবে। নির্বাচিত আবেদনকারীদের ঢাকায় দুই দিনের বুটক্যাম্পে আমন্ত্রণ জানানো হবে (যাতায়াত খরচ বহন করা হবে)।',
+  // Configurable details fields (2026-11-18): the standard sections plus a grouped "At a glance" section.
+  detailFields: [
+    {
+      key: 'objective', labelEn: 'Objective', labelBn: 'উদ্দেশ্য', type: 'LONG_TEXT',
+      value:
+        'Many public services still require several in-person visits, paper forms and long waits. Rural citizens, women and people with disabilities are hit hardest. We are looking for practical, low-cost solutions that can be piloted within six months.',
+      valueBn:
+        'অনেক সরকারি সেবায় এখনও একাধিকবার সশরীরে যাওয়া, কাগজের ফরম এবং দীর্ঘ অপেক্ষা লাগে। গ্রামের নাগরিক, নারী ও প্রতিবন্ধী ব্যক্তিরা সবচেয়ে বেশি ভোগেন। আমরা ছয় মাসের মধ্যে পাইলট করা যায় এমন বাস্তবসম্মত, স্বল্প-খরচের সমাধান খুঁজছি।',
+    },
+    {
+      key: 'sectors', sectionEn: 'At a glance', sectionBn: 'এক নজরে', labelEn: 'Focus sectors', labelBn: 'অগ্রাধিকার খাত', type: 'CHECKBOX',
+      options: [
+        { en: 'Agriculture', bn: 'কৃষি' }, { en: 'Health', bn: 'স্বাস্থ্য' }, { en: 'Education', bn: 'শিক্ষা' }, { en: 'Climate resilience', bn: 'জলবায়ু সহনশীলতা' },
+      ],
+      validation: { required: true, min: 1 },
+      value: ['Agriculture', 'Health', 'Education', 'Climate resilience'],
+    },
+    {
+      key: 'team_size', sectionEn: 'At a glance', sectionBn: 'এক নজরে', labelEn: 'Maximum team size', labelBn: 'দলের সর্বোচ্চ সদস্য', type: 'NUMBER',
+      validation: { min: 1, max: 10 }, value: '5',
+    },
+    {
+      key: 'stage', sectionEn: 'At a glance', sectionBn: 'এক নজরে', labelEn: 'Solution stage', labelBn: 'সমাধানের পর্যায়', type: 'SELECT',
+      options: [{ en: 'Idea', bn: 'ধারণা' }, { en: 'Prototype or pilot', bn: 'প্রোটোটাইপ বা পাইলট' }, { en: 'Scaling', bn: 'সম্প্রসারণ' }],
+      value: 'Prototype or pilot',
+    },
+    {
+      key: 'eligibility', labelEn: 'Who can apply', labelBn: 'কারা আবেদন করতে পারবেন', type: 'LONG_TEXT',
+      value:
+        '• Bangladeshi citizens aged 18+, applying alone or as a team of up to 5\n• Registered organisations (startups, NGOs, academic institutions)\n• Government officials may apply with their office’s consent',
+      valueBn:
+        '• ১৮ বছর বা তার বেশি বয়সী বাংলাদেশি নাগরিক, একক বা সর্বোচ্চ ৫ জনের দল\n• নিবন্ধিত প্রতিষ্ঠান (স্টার্টআপ, এনজিও, শিক্ষা প্রতিষ্ঠান)\n• সরকারি কর্মকর্তারা নিজ দপ্তরের সম্মতিতে আবেদন করতে পারবেন',
+    },
+    {
+      key: 'evaluation_criteria', labelEn: 'How submissions are evaluated', labelBn: 'মূল্যায়ন পদ্ধতি', type: 'LONG_TEXT',
+      value:
+        '1. Impact on citizens (30%)\n2. Feasibility and cost (25%)\n3. Innovation / originality (20%)\n4. Scalability across districts (15%)\n5. Team capacity (10%)',
+      valueBn:
+        '১. নাগরিকের উপর প্রভাব (৩০%)\n২. বাস্তবায়নযোগ্যতা ও ব্যয় (২৫%)\n৩. উদ্ভাবনী মৌলিকত্ব (২০%)\n৪. জেলাব্যাপী সম্প্রসারণযোগ্যতা (১৫%)\n৫. দলের সক্ষমতা (১০%)',
+    },
+    {
+      key: 'prize_details', labelEn: 'Prizes & support', labelBn: 'পুরস্কার ও সহায়তা', type: 'LONG_TEXT',
+      value:
+        'Winner: BDT 20 lakh + 6-month government pilot\nRunner-up: BDT 15 lakh\nThird place: BDT 10 lakh\nSpecial award (women-led team): BDT 5 lakh',
+      valueBn:
+        'বিজয়ী: ২০ লক্ষ টাকা + ৬ মাসের সরকারি পাইলট\nদ্বিতীয়: ১৫ লক্ষ টাকা\nতৃতীয়: ১০ লক্ষ টাকা\nবিশেষ পুরস্কার (নারী নেতৃত্বাধীন দল): ৫ লক্ষ টাকা',
+    },
+    {
+      key: 'additional_info', labelEn: 'Additional information', labelBn: 'অতিরিক্ত তথ্য', type: 'LONG_TEXT',
+      value:
+        'Intellectual property stays with the applicant. Shortlisted applicants will be invited to a two-day bootcamp in Dhaka (travel covered).',
+      valueBn:
+        'মেধাস্বত্ব আবেদনকারীর কাছেই থাকবে। নির্বাচিত আবেদনকারীদের ঢাকায় দুই দিনের বুটক্যাম্পে আমন্ত্রণ জানানো হবে (যাতায়াত খরচ বহন করা হবে)।',
+    },
+  ],
   contactName: 'Challenge Secretariat, a2i',
   contactEmail: 'challenge-demo@a2i.gov.bd',
   contactPhone: '+880 2 5500 6931',

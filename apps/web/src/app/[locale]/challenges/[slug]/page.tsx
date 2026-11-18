@@ -5,8 +5,10 @@ import { useLocale, useTranslations } from 'next-intl';
 import {
   ArrowLeft,
   Banknote,
+  Check,
   CalendarClock,
   ChevronDown,
+  ExternalLink,
   FileText,
   Landmark,
   Lock,
@@ -21,6 +23,7 @@ import { useChallenge, type ChallengeDto } from '@/hooks/use-content';
 import { challengeDaysLeft } from '@/lib/challenge-dates';
 import { useAuthStore } from '@/store/auth-store';
 import { pickText } from '@/lib/challenge-i18n';
+import { detailFieldHasValue, type ChallengeDetailField } from '@nir/shared';
 
 type Section = { id: string; title: string; content: React.ReactNode };
 
@@ -49,7 +52,7 @@ export default function ChallengeDetailPage({ params }: { params: { slug: string
   const organizer = pick(challenge.organizingAgency, challenge.organizingAgencyBn);
   const prizeInfo = pick(challenge.prizeInfoEn, challenge.prizeInfoBn);
   const daysLeft = challenge.status === 'OPEN' ? challengeDaysLeft(challenge.deadline) : null;
-  const sections = buildSections(challenge, pick, formatDate, t);
+  const sections = buildSections(challenge, pick, formatDate, t, bn);
   const hasContact = Boolean(challenge.contactName || challenge.contactEmail || challenge.contactPhone);
 
   return (
@@ -237,6 +240,7 @@ function buildSections(
   pick: (en?: string | null, bn?: string | null) => string | null,
   formatDate: (v: string) => string,
   t: ReturnType<typeof useTranslations<'challengeDetail'>>,
+  bn: boolean,
 ): Section[] {
   const sections: Section[] = [];
   const text = (id: string, title: string, value: string | null) => {
@@ -244,8 +248,7 @@ function buildSections(
   };
 
   text('overview', t('overview'), pick(c.descriptionEn, c.descriptionBn));
-  text('problem', t('problemStatement'), pick(c.problemStatementEn, c.problemStatementBn));
-  text('eligibility', t('eligibility'), pick(c.eligibilityEn, c.eligibilityBn));
+  sections.push(...detailSections(c.detailFields ?? [], pick, formatDate, bn));
 
   const phases = c.timelinePhases ?? [];
   if (phases.length) {
@@ -272,27 +275,6 @@ function buildSections(
             );
           })}
         </ol>
-      ),
-    });
-  }
-
-  text('evaluation', t('evaluationCriteria'), pick(c.evaluationCriteriaEn, c.evaluationCriteriaBn));
-
-  const prizeDetails = pick(c.prizeDetailsEn, c.prizeDetailsBn);
-  const prizeInfo = pick(c.prizeInfoEn, c.prizeInfoBn);
-  if (prizeDetails || prizeInfo) {
-    sections.push({
-      id: 'prizes',
-      title: t('prizes'),
-      content: (
-        <div className="space-y-3">
-          {prizeInfo && (
-            <p className="inline-flex items-center gap-2 rounded-lg bg-mist px-3 py-2 font-semibold text-navy">
-              <Banknote className="h-4 w-4 text-nirgreen-deep" /> {prizeInfo}
-            </p>
-          )}
-          {prizeDetails && <Prose text={prizeDetails} />}
-        </div>
       ),
     });
   }
@@ -343,6 +325,107 @@ function buildSections(
     });
   }
 
-  text('more', t('additionalInfo'), pick(c.additionalInfoEn, c.additionalInfoBn));
   return sections;
+}
+
+type Pick2 = (en?: string | null, bn?: string | null) => string | null;
+
+/**
+ * The admin-configured detail fields (2026-11-18) as page sections: fields that share a section
+ * name are grouped under one heading (each with its label as a sub-heading); a field without a
+ * section is a section of its own, headed by its label. Empty fields are left out.
+ */
+function detailSections(fields: ChallengeDetailField[], pick: Pick2, formatDate: (v: string) => string, bn: boolean): Section[] {
+  const groups: { id: string; title: string; named: boolean; items: { f: ChallengeDetailField; label: string; body: React.ReactNode }[] }[] = [];
+  const byName = new Map<string, (typeof groups)[number]>();
+  for (const f of fields) {
+    if (!detailFieldHasValue(f)) continue;
+    const body = detailValue(f, pick, formatDate, bn);
+    if (!body) continue;
+    const label = pick(f.labelEn, f.labelBn) ?? '';
+    const name = f.sectionEn?.trim().toLowerCase();
+    let group = name ? byName.get(name) : undefined;
+    if (!group) {
+      group = { id: `d-${f.key}`, title: (name && pick(f.sectionEn, f.sectionBn)) || label, named: Boolean(name), items: [] };
+      groups.push(group);
+      if (name) byName.set(name, group);
+    }
+    group.items.push({ f, label, body });
+  }
+  return groups.map((g) => ({
+    id: g.id,
+    title: g.title,
+    content:
+      !g.named || (g.items.length === 1 && g.items[0].label === g.title) ? (
+        g.items[0].body
+      ) : (
+        <div className="space-y-5">
+          {g.items.map(({ f, label, body }) => (
+            <div key={f.key}>
+              <h3 className="mb-1.5 font-display text-base font-semibold text-navy">{label}</h3>
+              {body}
+            </div>
+          ))}
+        </div>
+      ),
+  }));
+}
+
+/** One detail field's value, rendered for its input type; null when there's nothing to show. */
+function detailValue(f: ChallengeDetailField, pick: Pick2, formatDate: (v: string) => string, bn: boolean): React.ReactNode {
+  const optionText = (v: string) => {
+    const o = f.options?.find((x) => x.en === v);
+    return pick(o?.en ?? v, o?.bn) ?? v;
+  };
+  const link = 'focus-ring break-all font-medium text-nirgreen-deep hover:underline';
+  if (Array.isArray(f.value)) {
+    return (
+      <ul className="space-y-1.5">
+        {f.value.map((v) => (
+          <li key={v} className="flex items-start gap-2 text-navy/85">
+            <Check className="mt-1 h-4 w-4 shrink-0 text-nirgreen-deep" aria-hidden /> {optionText(v)}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  const value = f.value ?? '';
+  switch (f.type) {
+    case 'SHORT_TEXT':
+    case 'LONG_TEXT': {
+      const text = pick(f.value, f.valueBn);
+      return text ? <Prose text={text} /> : null;
+    }
+    case 'NUMBER':
+      return <p className="text-lg font-semibold text-navy">{Number(value).toLocaleString(bn ? 'bn-BD' : 'en-US')}</p>;
+    case 'DATE':
+      return <p className="font-medium text-navy">{formatDate(value)}</p>;
+    case 'EMAIL':
+      return <a href={`mailto:${value}`} className={link}>{value}</a>;
+    case 'PHONE':
+      return <a href={`tel:${value.replace(/[^d+]/g, '')}`} className={link}>{value}</a>;
+    case 'URL':
+      return (
+        <a href={value} target="_blank" rel="noopener noreferrer" className={`${link} inline-flex items-center gap-1.5`}>
+          {value} <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        </a>
+      );
+    case 'FILE':
+      return (
+        <a
+          href={value}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="focus-ring inline-flex max-w-full items-center gap-3 rounded-lg border border-greenline bg-white px-4 py-3 text-sm font-medium text-navy hover:border-nirgreen"
+        >
+          <FileText className="h-4 w-4 shrink-0 text-nirgreen-deep" aria-hidden />
+          <span className="min-w-0 truncate">{pick(f.labelEn, f.labelBn)}</span>
+        </a>
+      );
+    case 'SELECT':
+    case 'RADIO':
+      return <p className="font-medium text-navy">{optionText(value)}</p>;
+    default:
+      return value ? <Prose text={value} /> : null;
+  }
 }
