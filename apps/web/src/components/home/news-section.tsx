@@ -54,7 +54,7 @@ export function NewsSection() {
                 <span className="font-mono text-xs text-slate" lang={locale === 'en' ? undefined : 'en'}>
                   {post.eventDate &&
                     new Date(post.eventDate)
-                      .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                      .toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
                       .toUpperCase()}{' '}
                   · {post.category}
                 </span>

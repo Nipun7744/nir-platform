@@ -188,9 +188,14 @@ const DETAILS = {
         'মেধাস্বত্ব আবেদনকারীর কাছেই থাকবে। নির্বাচিত আবেদনকারীদের ঢাকায় দুই দিনের বুটক্যাম্পে আমন্ত্রণ জানানো হবে (যাতায়াত খরচ বহন করা হবে)।',
     },
   ],
-  contactName: 'Challenge Secretariat, a2i',
-  contactEmail: 'challenge-demo@a2i.gov.bd',
-  contactPhone: '+880 2 5500 6931',
+  // Contact box (2026-11-18): admin-defined fields only.
+  contactFields: [
+    { key: 'name', labelEn: 'Name', labelBn: 'নাম', type: 'SHORT_TEXT', value: 'Challenge Secretariat, a2i' },
+    { key: 'email', labelEn: 'Email', labelBn: 'ইমেইল', type: 'EMAIL', value: 'challenge-demo@a2i.gov.bd' },
+    { key: 'phone', labelEn: 'Phone', labelBn: 'ফোন', type: 'PHONE', value: '+880 2 5500 6931' },
+    { key: 'whatsapp', labelEn: 'WhatsApp', labelBn: 'হোয়াটসঅ্যাপ', type: 'PHONE', value: '+880 1700 000000' },
+    { key: 'office_hours', labelEn: 'Office hours', labelBn: 'অফিস সময়', type: 'SHORT_TEXT', value: 'Sun–Thu, 9am–5pm', valueBn: 'রবি–বৃহস্পতি, সকাল ৯টা–বিকেল ৫টা' },
+  ],
   submitButtonLabelEn: 'Apply to the demo',
   submitButtonLabelBn: 'ডেমোতে আবেদন করুন',
   applyUrl: '',

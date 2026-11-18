@@ -221,7 +221,7 @@ function SubmissionsMonitor() {
                   <p className="text-xs text-ink-400">{i.submittedBy?.email}</p>
                 </td>
                 <td className="whitespace-nowrap py-3 pr-3 text-ink-600">
-                  {i.submittedAt ? new Date(i.submittedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                  {i.submittedAt ? new Date(i.submittedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}
                 </td>
                 <td className="py-3">
                   <span className={clsx('inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold', STATUS_STYLES[i.reviewStatus])}>

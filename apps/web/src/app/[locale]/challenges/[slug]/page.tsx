@@ -12,11 +12,8 @@ import {
   FileText,
   Landmark,
   Lock,
-  Mail,
-  Phone,
   Send,
   Star,
-  User,
 } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
 import { useChallenge, type ChallengeDto } from '@/hooks/use-content';
@@ -46,14 +43,18 @@ export default function ChallengeDetailPage({ params }: { params: { slug: string
   // Bangla site shows the Bn text when the admin wrote one, otherwise falls back to English.
   const pick = (en?: string | null, bnText?: string | null) => (bn && bnText ? bnText : en) || null;
   const formatDate = (value: string) =>
-    new Date(value).toLocaleDateString(bn ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    new Date(value).toLocaleDateString(bn ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
   const title = pick(challenge.titleEn, challenge.titleBn)!;
   const organizer = pick(challenge.organizingAgency, challenge.organizingAgencyBn);
   const prizeInfo = pick(challenge.prizeInfoEn, challenge.prizeInfoBn);
   const daysLeft = challenge.status === 'OPEN' ? challengeDaysLeft(challenge.deadline) : null;
   const sections = buildSections(challenge, pick, formatDate, t, bn);
-  const hasContact = Boolean(challenge.contactName || challenge.contactEmail || challenge.contactPhone);
+  // The Contact box: admin-defined contact fields (2026-11-18), rendered like the details fields.
+  const contactItems = (challenge.contactFields ?? [])
+    .filter(detailFieldHasValue)
+    .map((f) => ({ f, label: pick(f.labelEn, f.labelBn), body: detailValue(f, pick, formatDate, bn) }))
+    .filter((x) => x.body);
 
   return (
     <div className="container-page pb-32 pt-10 lg:pb-16">
@@ -158,30 +159,17 @@ export default function ChallengeDetailPage({ params }: { params: { slug: string
               </div>
             </div>
 
-            {hasContact && (
+            {contactItems.length > 0 && (
               <div className="rounded-xl2 border border-greenline bg-white p-5">
                 <h2 className="font-display text-base font-bold text-navy">{t('contact')}</h2>
-                <ul className="mt-3 space-y-2 text-sm text-navy">
-                  {challenge.contactName && (
-                    <li className="flex items-center gap-2"><User className="h-4 w-4 shrink-0 text-slate" /> {challenge.contactName}</li>
-                  )}
-                  {challenge.contactEmail && (
-                    <li className="flex min-w-0 items-center gap-2">
-                      <Mail className="h-4 w-4 shrink-0 text-slate" />
-                      <a href={`mailto:${challenge.contactEmail}`} className="focus-ring min-w-0 truncate text-nirgreen-deep hover:underline">
-                        {challenge.contactEmail}
-                      </a>
-                    </li>
-                  )}
-                  {challenge.contactPhone && (
-                    <li className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 shrink-0 text-slate" />
-                      <a href={`tel:${challenge.contactPhone.replace(/[^\d+]/g, '')}`} className="focus-ring text-nirgreen-deep hover:underline">
-                        {challenge.contactPhone}
-                      </a>
-                    </li>
-                  )}
-                </ul>
+                <dl className="mt-3 space-y-3 text-sm">
+                    {contactItems.map(({ f, label, body }) => (
+                      <div key={f.key} className="min-w-0 break-words">
+                        <dt className="text-xs uppercase tracking-[0.08em] text-slate">{label}</dt>
+                        <dd className="mt-0.5 text-navy">{body}</dd>
+                      </div>
+                    ))}
+                </dl>
               </div>
             )}
           </div>

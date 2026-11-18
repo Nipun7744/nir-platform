@@ -354,7 +354,7 @@ function ApprovalSection({ innovation }: { innovation: any }) {
 }
 
 function formatDate(value?: string | null) {
-  return value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  return value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
 }
 
 // Publication is a separate, later step from approval (see PROJECT_CONTEXT.md#business-rules), so

@@ -446,7 +446,6 @@ type ResourceInput = { label: string; labelBn: string; url: string };
 /** Optional details-page text fields (2026-11-11) — shown on /challenges/[slug] only when filled. */
 const DETAIL_TEXT_KEYS = [
   'titleBn', 'descriptionBn', 'organizingAgencyBn', 'prizeInfoBn',
-  'contactName', 'contactEmail', 'contactPhone',
   'submitButtonLabelEn', 'submitButtonLabelBn',
 ] as const;
 type DetailTextKey = (typeof DETAIL_TEXT_KEYS)[number];
@@ -457,6 +456,8 @@ type ChallengeForm = {
   timelinePhases: TimelinePhaseInput[]; faqs: FaqInput[]; resources: ResourceInput[];
   /** Configurable details fields (2026-11-18) — see components/admin/challenge-detail-fields-editor. */
   detailFields: EditorDetailField[];
+  /** Extra contact fields under "Contact for questions" (2026-11-18) — same editor, no sections. */
+  contactFields: EditorDetailField[];
 } & Record<DetailTextKey, string>;
 
 /** A fresh, empty create form (details fields start empty — the admin creates each one). */
@@ -465,6 +466,7 @@ const emptyChallengeForm = (): ChallengeForm => ({
   ...(Object.fromEntries(DETAIL_TEXT_KEYS.map((k) => [k, ''])) as Record<DetailTextKey, string>),
   timelinePhases: [], faqs: [], resources: [],
   detailFields: [],
+  contactFields: [],
 });
 
 /** Existing challenge → edit form state (nullable strings become '', missing lists become []). */
@@ -487,6 +489,7 @@ function challengeToForm(c: any): ChallengeForm {
     faqs: (c.faqs ?? []).map((f: any) => ({ question: f.question ?? '', questionBn: f.questionBn ?? '', answer: f.answer ?? '', answerBn: f.answerBn ?? '' })),
     resources: (c.resources ?? []).map((r: any) => ({ label: r.label ?? '', labelBn: r.labelBn ?? '', url: r.url ?? '' })),
     detailFields: withUids(c.detailFields),
+    contactFields: withUids(c.contactFields),
   };
 }
 
@@ -502,11 +505,12 @@ function challengeFormToPayload(form: ChallengeForm) {
     faqs: form.faqs.filter((f) => f.question.trim() && f.answer.trim()).map(compact),
     resources: form.resources.filter((r) => r.label.trim() && r.url.trim()).map(compact),
     detailFields: detailFieldsPayload(form.detailFields),
+    contactFields: detailFieldsPayload(form.contactFields),
   };
 }
 
 function formatChallengeDate(value?: string) {
-  return value ? new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+  return value ? new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: 'long', year: 'numeric' }) : null;
 }
 
 function ChallengeFormFields({ form, setForm }: { form: ChallengeForm; setForm: (form: ChallengeForm) => void }) {
@@ -582,7 +586,8 @@ function ChallengeDetailsFields({ form, setForm }: { form: ChallengeForm; setFor
     set({ [key]: form[key].map((row, j) => (j === i ? { ...row, ...patch } : row)) } as Partial<ChallengeForm>);
   const removeAt = (key: 'timelinePhases' | 'faqs' | 'resources', i: number) =>
     set({ [key]: (form[key] as unknown[]).filter((_, j) => j !== i) } as Partial<ChallengeForm>);
-  const filled = form.timelinePhases.length + form.faqs.length + form.resources.length > 0 || Boolean(form.contactEmail);
+  const filled =
+    form.timelinePhases.length + form.faqs.length + form.resources.length + form.contactFields.length > 0;
 
   return (
     <details className="mt-4 rounded-xl border border-ink-100 bg-ink-50/40 p-4" open={filled || undefined}>
@@ -668,11 +673,12 @@ function ChallengeDetailsFields({ form, setForm }: { form: ChallengeForm; setFor
         {/* Contact */}
         <fieldset>
           <legend className="mb-1 text-xs font-medium text-ink-500">Contact for questions</legend>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <input placeholder="Name" value={form.contactName} onChange={(e) => set({ contactName: e.target.value })} className={inputCls} />
-            <input type="email" placeholder="Email" value={form.contactEmail} onChange={(e) => set({ contactEmail: e.target.value })} className={inputCls} />
-            <input placeholder="Phone" value={form.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} className={inputCls} />
-          </div>
+          <ChallengeDetailFieldsEditor
+            fields={form.contactFields}
+            onChange={(contactFields) => set({ contactFields })}
+            showSection={false}
+            addLabel="Add contact field"
+          />
         </fieldset>
 
         {/* Bangla */}
@@ -700,7 +706,7 @@ function ChallengeDetailsFields({ form, setForm }: { form: ChallengeForm; setFor
 function IssueNote({ count }: { count: number }) {
   return (
     <p role="status" className="mt-2 text-xs font-medium text-red-700">
-      Fix {count} problem{count === 1 ? '' : 's'} in the challenge details fields (marked in red) to continue.
+      Fix {count} problem{count === 1 ? '' : 's'} in the challenge details / contact fields (marked in red) to continue.
     </p>
   );
 }
@@ -732,8 +738,9 @@ function ChallengesTab() {
   const [form, setForm] = useState(emptyChallengeForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState(emptyChallengeForm);
-  const createIssues = detailFieldIssues(form.detailFields).length;
-  const editIssues = editingId ? detailFieldIssues(editForm.detailFields).length : 0;
+  const formIssues = (f: ChallengeForm) => detailFieldIssues(f.detailFields).length + detailFieldIssues(f.contactFields).length;
+  const createIssues = formIssues(form);
+  const editIssues = editingId ? formIssues(editForm) : 0;
   const [builderId, setBuilderId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
 

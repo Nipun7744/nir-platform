@@ -26,7 +26,7 @@ export function useChallengeText() {
       pick(c.submitButtonLabelEn, c.submitButtonLabelBn).trim() || fallback,
     field: localizeField(locale),
     /** Dates in the visitor's language (Bangla digits/month names on the Bangla site). */
-    date: (value: string, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }) =>
+    date: (value: string, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' }) =>
       new Date(value).toLocaleDateString(locale === 'bn' ? 'bn-BD' : 'en-GB', { timeZone: 'UTC', ...opts }),
   };
 }

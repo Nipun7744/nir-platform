@@ -76,9 +76,8 @@ export interface ChallengeDto {
    * carry only the filled fields, without placeholder / help text / validation rules.
    */
   detailFields?: ChallengeDetailField[] | null;
-  contactName?: string | null;
-  contactEmail?: string | null;
-  contactPhone?: string | null;
+  /** The Contact box (2026-11-18): admin-defined fields only; same shape as detailFields, no sections. */
+  contactFields?: ChallengeDetailField[] | null;
   timelinePhases?: ChallengeTimelinePhase[] | null;
   faqs?: ChallengeFaq[] | null;
   resources?: ChallengeResource[] | null;

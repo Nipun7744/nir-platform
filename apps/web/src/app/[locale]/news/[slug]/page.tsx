@@ -21,7 +21,7 @@ export default function NewsDetailPage({ params }: { params: { slug: string } })
       </Link>
 
       <p className="font-mono text-xs uppercase tracking-wide text-ink-400">
-        {post.eventDate && new Date(post.eventDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })} · {post.category}
+        {post.eventDate && new Date(post.eventDate).toLocaleDateString(undefined, { day: '2-digit', month: 'long', year: 'numeric' })} · {post.category}
       </p>
       <h1 className="mt-2 font-display text-3xl font-extrabold text-ink-900">
         {locale === 'bn' && post.titleBn ? post.titleBn : post.titleEn}

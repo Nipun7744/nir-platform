@@ -24,7 +24,7 @@ export default function ChallengesPage() {
   const tx = useChallengeText();
   const { data: challenges, isLoading } = useChallenges();
   const generalSubmissionOpen = useGeneralSubmissionOpen();
-  const shortDate = (v: string) => tx.date(v, { day: '2-digit', month: 'short', year: 'numeric' });
+  const shortDate = (v: string) => tx.date(v, { day: '2-digit', month: 'long', year: 'numeric' });
 
   return (
     <div className="container-page py-14">

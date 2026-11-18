@@ -59,7 +59,7 @@ const HIDDEN_ROUTES = ['/dashboard', '/sign-in', '/register', '/forgot-password'
 export function ChallengePopup() {
   const t = useTranslations('home.challengePopup');
   const tx = useChallengeText();
-  const formatPopupDate = (value: string) => tx.date(value, { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+  const formatPopupDate = (value: string) => tx.date(value, { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase();
   const pathname = usePathname();
   const { data } = useChallenges();
   const challenge = pickPromotedChallenge(data);

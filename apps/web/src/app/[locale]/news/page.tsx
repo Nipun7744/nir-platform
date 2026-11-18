@@ -27,7 +27,7 @@ export default function NewsPage() {
             )}
             <div className="p-5">
               <p className="font-mono text-[11px] uppercase tracking-wide text-ink-400">
-                {post.eventDate && new Date(post.eventDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })} · {post.category}
+                {post.eventDate && new Date(post.eventDate).toLocaleDateString(undefined, { day: '2-digit', month: 'long', year: 'numeric' })} · {post.category}
               </p>
               <h2 className="mt-2 font-display text-base font-bold leading-snug text-ink-900 group-hover:text-brand-700">
                 {locale === 'bn' && post.titleBn ? post.titleBn : post.titleEn}

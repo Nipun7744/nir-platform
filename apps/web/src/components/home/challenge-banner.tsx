@@ -11,7 +11,7 @@ import { textLang } from '@/lib/text-lang';
 export function ChallengeBanner() {
   const t = useTranslations('home.challenge');
   const tx = useChallengeText();
-  const formatBannerDate = (value: string) => tx.date(value, { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+  const formatBannerDate = (value: string) => tx.date(value, { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase();
   const { data } = useChallenges();
   // Unlike the popup, the banner still shows a (closed) challenge when none is open.
   const challenge = pickPromotedChallenge(data) ?? data?.[0];

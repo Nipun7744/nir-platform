@@ -38,7 +38,6 @@ import {
 
 /** Optional details-page text columns — blank input is stored as NULL (see toData). */
 const DETAIL_TEXT_FIELDS = [
-  'contactName', 'contactEmail', 'contactPhone',
   // Bangla organizer / prize summary (2026-11-15); blank → NULL → the Bangla site shows English.
   'organizingAgencyBn', 'prizeInfoBn',
   // Custom submit-button label (2026-11-16); blank → NULL → the site's default label.
@@ -52,20 +51,28 @@ type ChallengeWithCount = Challenge & { _count: { formFields: number; innovation
  * Configurable details-page fields → the stored list, or a 400 listing what's wrong. Uses the
  * same normalize/validate rules as the admin form (see @nir/shared challenge-detail-fields.ts).
  */
-function toDetailFields(input: unknown[]): ChallengeDetailField[] {
+function toDetailFields(input: unknown[], what = 'Challenge details fields'): ChallengeDetailField[] {
   const fields = normalizeDetailFields(input);
   const issues = validateDetailFields(fields);
   if (issues.length) {
     const shown = issues.slice(0, 5).map((i) => i.message);
     if (issues.length > 5) shown.push(`…and ${issues.length - 5} more.`);
-    throw new BadRequestException(`Challenge details fields: ${shown.join(' ')}`);
+    throw new BadRequestException(`${what}: ${shown.join(' ')}`);
   }
   return fields;
 }
 
+/** Contact fields (the whole Contact box) are one flat list — details-field rules, minus sections. */
+function toContactFields(input: unknown[]): ChallengeDetailField[] {
+  return toDetailFields(input, 'Contact fields').map(({ sectionEn: _en, sectionBn: _bn, ...f }) => f);
+}
+
+const publicList = (v: Prisma.JsonValue | null) =>
+  publicDetailFields(normalizeDetailFields(v)) as unknown as Prisma.JsonValue;
+
 /** Public reads: only filled fields, without the admin-only placeholder / help / rules. */
-function withPublicDetails<T extends { detailFields: Prisma.JsonValue | null }>(c: T): T {
-  return { ...c, detailFields: publicDetailFields(normalizeDetailFields(c.detailFields)) as unknown as Prisma.JsonValue };
+function withPublicDetails<T extends { detailFields: Prisma.JsonValue | null; contactFields: Prisma.JsonValue | null }>(c: T): T {
+  return { ...c, detailFields: publicList(c.detailFields), contactFields: publicList(c.contactFields) };
 }
 
 /** Uploads live on local disk (see UploadsController); a lookup that only sees our own files. */
@@ -168,7 +175,7 @@ export class ChallengesService {
   }
 
   private toData(dto: CreateChallengeDto | UpdateChallengeDto) {
-    const { startDate, deadline, categoryId, timelinePhases, faqs, resources, detailFields, ...rest } = dto;
+    const { startDate, deadline, categoryId, timelinePhases, faqs, resources, detailFields, contactFields, ...rest } = dto;
     const date = (v?: string) => (v === undefined ? undefined : v === '' ? null : new Date(v));
     // Details-page text fields: trim, and store blank as NULL so the public page hides the section.
     const optionalText: Record<string, string | null> = {};
@@ -183,6 +190,9 @@ export class ChallengesService {
       ...(categoryId !== undefined ? { categoryId: categoryId || null } : {}),
       ...(detailFields !== undefined
         ? { detailFields: toDetailFields(detailFields) as unknown as Prisma.InputJsonValue }
+        : {}),
+      ...(contactFields !== undefined
+        ? { contactFields: toContactFields(contactFields) as unknown as Prisma.InputJsonValue }
         : {}),
       // Rows are rebuilt key by key (never spread), so only known keys are stored. Blank optional
       // keys (incl. the *Bn ones) become undefined and are omitted from the JSON.

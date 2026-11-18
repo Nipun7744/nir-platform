@@ -63,7 +63,7 @@ export function useFormatDate() {
     iso
       ? new Date(iso).toLocaleString(locale === 'bn' ? 'bn-BD' : 'en-GB', {
           day: '2-digit',
-          month: 'short',
+          month: 'long',
           year: 'numeric',
           ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}),
         })

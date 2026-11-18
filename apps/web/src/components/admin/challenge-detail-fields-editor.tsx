@@ -51,9 +51,14 @@ const iconBtn = 'focus-ring inline-flex h-8 w-8 items-center justify-center roun
 export function ChallengeDetailFieldsEditor({
   fields,
   onChange,
+  showSection = true,
+  addLabel = 'Add field',
 }: {
   fields: EditorDetailField[];
   onChange: (fields: EditorDetailField[]) => void;
+  /** false = no "Section / level" setting (e.g. the contact fields, shown as one flat list). */
+  showSection?: boolean;
+  addLabel?: string;
 }) {
   const [openSetup, setOpenSetup] = useState<Set<string>>(() => new Set());
   const issues = useMemo(() => detailFieldIssues(fields), [fields]);
@@ -82,7 +87,7 @@ export function ChallengeDetailFieldsEditor({
     <div className="space-y-3">
       {fields.length === 0 && (
         <p className="rounded-lg border border-dashed border-ink-200 bg-white px-4 py-6 text-center text-sm text-ink-500">
-          No fields yet — use “Add field” to create the first one.
+          No fields yet — use “{addLabel}” to create the first one.
         </p>
       )}
 
@@ -99,13 +104,14 @@ export function ChallengeDetailFieldsEditor({
             onChange={(patch) => update(f.uid, patch)}
             onMove={(by) => move(i, by)}
             onRemove={() => onChange(fields.filter((x) => x.uid !== f.uid))}
+            showSection={showSection}
           />
         ))}
       </ol>
 
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={addField} disabled={fields.length >= DETAIL_LIMITS.maxFields} className={smallBtn}>
-          <Plus className="h-3.5 w-3.5" aria-hidden /> Add field
+          <Plus className="h-3.5 w-3.5" aria-hidden /> {addLabel}
         </button>
       </div>
     </div>
@@ -124,6 +130,7 @@ function FieldCard({
   onChange,
   onMove,
   onRemove,
+  showSection,
 }: {
   field: EditorDetailField;
   index: number;
@@ -134,6 +141,7 @@ function FieldCard({
   onChange: (patch: Partial<ChallengeDetailField>) => void;
   onMove: (by: -1 | 1) => void;
   onRemove: () => void;
+  showSection: boolean;
 }) {
   const id = useId();
   const setupIssues = issues.filter((x) => x.scope === 'setup');
@@ -182,7 +190,7 @@ function FieldCard({
       {/* set-up */}
       {setupOpen && (
         <div id={`${id}-setup`} className="mt-3 rounded-lg border border-ink-100 bg-ink-50/50 p-3">
-          <FieldSetup field={f} onChange={onChange} />
+          <FieldSetup field={f} onChange={onChange} showSection={showSection} />
           <IssueList issues={setupIssues} />
         </div>
       )}
@@ -269,7 +277,15 @@ function NumberSetting({ label, value, onChange, step }: { label: string; value?
   );
 }
 
-function FieldSetup({ field: f, onChange }: { field: EditorDetailField; onChange: (patch: Partial<ChallengeDetailField>) => void }) {
+function FieldSetup({
+  field: f,
+  onChange,
+  showSection,
+}: {
+  field: EditorDetailField;
+  onChange: (patch: Partial<ChallengeDetailField>) => void;
+  showSection: boolean;
+}) {
   const id = useId();
   const rules = f.validation ?? {};
   const setRule = (patch: Partial<DetailFieldValidation>) => onChange({ validation: { ...rules, ...patch } });
@@ -292,18 +308,22 @@ function FieldSetup({ field: f, onChange }: { field: EditorDetailField; onChange
 
   return (
     <div className="space-y-4">
-      <Bilingual
-        label="Section / level"
-        en={f.sectionEn}
-        bn={f.sectionBn}
-        onEn={(v) => onChange({ sectionEn: v })}
-        onBn={(v) => onChange({ sectionBn: v })}
-        max={DETAIL_LIMITS.section}
-      />
-      <p className="-mt-2 text-xs text-ink-500">
-        Fields with the same section name are grouped under one heading on the challenge page, each with its label as a sub-heading.
-        Leave blank to show the field as its own section, headed by its label.
-      </p>
+      {showSection && (
+        <>
+          <Bilingual
+            label="Section / level"
+            en={f.sectionEn}
+            bn={f.sectionBn}
+            onEn={(v) => onChange({ sectionEn: v })}
+            onBn={(v) => onChange({ sectionBn: v })}
+            max={DETAIL_LIMITS.section}
+          />
+          <p className="-mt-2 text-xs text-ink-500">
+            Fields with the same section name are grouped under one heading on the challenge page, each with its label as a sub-heading.
+            Leave blank to show the field as its own section, headed by its label.
+          </p>
+        </>
+      )}
       <Bilingual
         label="Field label"
         en={f.labelEn}

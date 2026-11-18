@@ -1019,9 +1019,9 @@ model Challenge {
   // Replaced the fixed problemStatement/eligibility/evaluationCriteria/prizeDetails/additionalInfo
   // En/Bn columns, whose content the migration moved into this list.
   detailFields         Json?
-  contactName          String?
-  contactEmail         String?
-  contactPhone         String?
+  // Contact box fields (2026-11-18), all admin-defined (no fixed name/email/phone any more — the
+  // migration moved those columns in here): same item shape and rules as detailFields, no sections.
+  contactFields        Json?
   // JSON lists, validated by the DTOs (see challenges/dto/challenge.dto.ts):
   // timelinePhases [{label, labelBn?, date?: 'YYYY-MM-DD', description?, descriptionBn?}],
   // faqs [{question, questionBn?, answer, answerBn?}], resources [{label, labelBn?, url}]

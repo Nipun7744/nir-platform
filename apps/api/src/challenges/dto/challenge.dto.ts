@@ -6,7 +6,6 @@ import {
   IsDateString,
   IsEnum,
   IsIn,
-  IsEmail,
   IsInt,
   IsNotEmpty,
   IsObject,
@@ -58,14 +57,13 @@ class ChallengeDetailsDto {
    * so the API and the admin form apply the exact same rules.
    */
   @IsOptional() @IsArray() @ArrayMaxSize(DETAIL_LIMITS.maxFields) detailFields?: unknown[];
-  @IsOptional() @IsString() @MaxLength(120) contactName?: string;
+  /** Contact box fields (2026-11-18) — same shape and rules as detailFields; sections are dropped. */
+  @IsOptional() @IsArray() @ArrayMaxSize(DETAIL_LIMITS.maxFields) contactFields?: unknown[];
   @IsOptional() @IsString() @MaxLength(300) organizingAgencyBn?: string;
   @IsOptional() @IsString() @MaxLength(300) prizeInfoBn?: string;
   // Label of the "submit to this challenge" button (2026-11-16); blank → the default label.
   @IsOptional() @IsString() @MaxLength(40) submitButtonLabelEn?: string;
   @IsOptional() @IsString() @MaxLength(40) submitButtonLabelBn?: string;
-  @IsOptional() @ValidateIf((_, v) => v !== '') @IsEmail() contactEmail?: string;
-  @IsOptional() @IsString() @MaxLength(40) contactPhone?: string;
   @IsOptional() @IsArray() @ArrayMaxSize(20) @ValidateNested({ each: true }) @Type(() => TimelinePhaseDto)
   timelinePhases?: TimelinePhaseDto[];
   @IsOptional() @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => ChallengeFaqDto)

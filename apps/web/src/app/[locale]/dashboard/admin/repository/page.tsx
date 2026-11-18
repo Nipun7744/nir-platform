@@ -32,7 +32,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 function formatDate(value?: string | null) {
   if (!value) return '—';
-  return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 function ActivityLogList({ items, emptyLabel }: { items?: any[]; emptyLabel: string }) {

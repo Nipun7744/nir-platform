@@ -129,6 +129,27 @@ describe('challenge details fields', () => {
     assert.equal(r2.body.detailFields.length, 4);
   });
 
+  test('contact fields: saved without sections, validated, public read shows filled ones only', { skip: !reachable && 'API down' }, async () => {
+    const contactFields = [
+      { labelEn: 'WhatsApp', labelBn: 'হোয়াটসঅ্যাপ', type: 'PHONE', sectionEn: 'ignored', placeholderEn: '+880…', value: '+880 1700 000000' },
+      { labelEn: 'Office hours', type: 'SHORT_TEXT', value: 'Sun–Thu, 9am–5pm', valueBn: 'রবি–বৃহস্পতি, সকাল ৯টা–বিকেল ৫টা' },
+      { labelEn: 'Website', type: 'URL' },
+    ];
+    const r = await call('PATCH', `/challenges/${id}`, { token: admin, body: { contactFields } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual(r.body.contactFields.map((f) => f.key), ['whatsapp', 'office_hours', 'website']);
+    assert.ok(r.body.contactFields.every((f) => !('sectionEn' in f)), 'contact fields have no sections');
+    assert.equal(r.body.detailFields.length, 4, 'details fields untouched');
+
+    const pub = await call('GET', `/challenges/${slug}`, { token: admin });
+    assert.deepEqual(pub.body.contactFields.map((f) => f.key), ['whatsapp', 'office_hours']);
+    assert.ok(!('placeholderEn' in pub.body.contactFields[0]));
+
+    const bad = await call('PATCH', `/challenges/${id}`, { token: admin, body: { contactFields: [{ labelEn: 'Email us', type: 'EMAIL', value: 'nope' }] } });
+    assert.equal(bad.status, 400);
+    assert.match(String(bad.body.message), /^Contact fields: .*valid email/);
+  });
+
   test('non-admins cannot change a challenge’s fields', { skip: !reachable && 'API down' }, async () => {
     const r = await call('PATCH', `/challenges/${id}`, { body: { detailFields: [] } });
     assert.equal(r.status, 401);
