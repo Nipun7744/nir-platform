@@ -102,6 +102,42 @@ export const api = {
 };
 
 /** `?a=1&b=2` from a filter object, skipping undefined and empty-string values ('' when nothing is set). */
+/**
+ * Authenticated file download (e.g. the participant .xlsx). Same token + refresh handling as
+ * apiFetch, but returns the body as a Blob plus the server's filename, then saves it via a
+ * temporary object URL — the token never goes into a URL.
+ */
+export async function apiDownload(path: string, fallbackName: string): Promise<string> {
+  const get = (token: string | null) =>
+    fetch(`${API_BASE_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  let res = await get(useAuthStore.getState().accessToken);
+  if (res.status === 401) {
+    const fresh = await refreshAccessToken();
+    if (fresh) res = await get(fresh);
+  }
+  if (!res.ok) {
+    let details: unknown;
+    try {
+      details = await res.json();
+    } catch {
+      /* no body */
+    }
+    const message = (details as { message?: string | string[] })?.message ?? res.statusText ?? 'Download failed';
+    throw new ApiError(res.status, Array.isArray(message) ? message.join(', ') : message, details);
+  }
+  const disposition = res.headers.get('content-disposition') ?? '';
+  const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return filename;
+}
+
 export function toQueryString(filters: object) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {

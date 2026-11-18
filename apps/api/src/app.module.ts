@@ -25,6 +25,7 @@ import { CmsModule } from './cms/cms.module';
 import { ReportingModule } from './reporting/reporting.module';
 import { ChallengesModule } from './challenges/challenges.module';
 import { SettingsModule } from './settings/settings.module';
+import { OutreachModule } from './outreach/outreach.module';
 
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -55,6 +56,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     ReportingModule,
     ChallengesModule,
     SettingsModule,
+    OutreachModule,
   ],
   controllers: [UploadsController],
   providers: [

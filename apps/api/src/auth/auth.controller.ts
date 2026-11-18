@@ -5,6 +5,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
+import { ResetPasswordDto, VerifyResetCodeDto } from './dto/password-reset.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from './strategies/jwt.strategy';
@@ -39,6 +40,33 @@ export class AuthController {
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
+  }
+
+  /** Forgot password step 1 — email/SMS a reset code to a registered account. CAPTCHA-protected; per-target limits in OtpService. */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('password/forgot')
+  forgotPassword(@Body() dto: SendOtpDto, @Ip() ip: string) {
+    return this.authService.sendPasswordResetOtp(dto, ip);
+  }
+
+  /** Forgot password step 2 — check the code; returns a 10-minute, single-use reset token. */
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('password/verify-code')
+  verifyResetCode(@Body() dto: VerifyResetCodeDto) {
+    return this.authService.verifyPasswordResetOtp(dto);
+  }
+
+  /** Forgot password step 3 — set the new password; revokes every refresh token of the account. */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('password/reset')
+  resetPassword(@Body() dto: ResetPasswordDto, @Ip() ip: string) {
+    return this.authService.resetPassword(dto, ip);
   }
 
   @Public()

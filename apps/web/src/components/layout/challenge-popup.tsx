@@ -54,7 +54,7 @@ function Countdown({ deadline }: { deadline?: string | null }) {
 }
 
 // Popup is scoped to the public marketing site — dashboard/auth routes have their own tasks in flight.
-const HIDDEN_ROUTES = ['/dashboard', '/sign-in', '/register'];
+const HIDDEN_ROUTES = ['/dashboard', '/sign-in', '/register', '/forgot-password'];
 
 export function ChallengePopup() {
   const t = useTranslations('home.challengePopup');

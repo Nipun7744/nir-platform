@@ -22,6 +22,6 @@ import { MinistriesModule } from '../ministries/ministries.module';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, CaptchaService, OtpService],
-  exports: [AuthService],
+  exports: [AuthService, OtpService],
 })
 export class AuthModule {}

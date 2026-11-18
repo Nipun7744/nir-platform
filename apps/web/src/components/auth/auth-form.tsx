@@ -150,7 +150,7 @@ export function focusFirstError(ids: string[]) {
 
 // ---------------------------------------------------------------------------- server errors
 
-export type AuthErrorField = 'email' | 'phone' | 'code' | 'captcha';
+export type AuthErrorField = 'email' | 'phone' | 'code' | 'captcha' | 'password' | 'confirmPassword' | 'session';
 export interface AuthErrorText {
   text: string;
   /** Set when the text is the API's untranslated English on a non-English page. */
@@ -167,7 +167,7 @@ export interface AuthErrorText {
 export function useAuthErrorText() {
   const t = useTranslations('auth');
   const locale = useLocale();
-  return (error: unknown, fallbackKey: 'signInFailed' | 'registerFailed' | 'sendCodeFailed'): AuthErrorText => {
+  return (error: unknown, fallbackKey: 'signInFailed' | 'registerFailed' | 'sendCodeFailed' | 'resetFailed'): AuthErrorText => {
     if (!(error instanceof ApiError)) return { text: t('networkError') };
     const m = error.message || '';
     const details = (error.details ?? {}) as { retryAfterSeconds?: number };
@@ -187,6 +187,15 @@ export function useAuthErrorText() {
     if (/too many incorrect attempts/i.test(m)) return { text: t('codeTooManyAttempts'), field: 'code' };
     if (/expired or was not requested/i.test(m)) return { text: t('codeExpired'), field: 'code' };
     if (/already been used/i.test(m)) return { text: t('codeUsed'), field: 'code' };
+    // Forgot password (AuthService.findResetAccount / resetPassword).
+    if (/no account is registered with this email/i.test(m)) return { text: t('noAccountEmail'), field: 'email' };
+    if (/no account is registered with this mobile/i.test(m)) return { text: t('noAccountPhone'), field: 'phone' };
+    if (/account is not active/i.test(m)) return { text: t('accountInactive') };
+    if (/reset session has expired/i.test(m)) return { text: t('resetSessionExpired'), field: 'session' };
+    if (/passwords do not match/i.test(m)) return { text: t('errPasswordMismatch'), field: 'confirmPassword' };
+    if (/different from your current password/i.test(m)) return { text: t('passwordSameAsOld'), field: 'password' };
+    if (/at least 8 characters/i.test(m)) return { text: t('errPasswordShort'), field: 'password' };
+    if (/at most 128 characters/i.test(m)) return { text: t('errPasswordLong'), field: 'password' };
     if (!m) return { text: t(fallbackKey) };
     return { text: m, lang: locale === 'en' ? undefined : 'en' };
   };

@@ -35,9 +35,15 @@ interface TeletalkConfig {
   serverName: string;
   smsClass: string;
   smsId: string;
+  /** Class/id for non-OTP (bulk) messages; unset = bulk SMS unavailable on Teletalk. */
+  bulkSmsClass?: string;
+  bulkSmsId: string;
   charset: string;
   validity: string;
 }
+
+/** `otp` = one-time codes (Teletalk OTP class, 70-byte limit); `bulk` = admin bulk messages. */
+export type SmsKind = 'otp' | 'bulk';
 
 /**
  * Outbound SMS. Bangladeshi SMS aggregators (SSL Wireless, BulkSMSBD, Alpha SMS,
@@ -97,6 +103,10 @@ export class SmsService {
         serverName: opt('SMS_TELETALK_SERVERNAME', 'bulksms1.teletalk.com.bd'),
         smsClass: opt('SMS_TELETALK_SMS_CLASS', 'OTP'),
         smsId: opt('SMS_TELETALK_SMS_ID', '44'),
+        // The OTP class rejects anything over 70 bytes, so bulk messages need a general class
+        // from Teletalk/a2i. Until it's configured, bulk SMS is reported unavailable.
+        bulkSmsClass: config.get<string>('SMS_TELETALK_BULK_SMS_CLASS')?.trim() || undefined,
+        bulkSmsId: opt('SMS_TELETALK_BULK_SMS_ID', opt('SMS_TELETALK_SMS_ID', '44')),
         charset: opt('SMS_TELETALK_CHARSET', 'ASCII|ASCII|UTF-8|ASCII'),
         validity: opt('SMS_TELETALK_VALIDITY', '1440'),
       };
@@ -139,9 +149,17 @@ export class SmsService {
     }
   }
 
+  /** Whether non-OTP (bulk) SMS can be sent with the current configuration. */
+  get bulkAvailable(): boolean {
+    return this.kind !== 'teletalk' || Boolean(this.teletalk?.bulkSmsClass);
+  }
+
   /** @param to E.164 BD mobile number (+8801XXXXXXXXX). */
-  async send(to: string, message: string): Promise<void> {
-    if (this.teletalk) return this.sendTeletalk(to, message);
+  async send(to: string, message: string, kind: SmsKind = 'otp'): Promise<void> {
+    if (kind === 'bulk' && !this.bulkAvailable) {
+      throw new Error('Bulk SMS is not configured (set SMS_TELETALK_BULK_SMS_CLASS).');
+    }
+    if (this.teletalk) return this.sendTeletalk(to, message, kind);
     if (!this.http) {
       this.logger.log(`[console sms] to=${to}\n${message}`);
       return;
@@ -181,8 +199,9 @@ export class SmsService {
     }
   }
 
-  private async sendTeletalk(to: string, message: string): Promise<void> {
+  private async sendTeletalk(to: string, message: string, kind: SmsKind): Promise<void> {
     const t = this.teletalk!;
+    const bulk = kind === 'bulk';
     const pKey = teletalkPKey();
     const cid = String(randomInt(1_000_000_000, 10_000_000_000)); // 10-digit client ref, echoed back
     const payload = {
@@ -192,9 +211,9 @@ export class SmsService {
       user_id: t.userId,
       pass: t.passHash,
       servername: t.serverName,
-      smsclass: t.smsClass,
+      smsclass: bulk ? t.bulkSmsClass : t.smsClass,
       sms: message,
-      sms_id: t.smsId,
+      sms_id: bulk ? t.bulkSmsId : t.smsId,
       mobile: bdMobileForms(to).local,
       charset: t.charset,
       validity: t.validity,

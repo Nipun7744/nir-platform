@@ -6,11 +6,21 @@ import { optionalEnv, readEnvChoice, readIntEnv, requireEnv } from '../common/ut
 export const MAIL_TRANSPORTS = ['smtp', 'console'] as const;
 export type MailTransportKind = (typeof MAIL_TRANSPORTS)[number];
 
+/** An attachment; with `cid` it is an inline image the HTML references as `src="cid:<cid>"`. */
+export interface MailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+  cid?: string;
+  contentDisposition?: 'inline' | 'attachment';
+}
+
 export interface OutgoingMail {
   to: string;
   subject: string;
   text: string;
   html?: string;
+  attachments?: MailAttachment[];
 }
 
 /**

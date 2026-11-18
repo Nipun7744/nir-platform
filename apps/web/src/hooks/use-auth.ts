@@ -42,6 +42,39 @@ export function useSendOtp() {
   });
 }
 
+// ---- Forgot password (POST /auth/password/*) — three steps, no session is created ----
+
+/** Step 1: send a reset code to the registered email address or mobile number. */
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (input: { channel: OtpChannel; email?: string; phone?: string; locale?: string; captchaToken?: string }) =>
+      api.post<OtpSent>('/auth/password/forgot', input),
+  });
+}
+
+/** Step 2: check the code; returns a short-lived token for step 3. */
+export function useVerifyResetCode() {
+  return useMutation({
+    mutationFn: (input: { channel: OtpChannel; email?: string; phone?: string; code: string }) =>
+      api.post<{ resetToken: string; expiresInSeconds: number }>('/auth/password/verify-code', input),
+  });
+}
+
+/** Step 3: set the new password. The API signs the account out on every device. */
+export function useResetPassword() {
+  const clear = useAuthStore((s) => s.clear);
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { resetToken: string; password: string; confirmPassword: string }) =>
+      api.post<{ success: true; message: string }>('/auth/password/reset', input),
+    onSuccess: () => {
+      // Any session in this browser was just revoked server-side — drop it locally too.
+      clear();
+      queryClient.clear();
+    },
+  });
+}
+
 export function useLogin() {
   const setSession = useAuthStore((s) => s.setSession);
   const queryClient = useQueryClient();

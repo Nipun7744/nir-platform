@@ -36,3 +36,6 @@ Thumbs.db
 coverage/
 .turbo/
 .vercel
+
+# Local server logs and generated email previews (docs/SETUP.md)
+.logs/

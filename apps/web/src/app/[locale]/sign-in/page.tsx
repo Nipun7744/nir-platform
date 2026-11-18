@@ -133,6 +133,15 @@ function SignInPageInner() {
             />
           )}
         </FormField>
+        {/* After the password field in DOM order, so Tab goes email → password → this link. */}
+        <p className="-mt-2 text-right text-sm">
+          <Link
+            href="/forgot-password"
+            className="focus-ring inline-block rounded py-1 font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-800"
+          >
+            {t('forgotPasswordLink')}
+          </Link>
+        </p>
 
         {security && (
           <CaptchaWidget

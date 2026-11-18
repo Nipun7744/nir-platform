@@ -3,13 +3,14 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { OtpChannel, OtpPurpose, Role } from '@prisma/client';
 import * as argon2 from 'argon2';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, createHmac, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdGeneratorService } from '../common/services/id-generator.service';
 import { AuditLogService } from '../common/services/audit-log.service';
@@ -20,6 +21,7 @@ import { MinistriesService } from '../ministries/ministries.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
+import { ResetPasswordDto, VerifyResetCodeDto } from './dto/password-reset.dto';
 import { CaptchaService } from './captcha.service';
 import { OTP_CODE_LENGTH, OtpService } from './otp.service';
 import { bdMobileForms, normalizeBdMobile } from '../common/utils/phone';
@@ -30,6 +32,19 @@ export interface TokenPair {
 }
 
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+/** How long the user has to choose a new password after the reset code is verified. */
+const RESET_TOKEN_TTL_SECONDS = 10 * 60;
+const RESET_TOKEN_TYPE = 'password-reset';
+
+interface ResetTokenPayload {
+  sub: string;
+  typ: typeof RESET_TOKEN_TYPE;
+  /** Channel the code was verified on — that email/phone is marked verified on success. */
+  ch: OtpChannel;
+  /** Fingerprint of the password hash at issue time: the token dies once the password changes. */
+  pwv: string;
+}
 
 /** Whether a registrant may also pick Investor / Mentor / Ministry Focal Point (off since 2026-11-16). */
 const SELF_SERVICE_ROLES_AT_SIGNUP = false;
@@ -112,6 +127,126 @@ export class AuthService {
       locale: dto.locale ?? 'en',
       ip,
     });
+  }
+
+  // ------------------------------------------------------------------ forgot password (3 steps)
+
+  /**
+   * The account a reset code may be sent to / checked against, plus the normalized OTP target.
+   * Says plainly when no account matches: registration (also CAPTCHA-gated) already reveals
+   * whether an email/phone is registered, so hiding it here would cost clarity and protect nothing.
+   */
+  private async findResetAccount(channel: OtpChannel, email?: string, phone?: string) {
+    if (!this.otp.isChannelEnabled(channel)) {
+      throw new BadRequestException(`Verification by ${channel === 'SMS' ? 'SMS' : 'email'} is not available.`);
+    }
+    let target: string;
+    let user: { id: string; passwordHash: string; isActive: boolean } | null;
+    const select = { id: true, passwordHash: true, isActive: true } as const;
+    if (channel === OtpChannel.EMAIL) {
+      target = this.normalizeEmail(email ?? '');
+      // Emails are stored as typed at registration, so match case-insensitively.
+      user = await this.prisma.user.findFirst({ where: { email: { equals: target, mode: 'insensitive' } }, select });
+      if (!user) throw new NotFoundException('No account is registered with this email address.');
+    } else {
+      target = this.requirePhone(phone);
+      const f = bdMobileForms(target);
+      user = await this.prisma.user.findFirst({ where: { phone: { in: [f.e164, f.international, f.local] } }, select });
+      if (!user) throw new NotFoundException('No account is registered with this mobile number.');
+    }
+    if (!user.isActive) {
+      throw new ForbiddenException('This account is not active, so its password cannot be reset. Please contact the platform administrator.');
+    }
+    return { user, target };
+  }
+
+  /** Separate key from access tokens, so a reset token can never pass JwtStrategy (and vice versa). */
+  private resetTokenSecret(): string {
+    return createHmac('sha256', this.config.getOrThrow<string>('JWT_ACCESS_SECRET')).update('nir:password-reset').digest('hex');
+  }
+
+  private passwordFingerprint(passwordHash: string): string {
+    return createHash('sha256').update(passwordHash).digest('hex').slice(0, 32);
+  }
+
+  /** Step 1: email/SMS a reset code to a registered account. Same limits as registration codes. */
+  async sendPasswordResetOtp(dto: SendOtpDto, ip?: string) {
+    // CAPTCHA first — every send costs an email/SMS, and the lookup reveals whether an account exists.
+    await this.captcha.verify(dto.captchaToken, ip);
+    const { target } = await this.findResetAccount(dto.channel, dto.email, dto.phone);
+    return this.otp.send({
+      purpose: OtpPurpose.PASSWORD_RESET,
+      channel: dto.channel,
+      target,
+      locale: dto.locale ?? 'en',
+      ip,
+    });
+  }
+
+  /** Step 2: check the code; on success return a short-lived, single-use token for step 3. */
+  async verifyPasswordResetOtp(dto: VerifyResetCodeDto) {
+    const { user, target } = await this.findResetAccount(dto.channel, dto.email, dto.phone);
+    await this.otp.verifyAndConsume({ purpose: OtpPurpose.PASSWORD_RESET, channel: dto.channel, target, code: dto.code });
+    const payload: ResetTokenPayload = {
+      sub: user.id,
+      typ: RESET_TOKEN_TYPE,
+      ch: dto.channel,
+      pwv: this.passwordFingerprint(user.passwordHash),
+    };
+    const resetToken = await this.jwt.signAsync(payload, { secret: this.resetTokenSecret(), expiresIn: RESET_TOKEN_TTL_SECONDS });
+    return { resetToken, expiresInSeconds: RESET_TOKEN_TTL_SECONDS };
+  }
+
+  /** Step 3: set the new password, then sign the account out everywhere. */
+  async resetPassword(dto: ResetPasswordDto, ip?: string) {
+    const expired = () =>
+      new BadRequestException('Your password reset session has expired or was already used. Please start again.');
+    let payload: ResetTokenPayload;
+    try {
+      payload = await this.jwt.verifyAsync<ResetTokenPayload>(dto.resetToken, { secret: this.resetTokenSecret() });
+    } catch {
+      throw expired();
+    }
+    if (payload.typ !== RESET_TOKEN_TYPE) throw expired();
+
+    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+    // Fingerprint mismatch = the password already changed since the code was verified (token reuse).
+    if (!user || this.passwordFingerprint(user.passwordHash) !== payload.pwv) throw expired();
+    if (!user.isActive) {
+      throw new ForbiddenException('This account is not active, so its password cannot be reset. Please contact the platform administrator.');
+    }
+
+    if (dto.password !== dto.confirmPassword) throw new BadRequestException('Passwords do not match.');
+    if (await argon2.verify(user.passwordHash, dto.password)) {
+      throw new BadRequestException('Your new password must be different from your current password.');
+    }
+
+    const now = new Date();
+    const passwordHash = await argon2.hash(dto.password);
+    // Conditional on the old hash, so two concurrent submissions of the same token can't both win.
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.user.updateMany({
+        where: { id: user.id, passwordHash: user.passwordHash },
+        data: {
+          passwordHash,
+          // The reset code proved control of this email / phone.
+          ...(payload.ch === OtpChannel.EMAIL && !user.emailVerifiedAt ? { emailVerifiedAt: now } : {}),
+          ...(payload.ch === OtpChannel.SMS && !user.phoneVerifiedAt ? { phoneVerifiedAt: now } : {}),
+        },
+      }),
+      // Signed out everywhere: every existing session ends with the old password.
+      this.prisma.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: now } }),
+    ]);
+    if (updated.count === 0) throw expired();
+
+    await this.auditLog.record({
+      actorId: user.id,
+      action: 'PASSWORD_RESET',
+      entityType: 'User',
+      entityId: user.id,
+      metadata: { verifiedBy: payload.ch, ip },
+    });
+    return { success: true, message: 'Your password has been reset. You can now sign in with your new password.' };
   }
 
   private hashToken(token: string): string {

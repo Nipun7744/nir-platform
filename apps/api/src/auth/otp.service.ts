@@ -14,6 +14,7 @@ import { MailService } from '../messaging/mail.service';
 import { SmsService } from '../messaging/sms.service';
 import { readIntEnv } from '../common/utils/env-choice';
 import { maskEmail, maskPhone } from '../common/utils/phone';
+import { renderOtpEmail } from '../messaging/templates/otp-email';
 
 export const OTP_CODE_LENGTH = 6;
 
@@ -125,7 +126,7 @@ export class OtpService {
     ]);
 
     try {
-      await this.deliver(channel, target, code, params.locale);
+      await this.deliver(purpose, channel, target, code, params.locale);
     } catch (error) {
       // Retire the undeliverable code so it neither works nor blocks a retry via the cooldown.
       await this.prisma.otpCode.delete({ where: { id: created.id } }).catch(() => undefined);
@@ -185,35 +186,28 @@ export class OtpService {
     }
   }
 
-  private async deliver(channel: OtpChannel, target: string, code: string, locale: Locale) {
+  private async deliver(purpose: OtpPurpose, channel: OtpChannel, target: string, code: string, locale: Locale) {
     const minutes = Math.round(this.ttlSeconds / 60);
+    const reset = purpose === OtpPurpose.PASSWORD_RESET;
     if (channel === 'SMS') {
       // Teletalk's OTP class rejects messages over 70 *UTF-8 bytes* (measured 2026-11-12: 66 bytes
       // OK, 72 rejected with scode 51). A Bangla letter is 3 bytes, so the Bangla text must stay
-      // tiny: this one is 66 bytes (69 with a two-digit minute count); the English one is 60. The
+      // tiny: this one is 66 bytes (69 with a two-digit minute count) and has no room to say what
+      // the code is for. The English ones are 60 (registration) and 58 (password reset) bytes. The
       // code stays in ASCII digits even in Bangla, because the code box only accepts 0-9 and
       // phones only autofill ASCII-digit codes.
       const text =
         locale === 'bn'
           ? `NIR কোড: ${code}। মেয়াদ ${toBnDigits(String(minutes))} মিনিট।`
-          : `NIR verification code: ${code}. Valid ${minutes} min. Do not share it.`;
+          : reset
+            ? `NIR password reset code: ${code}. Valid ${minutes} min. Don't share.`
+            : `NIR verification code: ${code}. Valid ${minutes} min. Do not share it.`;
       await this.sms.send(target, text);
       return;
     }
 
-    const subject = locale === 'bn' ? `NIR যাচাইকরণ কোড: ${code}` : `Your NIR verification code: ${code}`;
-    const text =
-      locale === 'bn'
-        ? `ন্যাশনাল ইনোভেশন রিপোজিটরি (NIR)-তে নিবন্ধনের জন্য আপনার যাচাইকরণ কোড:\n\n${code}\n\nকোডটি ${minutes} মিনিট পর্যন্ত বৈধ। আপনি নিবন্ধনের অনুরোধ না করে থাকলে এই ইমেইলটি উপেক্ষা করুন।`
-        : `Your verification code for registering on the National Innovation Repository (NIR) is:\n\n${code}\n\nThe code is valid for ${minutes} minutes. If you didn't try to register, you can ignore this email.`;
-    const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#1f2933;line-height:1.5">
-<p>${locale === 'bn' ? 'NIR-এ নিবন্ধনের জন্য আপনার যাচাইকরণ কোড:' : 'Your verification code for registering on the National Innovation Repository (NIR) is:'}</p>
-<p style="font-size:28px;font-weight:bold;letter-spacing:6px;margin:16px 0">${code}</p>
-<p style="color:#52606d">${
-      locale === 'bn'
-        ? `কোডটি ${minutes} মিনিট পর্যন্ত বৈধ। আপনি নিবন্ধনের অনুরোধ না করে থাকলে এই ইমেইলটি উপেক্ষা করুন।`
-        : `The code is valid for ${minutes} minutes. If you didn't try to register, you can ignore this email.`
-    }</p></div>`;
-    await this.mail.send({ to: target, subject, text, html });
+    // Every email code (any purpose, en/bn) uses the one branded template — messaging/templates/otp-email.ts.
+    const email = renderOtpEmail({ purpose, code, minutes, locale });
+    await this.mail.send({ to: target, ...email });
   }
 }

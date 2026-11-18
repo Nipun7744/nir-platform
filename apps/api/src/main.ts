@@ -28,6 +28,8 @@ async function bootstrap() {
       .map((o) => o.trim())
       .filter(Boolean),
     credentials: true,
+    // Lets the web app read the server's filename on file downloads (participant .xlsx export).
+    exposedHeaders: ['Content-Disposition'],
   });
 
   app.useGlobalPipes(
