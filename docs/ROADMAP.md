@@ -40,6 +40,9 @@
   deleted at the user's request. Pushing to GitLab `development` no longer deploys
   dev.challenge.gov.bd; deploys are manual (see [SETUP.md](SETUP.md#deploying-to-devchallengegovbd-manual)).
   The Dockerfiles and `docker-compose.yml` stay, since the server runs the stack with them.
+  **Superseded 2026-11-17:** `.gitlab-ci.yml` came back as a build-and-publish pipeline (verify +
+  registry images, no deploy), see [SETUP.md § GitLab CI pipeline](SETUP.md#gitlab-ci-pipeline-gitlab-ciyml).
+  `deploy/deploy.sh` is still gone and deploys are still manual.
 
 - **Richer challenge details page (2026-11-11)** — optional problem statement, eligibility,
   timeline phases, evaluation criteria, prize breakdown, resources, FAQ, additional info and
@@ -368,6 +371,11 @@ completed work)*
 
 ## Known issues
 
+- **GitLab image publishing is down (since 2026-11-18)** — `publish-api` / `publish-web-dev`
+  need the `nir-image-builder` runner, which is offline, so `development` pipelines fail at the
+  publish stage (#1797, #1800) and no new images have been pushed since #1796. Verify still passes.
+  The fix is either to restart that runner (its owner, probably Shuvashis Das) or to merge the
+  Kaniko MR from `ci/kaniko-publish`. See [SETUP.md § GitLab CI pipeline](SETUP.md#gitlab-ci-pipeline-gitlab-ciyml).
 - **Migration 29 drops the old challenge section columns (2026-11-18)** — run it on a server only
   after a DB backup; any external client still sending `problemStatementEn` etc. has those values
   silently ignored. Only old sections that had text were
@@ -576,6 +584,10 @@ completed work)*
 
 ## Technical debt
 
+- **Kaniko is archived (2026-11-19)** — if the `ci/kaniko-publish` MR is merged, image builds rely
+  on `kaniko-project/executor:v1.23.2`, which gets no more updates. Plan to move back to BuildKit
+  on a dedicated runner, or to a maintained Kaniko fork. Kaniko builds also have no layer cache yet
+  (`--cache=true --cache-repo=…` would speed up the about 9-minute publish stage).
 - **Admin-entered regex in details-field validation (2026-11-18)** — the pattern rule runs an
   admin-written regular expression on the server (whole-value match, ≤ 200 chars, values ≤ 10 000
   chars). Admins are trusted, but a catastrophic pattern could stall a request; if non-admin roles

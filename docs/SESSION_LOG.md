@@ -6,6 +6,52 @@
 
 ---
 
+## 2026-11-19 (session 54) — GitLab CI: publish stage down, Kaniko fallback
+
+**What:** Ran the app locally (no code changes). The user asked where the CI/CD code is and
+whether it works. Investigated the GitLab pipeline, tried two fixes for the failing publish stage,
+and opened a merge request with the one that works.
+
+**Findings:**
+- `.gitlab-ci.yml` exists only on GitLab branches (`development`, `uat`, `master`, `ci/*`). It was
+  re-added on 2026-11-17 after the 2026-11-16 removal, but `docs/` still said "no CI/CD pipeline";
+  fixed (see below).
+- Verify jobs pass. On `development` the publish jobs fail: they are tagged `nir-image-builder`,
+  that runner (ID `bNL6qO0ps`) went offline after #1796, and the jobs sit pending until GitLab
+  fails them (#1797, #1800).
+- The user's GitLab account has no Maintainer access (Settings → CI/CD is a 404), so runners
+  can't be inspected or registered from here.
+
+**Attempts:**
+1. **Retry #1800's publish jobs** — immediately marked "stuck" because there's still no runner.
+2. **Drop the runner tags so publishing runs on `nir-dev-ci`** — pushed `d9de3ab` to
+   `development`. Pipeline #1801 failed: rootless BuildKit can't start on `nir-dev-ci`
+   (`rootlesskit: fork/exec /proc/self/exe: operation not permitted`). **Reverted** in `c61b8fc`,
+   so `development`'s CI file matches `98718e2` again.
+3. **Kaniko** — branch `ci/kaniko-publish` (`d0ee50a`) switches both publish jobs to
+   `gcr.io/kaniko-project/executor:v1.23.2-debug` on `nir-dev-ci`. A pipeline started by hand on a
+   non-`development` branch builds with `--no-push`. Test pipeline #1803 passed (API about 3m40s,
+   web about 5m). Merge request opened into `development` for Shuvashis Das to review, since it
+   reverses their dedicated-runner setup.
+
+**Decisions:**
+- Kaniko goes through a reviewed MR, not a direct push to `development`.
+- `--no-push` builds on other branches only run when started by hand, so MR pipelines stay
+  verify-only as before.
+
+**Files modified:** `.gitlab-ci.yml` (on `ci/kaniko-publish` only); `docs/SETUP.md` (new
+§ GitLab CI pipeline; § Deploying to dev.challenge.gov.bd no longer claims there's no pipeline),
+`docs/ROADMAP.md` (supersede note on the CI-removal entry, known issue, tech-debt item),
+`docs/PROJECT_CONTEXT.md` (Architecture bullet), this log.
+
+**Next steps:**
+- Get the MR reviewed and merged. Then check that the first `development` pipeline actually
+  **pushes** both images (registry auth hasn't been exercised by Kaniko yet).
+- Or, if the `nir-image-builder` runner comes back, decide whether to keep Kaniko or close the MR.
+- Possibly add a Kaniko layer cache (`--cache=true --cache-repo=$CI_REGISTRY_IMAGE/cache`).
+
+---
+
 ## 2026-11-18 (session 53) — Configurable challenge details fields
 
 **What:** Platform admin → Challenges → Create / Edit challenge: the challenge details fields are

@@ -76,6 +76,9 @@ Documents/     Source requirement docs (ToR, SRS, policy, content spec) — not 
   across providers because the API's local-disk uploads and persistent DB connection don't fit
   Vercel's serverless model. Full setup, env vars, and gotchas: see
   [SETUP.md § Production Deployment](SETUP.md#production-deployment).
+- **GitLab CI** (`.gitlab-ci.yml`, on GitLab branches only): verifies builds and publishes API/web
+  images to `registry.a2i.gov.bd`. It does not deploy, and dev.challenge.gov.bd is still deployed
+  by hand. See [SETUP.md § GitLab CI pipeline](SETUP.md#gitlab-ci-pipeline-gitlab-ciyml).
 
 ## Technology Stack
 

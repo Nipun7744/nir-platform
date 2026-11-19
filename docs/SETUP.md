@@ -502,11 +502,53 @@ falls back to the public URL — behind Cloudflare that request loops back throu
 gets a 403 "Error 1000: DNS points to prohibited IP", so every uploaded image breaks (seen on
 dev.challenge.gov.bd, 2026-11-05).
 
+## GitLab CI pipeline (`.gitlab-ci.yml`)
+
+The pipeline was removed on 2026-11-16 and re-added by Shuvashis Das on 2026-11-17 as a
+**build-and-publish** pipeline. It builds and pushes images but **does not deploy** anything (see
+the next section). It exists only on GitLab, so the GitHub `master` checkout has no
+`.gitlab-ci.yml`. To read it: `git show "gitlab/development:.gitlab-ci.yml"`.
+
+**When it runs:** on merge requests, on pushes to `development`, and when started by hand with
+**Build → Pipelines → New pipeline**. A plain push to another branch starts nothing.
+
+| Stage | Job | What it does | Runner tag |
+|---|---|---|---|
+| verify | `build` | `npm ci`, then builds shared, the Prisma client, the API and the web app | `nir-dev-ci` (default) |
+| verify | `compose-config` | Runs `docker compose config --quiet` against `.env.example` | `nir-dev-ci` |
+| publish | `publish-api` | Builds `apps/api/Dockerfile` → `registry.a2i.gov.bd/a2i-nir/a2i_nir/api:<sha>` | see below |
+| publish | `publish-web-dev` | Builds `apps/web/Dockerfile` with `NEXT_PUBLIC_API_URL=https://dev.challenge.gov.bd`, `API_INTERNAL_URL=http://api:4000` → `…/web:dev-<sha>` | see below |
+
+The publish jobs run only on `development`, so merge request pipelines run only the verify stage.
+
+**Runners (2026-11-19):**
+- `nir-dev-ci` is locked down. **Rootless BuildKit cannot start on it**: pipeline #1801 failed
+  with `rootlesskit: fork/exec /proc/self/exe: operation not permitted`.
+- On `development` the publish jobs still use rootless BuildKit, tagged for the dedicated
+  `nir-image-builder` runner (ID `bNL6qO0ps`, gitlab-runner 19.5.3, Docker executor). That runner
+  is not registered on the project, so its host is probably owned by Shuvashis or a GitLab admin.
+- **The runner went offline after pipeline #1796 (2026-11-18).** Since then the publish jobs sit
+  pending until GitLab fails them with "no matching runners available" (#1797, #1800).
+- **Proposed fix:** branch `ci/kaniko-publish` switches both publish jobs to **Kaniko**
+  (`gcr.io/kaniko-project/executor:v1.23.2-debug`). Kaniko needs no privileged mode and no user
+  namespaces, so the jobs can run on `nir-dev-ci`. Image names and build args are unchanged.
+  - On any branch other than `development`, a pipeline started by hand runs the same builds
+    with `--no-push`, so CI and Dockerfile changes can be tested without touching the registry.
+  - Test pipeline #1803 passed (API image about 3m40s, web image about 5m, with `--no-push`).
+  - The real push to the registry is first exercised by the first `development` pipeline after
+    the merge.
+  - Google archived Kaniko in 2025 and v1.23.2 is its last release, so treat it as a stopgap.
+    The long-term option is the dedicated BuildKit runner.
+
+**Viewing pipelines needs only Developer access, but runner settings need Maintainer.** Without
+it, Settings → CI/CD returns 404.
+
 ## Deploying to dev.challenge.gov.bd (manual)
 
-There is **no CI/CD pipeline** for GitLab. `.gitlab-ci.yml` and `deploy/deploy.sh` were removed
-on 2026-11-16 at the user's request, so pushing to GitLab `development` no longer builds,
-deploys or smoke-tests anything. Deploy by hand on the server, from the repo clone:
+There is **no automatic deploy**. The GitLab pipeline (above) only builds and pushes images.
+`deploy/deploy.sh` was removed on 2026-11-16 and nothing replaced it, and the server builds from
+source with `docker compose up --build`, not from the registry images. Deploy by hand on the
+server, from the repo clone:
 
 ```bash
 docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner'   | gzip > ~/nir-backup-$(date -u +%Y%m%dT%H%M%SZ).sql.gz   # back up first
