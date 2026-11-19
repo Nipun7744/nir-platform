@@ -504,10 +504,15 @@ dev.challenge.gov.bd, 2026-11-05).
 
 ## GitLab CI pipeline (`.gitlab-ci.yml`)
 
-The pipeline was removed on 2026-11-16 and re-added by Shuvashis Das on 2026-11-17 as a
-**build-and-publish** pipeline. It builds and pushes images but **does not deploy** anything (see
-the next section). It exists only on GitLab, so the GitHub `master` checkout has no
-`.gitlab-ci.yml`. To read it: `git show "gitlab/development:.gitlab-ci.yml"`.
+History:
+- **2026-11-16:** the pipeline was removed.
+- **2026-11-17:** Shuvashis Das re-added it as a build-and-publish pipeline.
+- **2026-11-19:** branch `ci/auto-deploy-dev` brings back the SSH deploy to dev.challenge.gov.bd.
+  That branch is stacked on `ci/kaniko-publish`, so the Kaniko MR (!13) merges first. The deploy
+  works only once the server secrets below are set (see the next section).
+
+The pipeline exists only on GitLab, so the GitHub `master` checkout has no `.gitlab-ci.yml`. To
+read it: `git show "gitlab/development:.gitlab-ci.yml"`.
 
 **When it runs:** on merge requests, on pushes to `development`, and when started by hand with
 **Build → Pipelines → New pipeline**. A plain push to another branch starts nothing.
@@ -518,8 +523,13 @@ the next section). It exists only on GitLab, so the GitHub `master` checkout has
 | verify | `compose-config` | Runs `docker compose config --quiet` against `.env.example` | `nir-dev-ci` |
 | publish | `publish-api` | Builds `apps/api/Dockerfile` → `registry.a2i.gov.bd/a2i-nir/a2i_nir/api:<sha>` | see below |
 | publish | `publish-web-dev` | Builds `apps/web/Dockerfile` with `NEXT_PUBLIC_API_URL=https://dev.challenge.gov.bd`, `API_INTERNAL_URL=http://api:4000` → `…/web:dev-<sha>` | see below |
+| deploy | `deploy` | SSHes to the server and runs `deploy/deploy.sh <path> <sha>` (`ci/auto-deploy-dev`) | `nir-dev-ci` |
+| deploy | `rollback` | Manual. Redeploys `ROLLBACK_SHA`, or the previous deploy if unset | `nir-dev-ci` |
+| smoke | `smoke` | Checks that `/`, `/api/v1/repository/search` and one `/uploads/*` file on the public URL work | `nir-dev-ci` |
 
-The publish jobs run only on `development`, so merge request pipelines run only the verify stage.
+The publish, deploy and smoke jobs run only on `development`, so merge request pipelines run only
+the verify stage. `deploy` needs only the verify jobs, not publish, so a broken publish stage
+doesn't block deploys.
 
 **Runners (2026-11-19):**
 - `nir-dev-ci` is locked down. **Rootless BuildKit cannot start on it**: pipeline #1801 failed
@@ -543,11 +553,49 @@ The publish jobs run only on `development`, so merge request pipelines run only 
 **Viewing pipelines needs only Developer access, but runner settings need Maintainer.** Without
 it, Settings → CI/CD returns 404.
 
-## Deploying to dev.challenge.gov.bd (manual)
+## Deploying to dev.challenge.gov.bd
 
-There is **no automatic deploy**. The GitLab pipeline (above) only builds and pushes images.
-`deploy/deploy.sh` was removed on 2026-11-16 and nothing replaced it, and the server builds from
-source with `docker compose up --build`, not from the registry images. Deploy by hand on the
+### Automatic (branch `ci/auto-deploy-dev`, restored 2026-11-19)
+
+Every push to `development` that passes verify is deployed by the `deploy` job. It pipes
+`deploy/deploy.sh` (restored from `a96bdb4`) over SSH. On the server the script:
+
+1. Takes a lock, so only one deploy runs at a time.
+2. Refuses to run if tracked files were edited on the server.
+3. Fetches the commit and backs up the DB to `<path>/.deploy/backups`, keeping the last 10.
+4. Checks out the commit and runs `docker compose -p repo build --pull && up -d`. The API runs
+   `prisma migrate deploy` when it starts.
+5. Health-checks the API, the web app and the `/uploads` proxy for up to 240 s.
+6. If the health check fails, **rolls back automatically** to the previous commit. Database
+   migrations are not reverted; restore from the backup if needed.
+
+The deploy builds from source on the server. It does not use the registry images from the
+publish stage.
+
+**Status: not active yet.** No deploy has ever completed: GitLab deployment #4 (2026-11-15) is
+still "Waiting". Before it can run, someone needs to do the following.
+- **A Maintainer** adds these protected CI/CD variables:
+  - `SSH_PRIVATE_KEY` (File): the deploy user's key, with no passphrase.
+  - `SSH_KNOWN_HOSTS` (File): `ssh-keyscan -p <port> <host>`, checked by hand.
+  - `DEPLOY_HOST`: the origin IP, not the Cloudflare name.
+  - `DEPLOY_USER`.
+  - `DEPLOY_PATH`.
+  - Optionally `DEPLOY_PORT`.
+- **The server owner** makes sure that:
+  - `DEPLOY_PATH` is a git clone whose `origin` fetches without a prompt (deploy token or deploy key).
+  - `.env` exists there, with the variables from § Environment variables (API).
+  - The SSH user is in the `docker` group.
+  - `git`, `curl` and `flock` are installed.
+  - The stack runs as compose project `repo` (`docker compose -p repo …`), because the script
+    hard-codes that name.
+
+Until then, `deploy` fails straight away with "Missing CI/CD variables: …", and the manual
+procedure below still applies.
+
+### Manual
+
+Use this when auto-deploy isn't set up, or to deploy something other than the `development`
+head. The server builds from source with `docker compose up --build`. Deploy by hand on the
 server, from the repo clone:
 
 ```bash

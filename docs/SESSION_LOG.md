@@ -32,14 +32,37 @@ and opened a merge request with the one that works.
    `gcr.io/kaniko-project/executor:v1.23.2-debug` on `nir-dev-ci`. A pipeline started by hand on a
    non-`development` branch builds with `--no-push`. Test pipeline #1803 passed (API about 3m40s,
    web about 5m). Merge request opened into `development` for Shuvashis Das to review, since it
-   reverses their dedicated-runner setup.
+   reverses their dedicated-runner setup (MR !13).
+
+**Auto-deploy (later in the session):** the user asked to "enable automatic deployment from GitLab
+development to dev.challenge.gov.bd".
+- History: the SSH deploy pipeline plus `deploy/deploy.sh` existed from session 45. Shuvashis
+  isolated DEV deployments in `a96bdb4` (2026-11-15). The user removed it in session 48
+  (2026-11-16); no reason is recorded. GitLab shows a single deployment (#4, 2026-11-15) still
+  "Waiting", so **no deploy has ever completed** and it's unknown whether the server-side setup was
+  ever finished.
+- Branch **`ci/auto-deploy-dev`**, stacked on `ci/kaniko-publish` to avoid conflicts with !13:
+  - Restores `deploy/deploy.sh` exactly as in `a96bdb4`, and restores `.gitattributes`
+    (`*.sh eol=lf`).
+  - Adds the `deploy`, `rollback` (manual) and `smoke` jobs from `a96bdb4` to the current pipeline.
+- Changes from the old version:
+  - `deploy` needs only the verify jobs, so the publish stage can't block it.
+  - A new pre-check fails with "Missing CI/CD variables: …" instead of a cryptic `install` error.
+- Checked locally: the YAML parses, `bash -n deploy/deploy.sh` passes, the variable check works in
+  `sh`, and all three files are stored with LF. **The real deploy is untested**: it needs the SSH
+  variables, which only a Maintainer can add.
+- Opened a separate MR into `development`; it should be merged after !13.
 
 **Decisions:**
 - Kaniko goes through a reviewed MR, not a direct push to `development`.
+- Auto-deploy also goes through an MR. It deploys a live site, reverses a removal from session 48,
+  and depends on secrets and server setup that this session can't see or test.
 - `--no-push` builds on other branches only run when started by hand, so MR pipelines stay
   verify-only as before.
 
-**Files modified:** `.gitlab-ci.yml` (on `ci/kaniko-publish` only); `docs/SETUP.md` (new
+**Files modified:** `.gitlab-ci.yml` (on `ci/kaniko-publish`, plus the deploy jobs on
+`ci/auto-deploy-dev`); `deploy/deploy.sh` and `.gitattributes` (restored, `ci/auto-deploy-dev`);
+`docs/SETUP.md` (new
 § GitLab CI pipeline; § Deploying to dev.challenge.gov.bd no longer claims there's no pipeline),
 `docs/ROADMAP.md` (supersede note on the CI-removal entry, known issue, tech-debt item),
 `docs/PROJECT_CONTEXT.md` (Architecture bullet), this log.
@@ -49,6 +72,11 @@ and opened a merge request with the one that works.
   **pushes** both images (registry auth hasn't been exercised by Kaniko yet).
 - Or, if the `nir-image-builder` runner comes back, decide whether to keep Kaniko or close the MR.
 - Possibly add a Kaniko layer cache (`--cache=true --cache-repo=$CI_REGISTRY_IMAGE/cache`).
+- Auto-deploy: a Maintainer adds `SSH_PRIVATE_KEY`, `SSH_KNOWN_HOSTS`, `DEPLOY_HOST`, `DEPLOY_USER`
+  and `DEPLOY_PATH`. The server owner checks the prerequisites in SETUP.md § Deploying to
+  dev.challenge.gov.bd: compose project name `repo`, a git clone that fetches without a prompt,
+  `.env`, and `docker` group membership. Then merge !13, then the auto-deploy MR, and watch the
+  first `deploy` + `smoke` run.
 
 ---
 

@@ -38,11 +38,13 @@
 
 - **GitLab CI/CD removed (2026-11-16)** — `.gitlab-ci.yml`, `deploy/deploy.sh` and `.gitattributes`
   deleted at the user's request. Pushing to GitLab `development` no longer deploys
-  dev.challenge.gov.bd; deploys are manual (see [SETUP.md](SETUP.md#deploying-to-devchallengegovbd-manual)).
+  dev.challenge.gov.bd; deploys are manual (see [SETUP.md](SETUP.md#deploying-to-devchallengegovbd)).
   The Dockerfiles and `docker-compose.yml` stay, since the server runs the stack with them.
   **Superseded 2026-11-17:** `.gitlab-ci.yml` came back as a build-and-publish pipeline (verify +
   registry images, no deploy), see [SETUP.md § GitLab CI pipeline](SETUP.md#gitlab-ci-pipeline-gitlab-ciyml).
-  `deploy/deploy.sh` is still gone and deploys are still manual.
+  **2026-11-19:** branch `ci/auto-deploy-dev` restores `deploy/deploy.sh` and the
+  deploy/rollback/smoke jobs. It is waiting on a merge and on a Maintainer adding the SSH
+  variables; until then deploys are manual.
 
 - **Richer challenge details page (2026-11-11)** — optional problem statement, eligibility,
   timeline phases, evaluation criteria, prize breakdown, resources, FAQ, additional info and

@@ -77,8 +77,9 @@ Documents/     Source requirement docs (ToR, SRS, policy, content spec) — not 
   Vercel's serverless model. Full setup, env vars, and gotchas: see
   [SETUP.md § Production Deployment](SETUP.md#production-deployment).
 - **GitLab CI** (`.gitlab-ci.yml`, on GitLab branches only): verifies builds and publishes API/web
-  images to `registry.a2i.gov.bd`. It does not deploy, and dev.challenge.gov.bd is still deployed
-  by hand. See [SETUP.md § GitLab CI pipeline](SETUP.md#gitlab-ci-pipeline-gitlab-ciyml).
+  images to `registry.a2i.gov.bd`. Branch `ci/auto-deploy-dev` restores SSH auto-deploy of
+  `development` to dev.challenge.gov.bd. It works only once a Maintainer adds the server secrets;
+  until then deploys stay manual. See [SETUP.md § GitLab CI pipeline](SETUP.md#gitlab-ci-pipeline-gitlab-ciyml).
 
 ## Technology Stack
 
