@@ -397,7 +397,9 @@ completed work)*
   rendering service (Litmus / Email on Acid), before relying on it.
 - **Landing page — open WCAG items (2026-11-17):** hero flow lines / pulsing "live" dots / header
   sparkle animate forever with no pause control (2.2.2 — they only stop under OS "reduce motion";
-  kept by decision). The search placeholder was fixed (`#66768F`, 4.61:1). Footer
+  kept by decision). The challenge popup's countdown light sweep (added 2026-11-19 at the user's
+  request) is in the same category: endless, with no pause control, and hidden under "reduce motion".
+  The popup itself can be closed. The search placeholder was fixed (`#66768F`, 4.61:1). Footer
   Privacy/Terms/Accessibility look like links but aren't; footer "Register as an innovator" points to
   `?role=mentor`. Real screen-reader and real-device passes still pending.
 

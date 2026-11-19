@@ -101,6 +101,13 @@ const config: Config = {
           '0%, 100%': { transform: 'scale(1) rotate(0deg)', opacity: '1' },
           '50%': { transform: 'scale(.7) rotate(20deg)', opacity: '.55' },
         },
+        // Challenge popup countdown: a soft band of light crosses left → right, then rests. The band
+        // is 1/3 of the box wide, so -120% starts it fully off the left edge and 320% ends it fully
+        // off the right edge (also where reduced-motion's 0.01ms single run leaves it: invisible).
+        'light-sweep': {
+          '0%': { transform: 'translateX(-120%) skewX(-20deg)' },
+          '55%, 100%': { transform: 'translateX(320%) skewX(-20deg)' },
+        },
       },
       animation: {
         'fade-up': 'fade-up 0.6s ease-out both',
@@ -110,6 +117,7 @@ const config: Config = {
         'flow': 'flow 26s linear infinite',
         'live-pulse': 'live-pulse 2s ease-out infinite',
         'twinkle': 'twinkle 1.8s ease-in-out infinite',
+        'light-sweep': 'light-sweep 3.6s ease-in-out infinite',
       },
     },
   },

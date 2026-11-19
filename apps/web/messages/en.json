@@ -80,8 +80,7 @@
         "days": "Days",
         "hours": "Hours",
         "minutes": "Minutes",
-        "seconds": "Seconds",
-        "aria": "Time left to apply: {days} days, {hours} hours, {minutes} minutes, {seconds} seconds"
+        "aria": "Time left to apply: {days} days, {hours} hours, {minutes} minutes"
       }
     },
     "news": {

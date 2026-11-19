@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X } from 'lucide-react';
+import { Clock, X } from 'lucide-react';
 import { Link, usePathname } from '@/i18n/navigation';
 import { useChallenges } from '@/hooks/use-content';
 import { challengeTimeLeftMs, pickPromotedChallenge, splitDuration } from '@/lib/challenge-dates';
@@ -13,16 +13,23 @@ import { textLang } from '@/lib/text-lang';
 const DISMISSED_KEY_PREFIX = 'nir-challenge-popup-dismissed:';
 
 /**
- * Live "Days : Hours : Minutes : Seconds" countdown to the end of the deadline day (UTC, the same
- * cutoff the API uses). Ticks every second while mounted; renders nothing once the deadline passes.
+ * Live "11 Days : 17 Hours : 24 Minutes" countdown to the end of the deadline day (UTC, the same
+ * cutoff the API uses), on a single line — no seconds (user request, 2026-11-19). Re-renders on
+ * each minute boundary; renders nothing once the deadline passes.
  */
 function Countdown({ deadline }: { deadline?: string | null }) {
   const t = useTranslations('home.challengePopup.countdown');
   const tx = useChallengeText();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
+    // The deadline falls on a minute boundary, so ticking on the minute keeps the display exact.
+    let id: number;
+    const tick = () => {
+      setNow(Date.now());
+      id = window.setTimeout(tick, 60_000 - (Date.now() % 60_000));
+    };
+    id = window.setTimeout(tick, 60_000 - (Date.now() % 60_000));
+    return () => window.clearTimeout(id);
   }, []);
   const left = challengeTimeLeftMs(deadline, now);
   if (left === null) return null;
@@ -32,23 +39,30 @@ function Countdown({ deadline }: { deadline?: string | null }) {
     ['days', parts.days],
     ['hours', parts.hours],
     ['minutes', parts.minutes],
-    ['seconds', parts.seconds],
   ] as const;
   return (
     <div
       role="timer"
       aria-label={t('aria', parts)}
-      className="inline-flex items-start gap-1 rounded-xl bg-amber/20 px-2.5 py-1.5 text-amber-deep"
+      className="relative isolate inline-flex shrink-0 items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-full bg-amber/25 px-2.5 py-1 text-amber-deep ring-1 ring-inset ring-amber/70"
     >
-      {units.map(([unit, value], i) => (
-        <span key={unit} className="flex items-start gap-1" aria-hidden="true">
-          {i > 0 && <span className="font-mono text-base font-bold leading-5">:</span>}
-          <span className="flex min-w-[2.25rem] flex-col items-center">
-            <span className="font-mono text-base font-bold leading-5 tabular-nums">{num.format(value)}</span>
-            <span className="text-[9px] font-semibold uppercase leading-3 tracking-[0.04em]">{t(unit)}</span>
+      {/* Light sweep: a soft white band that glides behind the text (z-index below it), so it only
+          brightens the background as it passes — readability is unaffected. Decorative; hidden
+          when the visitor prefers reduced motion. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-1/3 animate-light-sweep bg-gradient-to-r from-transparent via-white/60 to-transparent motion-reduce:hidden"
+      />
+      <Clock className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden="true" />
+      <span className="inline-flex items-baseline gap-1">
+        {units.map(([unit, value], i) => (
+          <span key={unit} className="inline-flex items-baseline gap-1" aria-hidden="true">
+            {i > 0 && <span className="font-mono text-sm font-bold">:</span>}
+            <span className="font-mono text-[15px] font-extrabold tabular-nums text-navy">{num.format(value)}</span>
+            <span className="text-[9px] font-bold uppercase tracking-[0.04em]">{t(unit)}</span>
           </span>
-        </span>
-      ))}
+        ))}
+      </span>
     </div>
   );
 }
@@ -176,9 +190,10 @@ export function ChallengePopup() {
               )}
 
               <div className="p-6 sm:p-8">
-                {/* "Open now" pill and the countdown share one row; they wrap only on narrow phones. */}
-                <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-2 rounded-full bg-nirgreen-deep px-3 py-1 text-xs font-semibold uppercase tracking-[0.04em] text-white">
+                {/* "Open now" pill and the countdown sit side by side on one row (sm and up); only on
+                    phones too narrow for both does the countdown drop below the pill. */}
+                <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+                <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-nirgreen-deep px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-white">
                   <span className="relative inline-block h-2 w-2 shrink-0 rounded-full bg-white" aria-hidden="true">
                     <span className="absolute -inset-1 animate-live-pulse rounded-full border-[1.5px] border-white" />
                   </span>

@@ -277,10 +277,30 @@ active), written twice.
   then scrolls.
 - **Popup = teaser, details page = full write-up (2026-11-11).** The running-challenge popup
   stays short on purpose (it interrupts the visitor): description clamped to 3 lines
-  (`line-clamp-3`) plus an amber live countdown (since 2026-11-16: `Days : Hours : Minutes :
-  Seconds`, ticking every second, from `challengeTimeLeftMs()` + `splitDuration()`; Bangla digits
-  on the Bangla site; `role="timer"` with a spoken aria-label; sits on the same row as the
-  "Challenge open now" pill, wrapping below it only on phone widths); everything else lives on
+  (`line-clamp-3`) plus an amber live countdown, all of it on one line:
+  `11 DAYS : 17 HOURS : 24 MINUTES`.
+  - **No seconds** (since 2026-11-19). It updates on each minute boundary. It's computed with
+    `challengeTimeLeftMs()` + `splitDuration()`.
+  - It uses Bangla digits on the Bangla site, and is a `role="timer"` with a spoken aria-label.
+  - **Emphasis (2026-11-19):**
+    - background `bg-amber/25` with a `ring-amber/70` outline;
+    - a small lucide `Clock` icon;
+    - numbers in **navy, extra-bold, 15px** (13.4:1 contrast); labels and icon in `amber-deep`
+      (5.1:1).
+  - **Light sweep (2026-11-19, user request):** a soft white band (`via-white/60`, 1/3 of the box
+    wide, skewed) crosses the countdown from left to right.
+    - Timing: `animate-light-sweep`, 3.6s per cycle, about 2s moving and 1.6s resting; keyframes are
+      in `tailwind.config.ts`.
+    - Placement: the band sits **behind** the text (the box is `isolate`, the band is `-z-10`), so
+      it only lightens the background as it passes and never covers the numbers.
+    - It's `motion-reduce:hidden`.
+    - Like the other endless landing-page animations, it has no pause control (see ROADMAP known
+      issues, WCAG 2.2.2).
+  - The pill and the countdown sit **side by side** on one row from `sm` up (`sm:flex-nowrap`,
+    both `shrink-0` and compact: 11px pill text, `text-sm` numbers, 9px labels). Only on phones too
+    narrow for both does the countdown drop below the pill.
+
+  Everything else lives on
   `/challenges/[slug]`. Don't add sections to the popup — add them to the details page.
   "Days left" everywhere comes from `challengeDaysLeft()` (`lib/challenge-dates.ts`), which
   mirrors the API's end-of-deadline-day-UTC rule (`0` = "Last day to apply", `null` once passed).

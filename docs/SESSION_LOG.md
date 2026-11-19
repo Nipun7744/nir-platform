@@ -84,6 +84,29 @@ development to dev.challenge.gov.bd".
 `docs/ROADMAP.md` (supersede note on the CI-removal entry, known issue, tech-debt item),
 `docs/PROJECT_CONTEXT.md` (Architecture bullet), this log.
 
+**Challenge popup countdown (user request, `components/layout/challenge-popup.tsx`):**
+- Seconds removed. The countdown now updates on each minute boundary instead of every second.
+- The `seconds` message key was dropped and the aria-label no longer reads out seconds (en + bn).
+- Each number now sits beside its label, all on one line (`11 DAYS : 17 HOURS : 19 MINUTES`).
+  Before, each label sat under its number.
+- Follow-up: the "Challenge open now" pill and the countdown still wrapped onto two rows, because
+  together they were wider than the popup. Both are now compact (11px pill text, `text-sm`
+  numbers, 9px labels) and stay side by side from `sm` up; they wrap only on narrow phones.
+- Follow-up: "make the countdown a little more focused":
+  - stronger amber background with an amber ring;
+  - a small clock icon;
+  - navy, extra-bold, 15px numbers.
+
+  Contrast is 13.4:1 for the numbers and 5.1:1 for the labels and icon. It adds about 22px of
+  width, which still fits beside the pill.
+- Follow-up: added a **light sweep**. A soft white band crosses the countdown behind the text
+  (3.6s cycle, `animate-light-sweep` in `tailwind.config.ts`). It's hidden under
+  `prefers-reduced-motion`. It's an endless animation with no pause control, so it's listed with
+  the other WCAG 2.2.2 items in ROADMAP.
+- Web `tsc` is clean, and the Tailwind build emits the keyframes, gradient, `isolate` and
+  reduced-motion rules. The user declined the browser check, so this hasn't been looked at in a
+  browser yet.
+
 **Local Git cleanup (end of session, local `master` only):**
 - **Stale worktree folders:** 13 `.git/worktrees/gl-*` folders (from temporary worktrees in
   sessions 40–54) made every `git fetch`/`push`/`worktree` command print "failed to delete …
