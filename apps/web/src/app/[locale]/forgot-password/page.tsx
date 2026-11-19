@@ -47,7 +47,7 @@ const secondaryButtonCls =
  * 2. verify: enter the 6-digit code (resend after the cooldown, with a fresh CAPTCHA);
  * 3. reset: new password + confirmation (the API gives 10 minutes for this step);
  * 4. done: the account is signed out everywhere — go to sign in.
- * Same accessibility conventions as sign-in / registration (docs/WCAG-2.2-Accessibility-Report.md):
+ * Same accessibility conventions as sign-in / registration (WCAG 2.2 AA; report in git commit 814b8e5):
  * own validation in the page language, errors next to fields, focus to the first problem, the
  * heading takes focus when a step replaces the card.
  */

@@ -84,6 +84,22 @@ development to dev.challenge.gov.bd".
 `docs/ROADMAP.md` (supersede note on the CI-removal entry, known issue, tech-debt item),
 `docs/PROJECT_CONTEXT.md` (Architecture bullet), this log.
 
+**Local Git cleanup (end of session, local `master` only):**
+- **Stale worktree folders:** 13 `.git/worktrees/gl-*` folders (from temporary worktrees in
+  sessions 40–54) made every `git fetch`/`push`/`worktree` command print "failed to delete …
+  Permission denied". Each held only a stale `ORIG_HEAD`, and the ACLs allowed deletion: Git for
+  Windows' own prune fails on them, but `Remove-Item` works. Removed them all;
+  `git worktree prune` is now clean. Workaround added to SETUP.md.
+- **WCAG reports deleted (user's decision):** `docs/WCAG-2.2-Accessibility-Report.md` and
+  `docs/WCAG-2.2-Landing-Page-Accessibility-Report.md` had been missing from the working tree since
+  at least session 52 (cause unknown). The user chose to delete them for good and fix the
+  references:
+  - ROADMAP.md (3 links) and UI_GUIDELINES.md (2 links) now give
+    `git show 814b8e5:docs/<file>` instead.
+  - The auth code comments (sign-in, forgot-password, auth-form, captcha-widget) cite commit
+    `814b8e5`.
+  - Not yet pushed: the files still exist on GitHub `master` and GitLab `development`.
+
 **Next steps:**
 - Get the MR reviewed and merged. Then check that the first `development` pipeline actually
   **pushes** both images (registry auth hasn't been exercised by Kaniko yet).

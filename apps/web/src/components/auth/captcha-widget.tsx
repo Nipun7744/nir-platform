@@ -88,7 +88,7 @@ type CaptchaStatus = 'idle' | 'done' | 'expired' | 'failed';
  * (4.1.3); a load failure offers a "Try again" button instead of only "refresh the page"; and the
  * provider widgets themselves are localised (bn/en). Turnstile is usually non-interactive and
  * reCAPTCHA / hCaptcha offer audio / accessibility alternatives, which is what 3.3.8 asks of a
- * CAPTCHA (see docs/WCAG-2.2-Accessibility-Report.md).
+ * CAPTCHA (WCAG 2.2 report: git commit 814b8e5).
  */
 export const CaptchaWidget = forwardRef<CaptchaHandle, Props>(function CaptchaWidget({ provider, siteKey, onToken, error, id = 'captcha' }, ref) {
   const t = useTranslations('auth');

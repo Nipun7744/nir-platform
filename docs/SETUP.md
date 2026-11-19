@@ -56,6 +56,14 @@ native local install.
   direct `psql -h localhost -p 5433` for ad hoc queries, both of which work fine from this
   environment.
 
+- **`git worktree prune` can't delete stale worktree folders on this machine (found 2026-11-19).**
+  After a temporary worktree is removed, Git sometimes leaves `.git/worktrees/<name>/ORIG_HEAD`
+  behind. From then on every fetch, push and worktree command prints
+  `failed to delete '.git/worktrees/<name>': Permission denied`. It isn't a real permission
+  problem (your account can modify the files), and the message is harmless. To clean up, check
+  that `git worktree list` doesn't show the folder, then delete it from PowerShell:
+  `Remove-Item .git\worktrees\<name> -Recurse -Force`, followed by `git worktree prune -v`.
+
 - **Don't run `npm run build` (`next build`) in `apps/web` while `npm run dev` is already running
   there.** Both write to the same `.next` directory; a production build clobbers the dev server's
   cache and it starts throwing `MODULE_NOT_FOUND` on unrelated routes until restarted. If you need

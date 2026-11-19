@@ -27,7 +27,7 @@ import { useLogin, useSecurityConfig } from '@/hooks/use-auth';
 type Errors = Partial<Record<'email' | 'password' | 'captcha', string>>;
 
 /**
- * Sign-in. Accessibility notes (WCAG 2.2 AA, 2026-11-17 — docs/WCAG-2.2-Accessibility-Report.md):
+ * Sign-in. Accessibility notes (WCAG 2.2 AA, 2026-11-17; full report in git commit 814b8e5):
  * the form validates itself (noValidate) so messages are in the page language, sit next to their
  * field and are tied to it with aria-describedby; the first problem gets focus. The submit button
  * is never `disabled` (a disabled button drops out of the tab order and explains nothing) — while

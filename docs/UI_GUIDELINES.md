@@ -255,9 +255,9 @@ active), written twice.
   field (after it in tab order). Strings are `auth.forgot*`/`reset*`/`newPassword*` etc. in both
   message files. Hidden from the challenge popup like the other auth routes.
   A site-wide "Skip to main content" link targets `<main id="main-content">`. Full details, criteria
-  and test results: [WCAG-2.2-Accessibility-Report.md](WCAG-2.2-Accessibility-Report.md).
-- **Landing-page accessibility (2026-11-17, no visual change):** see
-  [WCAG-2.2-Landing-Page-Accessibility-Report.md](WCAG-2.2-Landing-Page-Accessibility-Report.md).
+  and test results were in a report removed on 2026-11-19 (`git show 814b8e5:docs/WCAG-2.2-Accessibility-Report.md`).
+- **Landing-page accessibility (2026-11-17, no visual change):** full report removed on 2026-11-19
+  (`git show 814b8e5:docs/WCAG-2.2-Landing-Page-Accessibility-Report.md`).
   Patterns to keep: `focus-ring` on every control (navy backgrounds: `focus-visible:ring-white
   focus-visible:ring-offset-navy`); database text on `/bn` gets `lang={textLang(text, locale)}`
   (`lib/text-lang.ts`); card grids are `ul/li` with `li.flex` + card `min-w-0 flex-1` so sizing is

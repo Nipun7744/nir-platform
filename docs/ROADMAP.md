@@ -344,12 +344,14 @@
 
 - **(2026-11-17, session 49) Sign-in & registration made WCAG 2.2 AA compliant** (en + bn): labels,
   inline translated errors, focus management, contrast, target size, CAPTCHA/OTP accessibility,
-  skip link, page titles. Report: [WCAG-2.2-Accessibility-Report.md](WCAG-2.2-Accessibility-Report.md).
+  skip link, page titles. The report was removed from `docs/` on 2026-11-19; read it with
+  `git show 814b8e5:docs/WCAG-2.2-Accessibility-Report.md`.
 
 - **(2026-11-17, session 49) Landing page WCAG 2.2 AA work (en + bn), no visual change** — popup focus
   trap, search label + focus ring, headings/lists/landmarks, aria-current, translated labels, `lang`
   on English content, sticky-header focus offset. Not a full conformance claim — open items below.
-  Report: [WCAG-2.2-Landing-Page-Accessibility-Report.md](WCAG-2.2-Landing-Page-Accessibility-Report.md).
+  Report removed from `docs/` on 2026-11-19; read it with
+  `git show 814b8e5:docs/WCAG-2.2-Landing-Page-Accessibility-Report.md`.
 
 - **(2026-11-17, session 49) Admins can edit published innovations** — Platform/System admins can
   edit any innovation at any status (API + list/manage/edit pages); innovators unchanged. See
@@ -403,8 +405,8 @@ completed work)*
   yet `text-ink-500` etc. are used across the site — they generate no CSS, so that text inherits
   its parent's colour. Fixed on the auth pages only. Define the steps (checking contrast) or replace
   the classes. Also pending from the WCAG work: manual screen-reader passes (NVDA/JAWS/TalkBack/
-  VoiceOver) and an audit of the shared header/footer — see
-  [WCAG-2.2-Accessibility-Report.md §7](WCAG-2.2-Accessibility-Report.md#7-remaining-issues-and-recommendations).
+  VoiceOver) and an audit of the shared header/footer. Details are in §7 of the removed sign-in report:
+  `git show 814b8e5:docs/WCAG-2.2-Accessibility-Report.md`.
 
 - **Any Expert Evaluator can evaluate any SHORTLISTED innovation (found 2026-11-16).**
   `POST /evaluations` checks the stage, but not whether the evaluator is assigned to the

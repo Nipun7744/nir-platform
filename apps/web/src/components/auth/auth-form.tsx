@@ -8,7 +8,7 @@ import { ApiError } from '@/lib/api-client';
 
 /**
  * Accessible building blocks for the sign-in and registration forms (WCAG 2.2 AA, 2026-11-17 —
- * see docs/WCAG-2.2-Accessibility-Report.md):
+ * full report in git commit 814b8e5):
  *  - every control has a programmatic <label for>, an optional hint and an inline error, all
  *    wired up through aria-describedby / aria-invalid (1.3.1, 3.3.1, 3.3.2, 4.1.2);
  *  - input borders use ink-400 (5.7:1 on white) instead of ink-100 (1.3:1) (1.4.11);
