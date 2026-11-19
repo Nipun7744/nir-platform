@@ -64,6 +64,14 @@ native local install.
   that `git worktree list` doesn't show the folder, then delete it from PowerShell:
   `Remove-Item .git\worktrees\<name> -Recurse -Force`, followed by `git worktree prune -v`.
 
+- **Restart `npm run dev` after editing `apps/web/tailwind.config.ts` (found 2026-11-19).** The
+  running dev server keeps the theme it loaded at startup. New utility classes written in
+  components still get generated, but new `keyframes` / `animation` / `boxShadow` entries in the
+  config don't. The class is in the HTML with no matching CSS, so the effect silently doesn't
+  show (this is what hid the stats-strip glow, the popup light sweep and `shadow-glow`). To fix it,
+  stop the dev server, `rm -rf apps/web/.next`, and run `npm run dev` again. To confirm, fetch
+  the page's `/_next/static/css/...layout.css` and grep it for the new keyframe name.
+
 - **Don't run `npm run build` (`next build`) in `apps/web` while `npm run dev` is already running
   there.** Both write to the same `.next` directory; a production build clobbers the dev server's
   cache and it starts throwing `MODULE_NOT_FOUND` on unrelated routes until restarted. If you need

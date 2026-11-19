@@ -11,7 +11,10 @@ export function PartnersStrip() {
   const locale = useLocale();
 
   return (
-    <section className="border-t border-greenline bg-mist py-[88px]">
+    <section
+      className="border-t border-greenline bg-mist py-[88px]"
+      style={{ backgroundImage: 'radial-gradient(800px 260px at 50% 50%, rgba(255,255,255,.8), transparent 70%)' }}
+    >
       <div className="container-page">
         {/* The visible "Ecosystem partners" line is now the section's h2 (same classes, so it looks
             identical — preflight resets heading size/weight) and the logos are a list (2026-11-17). */}

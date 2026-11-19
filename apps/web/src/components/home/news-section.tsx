@@ -36,7 +36,7 @@ export function NewsSection() {
             <li key={post.id} className="flex">
             <Link
               href={`/news/${post.slug}`}
-              className="focus-ring group flex min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-greenline bg-white shadow-card transition hover:-translate-y-1 hover:shadow-[0_2px_6px_rgba(19,36,63,.08),0_20px_48px_-16px_rgba(19,36,63,.24)]"
+              className="focus-ring group flex min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-greenline bg-white shadow-card transition hover:-translate-y-1 hover:shadow-glow"
             >
               {post.coverImageUrl && (
                 <div className="relative aspect-video w-full overflow-hidden bg-mist-2">

@@ -7,6 +7,7 @@ import { useChallenges } from '@/hooks/use-content';
 import { pickPromotedChallenge } from '@/lib/challenge-dates';
 import { useChallengeText } from '@/lib/challenge-i18n';
 import { textLang } from '@/lib/text-lang';
+import { GlowSweep } from './glow-sweep';
 
 export function ChallengeBanner() {
   const t = useTranslations('home.challenge');
@@ -28,7 +29,14 @@ export function ChallengeBanner() {
     : challenge.organizingAgency.replace('Aspire to Innovate (a2i), ', 'a2i · ').toUpperCase();
 
   return (
-    <section className="bg-navy py-[88px]">
+    <section
+      className="relative isolate overflow-hidden bg-navy py-[88px]"
+      style={{
+        backgroundImage:
+          'radial-gradient(720px 420px at 0% 0%, rgba(0,168,107,.14), transparent 70%), radial-gradient(620px 380px at 100% 100%, rgba(247,183,51,.07), transparent 70%)',
+      }}
+    >
+      <GlowSweep />
       <div className="container-page grid items-center gap-12 lg:grid-cols-[1.2fr_0.8fr]">
         <div>
           <span className="inline-flex items-center gap-2 rounded-full bg-nirgreen-deep px-3 py-1 text-xs font-semibold uppercase tracking-[0.04em] text-white">
@@ -77,7 +85,7 @@ export function ChallengeBanner() {
             {challenge.acceptingSubmissions && (
               <Link
                 href={`/challenges/${challenge.slug}/submit`}
-                className="focus-ring rounded-full bg-nirgreen-deep px-[26px] py-[13px] text-base font-semibold text-white transition hover:bg-nirgreen-dark"
+                className="focus-ring rounded-full bg-nirgreen-deep px-[26px] py-[13px] text-base font-semibold text-white shadow-glow-sm transition hover:bg-nirgreen-dark"
               >
                 {tx.submitLabel(challenge, t('applyNow'))}
               </Link>
@@ -91,7 +99,7 @@ export function ChallengeBanner() {
           </div>
         </div>
 
-        <div className="relative hidden aspect-[4/3] overflow-hidden rounded-[18px] shadow-[0_2px_6px_rgba(19,36,63,.08),0_20px_48px_-16px_rgba(19,36,63,.24)] lg:block">
+        <div className="relative hidden aspect-[4/3] overflow-hidden rounded-[18px] shadow-[0_2px_6px_rgba(19,36,63,.08),0_24px_60px_-18px_rgba(0,168,107,.35)] ring-1 ring-white/10 lg:block">
           <Image src={challenge.bannerImageUrl || '/news/water-innovation-challenge-pilot.jpg'} alt="" fill className="object-cover" sizes="480px" />
         </div>
       </div>

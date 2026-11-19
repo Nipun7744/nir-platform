@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { usePublicStats } from '@/hooks/use-content';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
+import { GlowSweep } from './glow-sweep';
 
 export function StatsStrip() {
   const t = useTranslations('home.stats');
@@ -18,7 +19,12 @@ export function StatsStrip() {
   ];
 
   return (
-    <section className="bg-navy text-white" aria-label={tHome('statsLabel')}>
+    <section
+      className="relative isolate overflow-hidden bg-navy text-white"
+      style={{ backgroundImage: 'radial-gradient(760px 140px at 50% 0%, rgba(0,168,107,.12), transparent 75%)' }}
+      aria-label={tHome('statsLabel')}
+    >
+      <GlowSweep />
       <div className="container-page grid grid-cols-2 items-center gap-7 py-[26px] sm:grid-cols-3 lg:grid-cols-[auto_repeat(5,1fr)]">
         <div className="col-span-2 flex items-center gap-2.5 font-mono text-xs uppercase tracking-[0.12em] text-[#9DB3D6] sm:col-span-3 lg:col-span-1">
           <span className="relative inline-block h-2 w-2 shrink-0 rounded-full bg-flagred" aria-hidden="true">

@@ -304,6 +304,72 @@ active), written twice.
   `/challenges/[slug]`. Don't add sections to the popup — add them to the details page.
   "Days left" everywhere comes from `challengeDaysLeft()` (`lib/challenge-dates.ts`), which
   mirrors the API's end-of-deadline-day-UTC rule (`0` = "Last day to apply", `null` once passed).
+- **Landing-page glows (2026-11-19, user request)** — gentle ambient light only; the layout,
+  palette, typography and component styles are unchanged. All glows are **static** except the
+  stats strip's moving band (below), and they use brand green `#00A86B`, amber
+  `#F7B733` or white at low alpha.
+  - **Section ambient glows:** extra `radial-gradient` layers set via inline
+    `style.backgroundImage` on top of the section's existing `bg-*` colour:
+    - hero: green behind the graphic, faint amber bottom-left (added to its existing gradient).
+      **Plus drifting light (user request):** three soft radial orbs wander slowly on separate
+      loops (`animate-orb-a/b/c`, 22s / 28s / 18s, keyframes in `tailwind.config.ts`):
+      - the orbs are emerald 24% (behind the graphic), mint 16% (along the bottom) and lime 14%
+        (top centre);
+      - they're anchored to a centred `max-w-[1440px]` box so they track the content on wide
+        screens;
+      - they're kept out of the text column because the 12px `#007A4E` eyebrow only keeps
+        ≥ 4.5:1 under about 7% tint; below `lg` (text full width) the layer is `opacity-40`;
+      - `-z-10` inside the now-`isolate` hero; `motion-reduce:hidden`;
+      - browser-checked at desktop and 390px widths;
+      - it's the shared `components/home/drifting-orbs.tsx` (`<DriftingOrbs orbs={…} />`; each
+        section passes its own positions, colours and alphas). It's also used on **Quick Links**:
+        emerald 22% top-left, mint 20% bottom-right, lime 14% top-centre, `opacity-60` below `sm`.
+        The Quick Links cards became frosted (`bg-white/80 backdrop-blur-sm`, otherwise
+        unchanged) so the glow shows softly through them, with at most about 5% tint behind card
+        text;
+    - stats strip (navy): a green glow from the top centre, ≤12% alpha. **Plus a moving glow
+      (user request; strengthened the same day):** a band `max(36%, 220px)` wide drifts left →
+      right behind the stats. It's `animate-strip-sweep`: 7s per cycle, about 5.6s moving and
+      1.4s resting. The band has two layers:
+      - **Edge rails (the bright part):** a 2px lime → near-white (`#ECFDF5`) light line plus a
+        16px emerald (`#34D399`, 60%) bloom along the top and bottom edges. These sit inside the
+        26px padding, where there's no text.
+      - **Body haze:** an emerald (`#10B981`) radial glow capped at **16% alpha**. That's the most
+        the `#9DB3D6` labels can take and stay ≥ 4.5:1 (about 4.7:1 at the peak). Don't raise it,
+        and don't use `blur` on it (blur dilutes the haze to near-invisible, which made v1 hard to
+        see).
+      Browser-checked at desktop (2,400px) and phone (390px) widths.
+      The same moving glow is also on the **challenge banner**. It's the shared
+      `components/home/glow-sweep.tsx` (`<GlowSweep />`), placed as the first child of a section
+      that is `relative isolate overflow-hidden`. Reuse it for any other navy section rather than
+      copying the markup. Banner worst case: `#9DB3D6` labels at about 4.6:1 even if they sat
+      under the static green corner glow. The section is `relative isolate overflow-hidden` and the band is
+      `-z-10`. It's `motion-reduce:hidden`, and it's the one animated glow — listed under WCAG
+      2.2.2 in ROADMAP;
+    - featured innovations / partners (mist): a soft white highlight; featured also has a faint
+      green glow bottom-right;
+    - category grid: a faint green glow top-right;
+    - challenge banner (navy): green top-left (14%) and amber bottom-right (7%), plus the same
+      moving `<GlowSweep />` as the stats strip (see below).
+    The glows sit away from body text and stay low-alpha, so text contrast still passes AA (the
+    worst case, `#9DB3D6` on the stats strip's glow, is about 5.8:1).
+  - **Element glows:** Tailwind tokens `shadow-glow` (cards) and `shadow-glow-sm` (chips and CTAs)
+    in `tailwind.config.ts`.
+    - `hover:shadow-glow` on Quick Links and News cards;
+    - `hover:shadow-glow-sm` on category chips. The chips also **float toward the cursor** on hover
+      (user request): ±3px horizontally and ±2px vertically, depending on where the cursor is
+      over the chip, on top of a 3px lift and `scale(1.03)`.
+      - `onMouseMove` writes per-chip `--mx` / `--my` CSS variables, so each chip moves on its
+        own; `onMouseLeave` resets them.
+      - The transform is a Tailwind arbitrary `hover:[transform:…]`, with a 300ms
+        `cubic-bezier(.22,1,.36,1)` transition both ways.
+      - `motion-reduce:hover:transform-none` turns it off under reduced motion.
+      - `category-grid.tsx`;
+    - a resting `shadow-glow-sm` on the primary green CTAs (hero "Explore", banner "Apply");
+    - a 5px green halo on the Quick Links icon tile when its card is hovered;
+    - a green-tinted shadow plus `ring-white/10` on the challenge-banner image.
+  - `InnovationCard` is shared with `/repository`, so it wasn't changed. Reuse these tokens rather
+    than inventing new glow shadows.
 - **Challenge details page (`app/[locale]/challenges/[slug]/page.tsx`, redesigned 2026-11-11)** —
   NIR flat palette; header (status/featured/days-left pills, title, organizer) → banner (16:9 on
   mobile, 21:9 from `lg`) → `lg:grid-cols-[minmax(0,1fr)_320px]` two-column body (both children

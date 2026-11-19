@@ -70,6 +70,9 @@ const config: Config = {
       boxShadow: {
         soft: '0 1px 2px rgba(11,31,51,0.04), 0 8px 24px rgba(11,31,51,0.06)',
         card: '0 1px 3px rgba(11,31,51,0.06), 0 2px 8px rgba(11,31,51,0.05)',
+        // Landing-page glows (2026-11-19): soft brand-green light under hovered cards / chips / CTAs.
+        glow: '0 1px 3px rgba(11,31,51,0.06), 0 16px 36px -14px rgba(0,168,107,0.38)',
+        'glow-sm': '0 6px 16px -8px rgba(0,122,78,0.45)',
       },
       borderRadius: {
         xl2: '1.25rem',
@@ -108,6 +111,28 @@ const config: Config = {
           '0%': { transform: 'translateX(-120%) skewX(-20deg)' },
           '55%, 100%': { transform: 'translateX(320%) skewX(-20deg)' },
         },
+        // Landing stats strip: a glow band (max(36%, 220px) wide) drifts across, then rests briefly.
+        // -100% starts it off the left edge; 300% of its own width is past the right edge at any width.
+        'strip-sweep': {
+          '0%': { transform: 'translateX(-100%)' },
+          '80%, 100%': { transform: 'translateX(300%)' },
+        },
+        // Hero drifting light orbs: slow, independent loops (px offsets, so size doesn't matter).
+        'orb-a': {
+          '0%, 100%': { transform: 'translate(0, 0)' },
+          '33%': { transform: 'translate(-90px, 60px)' },
+          '66%': { transform: 'translate(40px, 110px)' },
+        },
+        'orb-b': {
+          '0%, 100%': { transform: 'translate(0, 0)' },
+          '25%': { transform: 'translate(140px, -40px)' },
+          '50%': { transform: 'translate(60px, -110px)' },
+          '75%': { transform: 'translate(-80px, -50px)' },
+        },
+        'orb-c': {
+          '0%, 100%': { transform: 'translate(0, 0)' },
+          '50%': { transform: 'translate(-160px, 70px)' },
+        },
       },
       animation: {
         'fade-up': 'fade-up 0.6s ease-out both',
@@ -118,6 +143,10 @@ const config: Config = {
         'live-pulse': 'live-pulse 2s ease-out infinite',
         'twinkle': 'twinkle 1.8s ease-in-out infinite',
         'light-sweep': 'light-sweep 3.6s ease-in-out infinite',
+        'strip-sweep': 'strip-sweep 7s cubic-bezier(.45,0,.55,1) infinite',
+        'orb-a': 'orb-a 22s ease-in-out infinite',
+        'orb-b': 'orb-b 28s ease-in-out infinite',
+        'orb-c': 'orb-c 18s ease-in-out infinite',
       },
     },
   },

@@ -8,6 +8,7 @@ import { Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ConfluenceGraphic } from './confluence-graphic';
 import { useGeneralSubmissionOpen } from '@/hooks/use-settings';
+import { DriftingOrbs } from './drifting-orbs';
 
 export function Hero() {
   const t = useTranslations('home');
@@ -22,12 +23,23 @@ export function Hero() {
 
   return (
     <section
-      className="relative overflow-hidden border-b border-greenline"
+      className="relative isolate overflow-hidden border-b border-greenline"
       style={{
         background:
-          'radial-gradient(1200px 500px at 85% -10%, rgba(0,168,107,.08), transparent 60%), linear-gradient(180deg, #FAFCFB 0%, #FFFFFF 100%)',
+          'radial-gradient(1200px 500px at 85% -10%, rgba(0,168,107,.08), transparent 60%), radial-gradient(640px 420px at 80% 60%, rgba(0,168,107,.07), transparent 70%), radial-gradient(560px 320px at -5% 105%, rgba(247,183,51,.07), transparent 70%), linear-gradient(180deg, #FAFCFB 0%, #FFFFFF 100%)',
       }}
     >
+      {/* Drifting green light (user request, 2026-11-19). The brighter two orbs stay on the right
+          (behind the graphic) and along the bottom edge, away from the 12px green eyebrow; below lg,
+          where text spans the full width, the layer is faded to 40%. */}
+      <DriftingOrbs
+        className="opacity-40 lg:opacity-100"
+        orbs={[
+          { place: '-right-24 top-[6%] w-[560px]', rgb: '0,168,107', alpha: 0.24, anim: 'animate-orb-a' },
+          { place: '-bottom-32 left-[35%] w-[420px]', rgb: '52,211,153', alpha: 0.16, anim: 'animate-orb-b' },
+          { place: '-top-28 left-[50%] w-[360px]', rgb: '163,230,53', alpha: 0.14, anim: 'animate-orb-c' },
+        ]}
+      />
       <div className="container-page grid items-center gap-10 py-[72px] pb-[88px] lg:grid-cols-[1.05fr_0.95fr]">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -77,7 +89,7 @@ export function Hero() {
           <div className="mt-[26px] flex flex-col gap-3.5 sm:flex-row sm:flex-wrap">
             <Link
               href="/repository"
-              className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-full bg-nirgreen-deep px-[26px] py-[13px] text-base font-semibold text-white transition hover:bg-nirgreen-dark hover:shadow-[0_8px_20px_-8px_rgba(0,122,78,0.5)] sm:w-auto"
+              className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-full bg-nirgreen-deep px-[26px] py-[13px] text-base font-semibold text-white shadow-glow-sm transition hover:bg-nirgreen-dark hover:shadow-[0_8px_20px_-8px_rgba(0,122,78,0.5)] sm:w-auto"
             >
               {t('exploreInnovations')}
             </Link>

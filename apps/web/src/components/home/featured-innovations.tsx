@@ -11,7 +11,13 @@ export function FeaturedInnovations() {
   const tHome = useTranslations('home');
 
   return (
-    <section className="bg-mist py-[88px]">
+    <section
+      className="bg-mist py-[88px]"
+      style={{
+        backgroundImage:
+          'radial-gradient(900px 360px at 12% 0%, rgba(255,255,255,.85), transparent 70%), radial-gradient(720px 320px at 100% 100%, rgba(0,168,107,.06), transparent 70%)',
+      }}
+    >
       <div className="container-page">
         <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
           <div className="max-w-[560px]">

@@ -121,7 +121,63 @@ development to dev.challenge.gov.bd".
     `git show 814b8e5:docs/<file>` instead.
   - The auth code comments (sign-in, forgot-password, auth-form, captcha-widget) cite commit
     `814b8e5`.
-  - Not yet pushed: the files still exist on GitHub `master` and GitLab `development`.
+  - Later pushed with everything else (see "Pushes" below).
+
+**Pushes:** GitHub `master` `dff42a9..302f678` (Vercel production auto-deploys). GitLab
+`development` `c61b8fc..3d7b5f0`, cherry-picked as usual.
+
+**Landing-page glows (user request, after the pushes):**
+- Added subtle **static** ambient glows: radial-gradient layers on the hero, stats strip, featured
+  innovations, category grid, challenge banner and partners sections.
+- Added green glow shadows on the hover/rest states of the cards, chips and primary CTAs, using the
+  new `shadow-glow` / `shadow-glow-sm` tokens.
+- Layout, palette, typography and component styles are unchanged. Details are in UI_GUIDELINES →
+  "Landing-page glows".
+- `InnovationCard` (shared with `/repository`) was left alone.
+- Web `tsc` is clean, and the Tailwind build emits the new classes. Not yet checked in a browser.
+- Follow-up: the user asked for a moving light on the stats strip. Added a blurred green band
+  (`animate-strip-sweep`, 8s cycle, peaking at 16% alpha) that drifts left → right behind the
+  numbers. It's hidden under `prefers-reduced-motion` and added to ROADMAP's WCAG 2.2.2 list.
+- **Bug: the glow didn't show in the browser.** The element rendered, but the served CSS had no
+  `strip-sweep`, `light-sweep` or `shadow-glow`. The dev server (started earlier in the
+  session) was still using the Tailwind theme it loaded at startup. Restarting it with a clean
+  `.next` fixed it: the served CSS now contains all three. Windows "Animation effects" is on, so
+  reduced motion wasn't the cause. Gotcha added to SETUP.md.
+- Follow-up: "make it significantly more visible". A plain brighter band would have pushed the
+  `#9DB3D6` labels to about 3.3:1, so the brightness moved to the edges:
+  - lime/white light rails with an emerald bloom along the top and bottom edges (no text there);
+  - an emerald body haze at the label-safe maximum (16%, about 4.7:1);
+  - a wider band (`max(36%, 220px)`) on a 7s cycle.
+  Checked in Chrome on the dev server: visible at desktop and 390px phone widths, smooth
+  left → right motion (sampled positions), and the `motion-reduce:hidden` rule is active.
+  Committed and pushed afterwards at the user's request.
+- Follow-up: the same moving glow was added to the **challenge banner**. The markup was extracted
+  into the shared `components/home/glow-sweep.tsx`, which both sections now use; the banner
+  section became `relative isolate overflow-hidden`. Checked in Chrome: visible on desktop and at
+  390px, smooth motion, text readable (worst-case label contrast is about 4.6:1). No Tailwind
+  config change, so no dev-server restart was needed.
+- Follow-up: **category chips float on hover** (`category-grid.tsx`). The hovered chip drifts
+  toward the cursor (±3px horizontally, ±2px vertically) with a 3px lift and 3% scale, using a
+  300ms soft ease-out, and eases back on mouse-leave. The per-chip CSS variables keep the chips
+  independent. It's off under reduced motion; it isn't an endless animation, so WCAG 2.2.2
+  doesn't apply.
+  - Checked in Chrome with a real mouse hover: the hovered chip measured `translate(2.1px, -4.07px)
+    scale(1.03)`, its neighbour was untouched, and it was back to `none` after the mouse left.
+- Follow-up: **hero drifting green light**. Three soft radial orbs (emerald, mint, lime) wander
+  on independent 18–28s loops behind the content.
+  - The first version was positioned relative to the full-width section, so on a wide window the
+    main orb drifted off to the far right. It's now anchored to a centred 1440px box and sits
+    behind the graphic.
+  - The orbs are kept out of the text column (the 12px green eyebrow is the contrast limit) and
+    faded to 40% below `lg`.
+  - Tailwind config changed, so the dev server was restarted.
+  - Checked in Chrome at desktop and 390px: all three animate (positions sampled over time), and
+    the text is readable.
+- Follow-up: the same moving glow was added to **Quick Links**. The orb markup was extracted from
+  the hero into the shared `components/home/drifting-orbs.tsx`, which both sections use. The Quick
+  Links cards are now frosted (`bg-white/80 backdrop-blur-sm`) so the light shows through.
+  Checked in Chrome: three orbs animating, glow visible around and through the cards, and the
+  hero's orbs still work after the refactor.
 
 **Next steps:**
 - Get the MR reviewed and merged. Then check that the first `development` pipeline actually
