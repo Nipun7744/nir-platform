@@ -558,7 +558,8 @@ it, Settings → CI/CD returns 404.
 ### Automatic (branch `ci/auto-deploy-dev`, restored 2026-11-19)
 
 Every push to `development` that passes verify is deployed by the `deploy` job. It pipes
-`deploy/deploy.sh` (restored from `a96bdb4`) over SSH. On the server the script:
+`deploy/deploy.sh` (restored from `a96bdb4`; the only change is clearer failure messages) over
+SSH. On the server the script:
 
 1. Takes a lock, so only one deploy runs at a time.
 2. Refuses to run if tracked files were edited on the server.
@@ -566,8 +567,22 @@ Every push to `development` that passes verify is deployed by the `deploy` job. 
 4. Checks out the commit and runs `docker compose -p repo build --pull && up -d`. The API runs
    `prisma migrate deploy` when it starts.
 5. Health-checks the API, the web app and the `/uploads` proxy for up to 240 s.
-6. If the health check fails, **rolls back automatically** to the previous commit. Database
-   migrations are not reverted; restore from the backup if needed.
+6. If the build or the health check fails, **rolls back automatically** to the previous commit.
+   The log and the job error say which one failed ("build or start failed" or "health check
+   failed"). Database migrations are not reverted; restore from the backup if needed.
+
+**Demo validation (2026-11-19):** the script was run locally against a demo git "server", with
+stand-ins for `docker`, `curl` and `flock` and fake demo values (no real host). All 10 scenarios
+passed:
+- normal deploy with a backup;
+- automatic rollback after a health-check failure, and after a build failure;
+- the manual `rollback` job;
+- backup pruning;
+- refusing on server edits, a missing `.env`, a held lock and an unknown commit;
+- every compose call using `-p repo`.
+
+The CI pre-check and SSH options were checked with the same demo values. Not covered: a real
+SSH connection, the real server, the real Docker build and the live smoke test.
 
 The deploy builds from source on the server. It does not use the registry images from the
 publish stage.

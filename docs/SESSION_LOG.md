@@ -51,7 +51,24 @@ development to dev.challenge.gov.bd".
 - Checked locally: the YAML parses, `bash -n deploy/deploy.sh` passes, the variable check works in
   `sh`, and all three files are stored with LF. **The real deploy is untested**: it needs the SSH
   variables, which only a Maintainer can add.
-- Opened a separate MR into `development`; it should be merged after !13.
+- Opened a separate MR into `development` (!14); it should be merged after !13.
+- **Deploy variables:** searched the repo, all history, the docs, env files and local SSH config.
+  None of the server values exist anywhere. `dev.challenge.gov.bd` is behind Cloudflare
+  (104.21.89.20 / 172.67.155.144), so `DEPLOY_HOST` must be the origin IP from the admin.
+  Shuvashis added `-p repo` in `a96bdb4`, so he likely runs the server.
+  - Generated a dedicated deploy key, `~/.ssh/nir_dev_deploy` on the user's PC (fingerprint
+    `SHA256:mcavDV3IoRqp0LwK7/2z5hJkwvowBESKTmMae72PlbI`). The private key is restricted to the
+    user's Windows account; it should be deleted once a Maintainer has stored it in GitLab.
+  - Still waiting on the admin for: origin IP, port, user, path (`docker compose ls`) and the
+    host-key fingerprints.
+- **Demo validation:** ran the real `deploy.sh` against a demo git "server", with stand-ins for
+  `docker`, `curl` and `flock` and fake values (`203.0.113.10`, `deploy`, `…/srv/nir/repo`). All
+  10 scenarios passed (see SETUP.md § Deploying to dev.challenge.gov.bd). The CI pre-check and SSH
+  options were checked in a sandbox `HOME`.
+- **Fixed in `deploy.sh`:** a build failure was logged as "health check failed". The script now
+  records which step failed ("build or start failed" / "health check failed") and uses it in the
+  rollback log line and the job's error. Re-ran all 10 scenarios: still passing, and the messages
+  are now correct.
 
 **Decisions:**
 - Kaniko goes through a reviewed MR, not a direct push to `development`.
